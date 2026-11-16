@@ -79,3 +79,15 @@ export const IconMenu = (p: SVGProps<SVGSVGElement>) => (
 export const IconLogout = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><path d="M15 4h4v16h-4" /><path d="M10 8l-4 4 4 4" /><path d="M6 12h10" /></svg>
 );
+export const IconImage = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="m4 18 5-5 3.5 3.5L15 14l5 5" /></svg>
+);
+export const IconVideo = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><rect x="6.5" y="2.5" width="11" height="19" rx="2.2" /><path d="m10.5 9.5 4 2.5-4 2.5Z" /></svg>
+);
+export const IconLink = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1" /><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" /></svg>
+);
+export const IconCalendar = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><rect x="3.5" y="5" width="17" height="15.5" rx="2" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>
+);

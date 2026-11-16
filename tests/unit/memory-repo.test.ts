@@ -18,7 +18,7 @@ const { catalogRules } = await import("@/lib/data/memory-repo");
 
 const consents = { terms: "v1", kvkk: "v1", privacy: "v1", marketing: false };
 const as = (who: "a" | "b") => { current = who; return new MemoryRepo(); };
-const params = (id = randomUUID()) => ({ clientRequestId: id, brandId: null, sector: "genel" as const, headline: "", primaryText: "Merhaba", description: "", rejectionMessage: null, demo: true, hourlyLimit: 100 });
+const params = (id = randomUUID()) => ({ clientRequestId: id, brandId: null, sector: "genel" as const, headline: "", primaryText: "Merhaba", description: "", rejectionMessage: null, demo: true, hourlyLimit: 100, mediaType: "image" as const, videoMeta: null, transcript: null, landingUrl: null });
 const result = async () => (await runPipeline({ input: { sector: "genel", headline: "", primaryText: "Merhaba", description: "", flags: { influencerPost: false, aiHumanCharacter: false, aiRealPersonCopy: false } }, rules: catalogRules(), ai: null })).result;
 
 describe("demo (memory) backend mirrors the database guarantees", () => {
@@ -89,5 +89,26 @@ describe("demo (memory) backend mirrors the database guarantees", () => {
     }
     const s = await r.startAnalysis(params());
     expect(s.ok ? "ok" : s.code).toBe("insufficient_credits");
+  });
+
+  it("stores video frames separately and serves each one only to its owner", async () => {
+    const r = as("a");
+    const videoMeta = { mime: "video/mp4" as const, durationSec: 12, width: 1080, height: 1920, sizeBytes: 5_000_000, frameCount: 2 };
+    const s = await r.startAnalysis({ ...params(), mediaType: "video", videoMeta, transcript: "Merhaba", landingUrl: "https://ornek.com/" });
+    if (!s.ok) throw new Error("start failed");
+    const meta = { mime: "image/jpeg" as const, width: 1080, height: 1920, sizeBytes: 3 };
+    expect(await r.uploadAsset(s.analysisId, new Uint8Array([1, 2, 3]), meta, "jpg", "x", { kind: "video_frame", frameIndex: 0, frameTimeMs: 300 })).toBe(true);
+    expect(await r.uploadAsset(s.analysisId, new Uint8Array([4, 5, 6]), meta, "jpg", "y", { kind: "video_frame", frameIndex: 1, frameTimeMs: 6000 })).toBe(true);
+    expect(await r.uploadAsset(s.analysisId, new Uint8Array([7]), meta, "jpg", "z", { kind: "video_frame", frameIndex: 1, frameTimeMs: 6000 })).toBe(false);
+    const d = (await r.getAnalysis(s.analysisId))!;
+    expect(d.mediaType).toBe("video");
+    expect(d.asset).toBeNull();
+    expect(d.frames.map((f) => [f.index, f.timeMs])).toEqual([[0, 300], [1, 6000]]);
+    expect(d.videoMeta?.durationSec).toBe(12);
+    expect(d.transcript).toBe("Merhaba");
+    expect(d.landingUrl).toBe("https://ornek.com/");
+    expect([...(await r.getAssetBytes(s.analysisId, 1))!.bytes]).toEqual([4, 5, 6]);
+    expect(await r.getAssetBytes(s.analysisId)).toBeNull();
+    expect(await as("b").getAssetBytes(s.analysisId, 0)).toBeNull();
   });
 });

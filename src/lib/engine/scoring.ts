@@ -1,4 +1,6 @@
+import { videoSubScores } from "./video";
 import { fold } from "./text";
+import type { LandingReport } from "./types";
 import type { AdInput, CreativeSubScore, EngineFinding, Level, ScoreBreakdown } from "./types";
 
 const SECTOR_BASE: Record<AdInput["sector"], { points: number; reason: string }> = {
@@ -161,8 +163,10 @@ export function creativeScore(input: AdInput, visual?: VisualAssessment | null):
     reason: rReasons.length ? `Dikkat: ${rReasons.join(", ")}. Daha sakin bir ton güven verir.` : "Ton sakin ve okunabilir.",
   });
 
-  // Image resolution (10) + aspect ratio (10)
-  if (input.image) {
+  // Image resolution (10) + aspect ratio (10); videos use duration/resolution/Reels format instead
+  if (input.video) {
+    parts.push(...videoSubScores(input));
+  } else if (input.image) {
     const minSide = Math.min(input.image.width, input.image.height);
     const res = minSide >= 1080 ? 10 : minSide >= 600 ? 6 : 2;
     parts.push({
@@ -195,15 +199,16 @@ export function creativeScore(input: AdInput, visual?: VisualAssessment | null):
   // Visual content (15): AI or neutral placeholder
   if (visual) {
     const v = Math.round(((visual.textDensity + visual.productVisibility + visual.brandConsistency) / 30) * 15);
-    parts.push({ key: "visual", label: "Görsel içerik (YZ incelemesi)", score: clamp(v, 0, 15), max: 15, reason: visual.notes });
+    parts.push({ key: "visual", label: input.video ? "Video içeriği (YZ incelemesi)" : "Görsel içerik (YZ incelemesi)", score: clamp(v, 0, 15), max: 15, reason: visual.notes });
   } else {
     parts.push({
       key: "visual",
-      label: "Görsel içerik",
+      label: input.video ? "Video içeriği" : "Görsel içerik",
       score: 9,
       max: 15,
-      reason:
-        "Görseldeki metin yoğunluğu ve ürün görünürlüğü bu modda otomatik incelenmedi; nötr puan verildi. Görselde metni kısa tutun, ürünü net gösterin.",
+      reason: input.video
+        ? "Video kareleri bu modda otomatik incelenmedi; nötr puan verildi. İlk 3 saniyede ürünü ve ana mesajı gösterin, ekran yazılarını kısa tutun."
+        : "Görseldeki metin yoğunluğu ve ürün görünürlüğü bu modda otomatik incelenmedi; nötr puan verildi. Görselde metni kısa tutun, ürünü net gösterin.",
     });
   }
 
@@ -215,6 +220,7 @@ export function buildBreakdown(
   input: AdInput,
   findings: EngineFinding[],
   visual?: VisualAssessment | null,
+  landing?: LandingReport | null,
 ): { breakdown: ScoreBreakdown; meta: ReturnType<typeof metaRisk>; legal: ReturnType<typeof legalRisk>; creative: number } {
   const meta = metaRisk(input.sector, findings);
   const legal = legalRisk(findings);
@@ -228,6 +234,8 @@ export function buildBreakdown(
       legal: { activeFindings: legal.count, unverifiedFlags: legal.unverified, reason: legal.reason },
       creative: creative.parts,
       visualReviewedByAi: Boolean(visual),
+      media: input.video ? "video" : "image",
+      landing: landing ?? null,
     },
   };
 }

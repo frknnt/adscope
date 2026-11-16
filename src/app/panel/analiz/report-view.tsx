@@ -1,13 +1,104 @@
 import Link from "next/link";
 import { HighlightedText } from "@/components/highlighted-text";
-import { IconAlert, IconExternal, IconInfo } from "@/components/icons";
+import { IconAlert, IconCheck, IconExternal, IconInfo, IconLink } from "@/components/icons";
 import { LevelPill, SEVERITY_LABEL, ScaleBar } from "@/components/risk";
 import { DOMAIN_LABEL, RULE_STATUS_LABEL, SECTOR_LABEL, formatDateTimeTr, formatDateTr } from "@/components/rule-status";
 import { Disclaimer } from "@/components/ui";
 import type { AnalysisDetail, FindingView } from "@/lib/data/types";
+import type { LandingReport } from "@/lib/engine/types";
+import { aspectLabel } from "@/lib/engine/video";
 import { CopyButton } from "../forms";
 
-const FIELD_LABEL: Record<string, string> = { headline: "Başlık", primary_text: "Ana metin", description: "Açıklama", image: "Görsel", general: "Genel" };
+const FIELD_LABEL: Record<string, string> = {
+  headline: "Başlık",
+  primary_text: "Ana metin",
+  description: "Açıklama",
+  image: "Görsel",
+  general: "Genel",
+  transcript: "Video metni",
+  video: "Video",
+  landing_page: "Açılış sayfası",
+};
+
+const sec = (n: number) => n.toLocaleString("tr-TR", { maximumFractionDigits: 1 });
+
+function CreativeMedia({ a }: { a: AnalysisDetail }) {
+  if (a.mediaType === "video") {
+    if (!a.frames.length) return <div className="grid aspect-[9/16] place-items-center rounded-xl border border-dashed border-line text-sm text-muted">Video kareleri silinmiş</div>;
+    const [first, ...rest] = a.frames;
+    return (
+      <figure className="flex flex-col gap-2">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={`/api/analyses/${a.id}/asset?frame=${first.index}`} alt={`Videonun ${sec(first.timeMs / 1000)}. saniyesindeki kare`} className="w-full rounded-xl border border-line bg-ink object-contain" width={first.width ?? undefined} height={first.height ?? undefined} />
+        {rest.length ? (
+          <ul className="grid grid-cols-4 gap-1.5" aria-label="Diğer video kareleri">
+            {rest.map((f) => (
+              <li key={f.index} className="flex flex-col items-center gap-0.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`/api/analyses/${a.id}/asset?frame=${f.index}`} alt={`${sec(f.timeMs / 1000)}. saniye`} loading="lazy" className="aspect-[9/16] w-full rounded-md border border-line bg-ink object-cover" />
+                <span className="text-[0.7rem] text-muted tabular">{sec(f.timeMs / 1000)} sn</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <figcaption className="text-[0.75rem] text-muted">Video yüklenmedi; tarayıcıda alınan {a.frames.length} kare incelendi.</figcaption>
+      </figure>
+    );
+  }
+  if (a.asset) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={`/api/analyses/${a.id}/asset`} alt="İncelenen reklam görseli" className="w-full rounded-xl border border-line bg-white object-contain" width={a.asset.width ?? undefined} height={a.asset.height ?? undefined} />;
+  }
+  return <div className="grid aspect-square place-items-center rounded-xl border border-dashed border-line text-sm text-muted">Görsel silinmiş</div>;
+}
+
+const LANDING_STATUS: Record<LandingReport["status"], string> = {
+  ok: "Sayfa okundu",
+  http_error: "Sayfa hata döndürdü",
+  blocked: "Adres güvenlik nedeniyle taranmadı",
+  unreachable: "Sayfaya ulaşılamadı",
+  not_html: "Bağlantı bir web sayfası değil",
+  too_large: "Sayfa çok büyük",
+  timeout: "Sayfa zamanında yanıt vermedi",
+  invalid_url: "Bağlantı geçersiz",
+};
+
+function LandingSection({ report }: { report: LandingReport }) {
+  const applicable = report.checks.filter((c) => c.ok !== null);
+  const passed = applicable.filter((c) => c.ok).length;
+  return (
+    <section aria-labelledby="acilis" className="rounded-2xl border border-line bg-card p-5 break-inside-avoid">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 id="acilis" className="flex items-center gap-2 font-display text-xl font-semibold"><IconLink className="size-5" /> Açılış sayfası taraması</h2>
+        <p className="text-[0.85rem] text-muted">
+          {LANDING_STATUS[report.status]} · <span className="tabular">{passed}/{applicable.length}</span> kontrol geçti · {formatDateTimeTr(report.fetchedAt)}
+        </p>
+      </div>
+      <p className="mt-2 break-all text-[0.85rem] text-ink-soft">
+        {report.finalUrl ?? report.requestedUrl}
+        {report.title ? <span className="block break-normal font-semibold text-ink">{report.title}</span> : null}
+      </p>
+      <ul className="mt-4 divide-y divide-line">
+        {report.checks.map((c) => (
+          <li key={c.key} className="flex gap-3 py-2.5">
+            <span
+              className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full text-[0.7rem] font-bold ${c.ok === null ? "bg-paper-2 text-muted" : c.ok ? "bg-green-tint text-green" : "bg-amber-tint text-amber"}`}
+              aria-hidden
+            >
+              {c.ok === null ? "–" : c.ok ? <IconCheck className="size-3.5" /> : "!"}
+            </span>
+            <span className="text-[0.92rem]">
+              <span className="font-semibold">{c.label}</span>
+              <span className="sr-only">: {c.ok === null ? "uygulanmadı" : c.ok ? "geçti" : "dikkat"}</span>
+              <span className="block break-words text-[0.84rem] text-ink-soft">{c.detail}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-[0.8rem] text-muted">Sayfa bir kez, sunucudan okundu; içeriği saklanmadı. Giriş, çerez onayı veya JavaScript ile yüklenen bölümler görülmemiş olabilir.</p>
+    </section>
+  );
+}
 
 const SEV_STYLE = {
   red: { dot: "bg-coral", ring: "border-coral/45", text: "text-coral-deep", tint: "bg-coral-tint" },
@@ -85,19 +176,25 @@ export function ReportView({ a, print = false }: { a: AnalysisDetail; print?: bo
       {/* Creative and text */}
       <section aria-labelledby="reklam" className="grid gap-6 md:grid-cols-[minmax(0,15rem)_1fr]">
         <h2 id="reklam" className="sr-only">İncelenen reklam</h2>
-        {a.asset ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/api/analyses/${a.id}/asset`} alt="İncelenen reklam görseli" className="w-full rounded-xl border border-line bg-white object-contain" width={a.asset.width ?? undefined} height={a.asset.height ?? undefined} />
-        ) : (
-          <div className="grid aspect-square place-items-center rounded-xl border border-dashed border-line text-sm text-muted">Görsel silinmiş</div>
-        )}
+        <CreativeMedia a={a} />
         <div className="sheet rounded-2xl border border-line p-5">
           {a.headline ? <p className="text-lg font-bold"><HighlightedText text={a.headline} marks={marks} /></p> : null}
           <p className="mt-2 whitespace-pre-line leading-relaxed"><HighlightedText text={a.primaryText} marks={marks} /></p>
           {a.description ? <p className="mt-3 text-[0.92rem] text-ink-soft"><HighlightedText text={a.description} marks={marks} /></p> : null}
+          {a.transcript ? (
+            <div className="mt-4 border-t border-dashed border-line pt-3">
+              <p className="text-[0.78rem] font-semibold text-muted">Videodaki konuşma ve ekran yazıları</p>
+              <p className="mt-1 whitespace-pre-line text-[0.94rem] leading-relaxed"><HighlightedText text={a.transcript} marks={marks} /></p>
+            </div>
+          ) : null}
           <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-dashed border-line pt-3 text-[0.8rem] text-muted">
             <span>{SECTOR_LABEL[a.sector]}</span>
-            {a.asset?.width ? <span className="tabular">{a.asset.width}×{a.asset.height} px</span> : null}
+            {a.mediaType === "video" && a.videoMeta ? (
+              <span className="tabular">
+                Video · {sec(a.videoMeta.durationSec)} sn · {a.videoMeta.width}×{a.videoMeta.height} px ({aspectLabel(a.videoMeta.width, a.videoMeta.height)})
+              </span>
+            ) : a.asset?.width ? <span className="tabular">{a.asset.width}×{a.asset.height} px</span> : null}
+            {a.landingUrl ? <span className="break-all">Açılış sayfası: {a.landingUrl}</span> : null}
             <span>{a.aiProvider && !a.aiProvider.startsWith("deterministic") ? "Kural motoru + yapay zekâ" : a.aiProvider?.includes("kullanılamadı") ? "Kural motoru (yapay zekâ yanıtı kullanılamadı)" : "Kural motoru (yapay zekâ kapalı)"}</span>
           </p>
         </div>
@@ -120,6 +217,8 @@ export function ReportView({ a, print = false }: { a: AnalysisDetail; print?: bo
           ))
         )}
       </section>
+
+      {bd?.landing ? <LandingSection report={bd.landing} /> : null}
 
       {/* Score breakdown */}
       {bd ? (

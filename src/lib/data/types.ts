@@ -1,4 +1,4 @@
-import type { AnalysisResult, AppealOut, ImageMeta, Level, RuleRecord } from "@/lib/engine/types";
+import type { AnalysisResult, AppealOut, ImageMeta, Level, RuleRecord, VideoMeta } from "@/lib/engine/types";
 import type { Sector } from "@/lib/rules/catalog";
 
 export interface SessionUser {
@@ -55,6 +55,7 @@ export interface AnalysisSummary {
   legalRiskLevel: Level | null;
   legalFindingCount: number | null;
   creativeScore: number | null;
+  mediaType: "image" | "video";
   createdAt: string;
   expiresAt: string | null;
 }
@@ -107,6 +108,24 @@ export interface AnalysisDetail extends AnalysisSummary {
   variants: VariantView[];
   appeal: (AppealOut & { createdAt: string }) | null;
   asset: { id: string; mime: string; width: number | null; height: number | null; sizeBytes: number } | null;
+  /** Still frames extracted in the browser from a video (the video itself is never uploaded). */
+  frames: FrameView[];
+  videoMeta: VideoMeta | null;
+  transcript: string | null;
+  landingUrl: string | null;
+}
+
+export interface FrameView {
+  index: number;
+  timeMs: number;
+  width: number | null;
+  height: number | null;
+}
+
+export interface AssetUploadOptions {
+  kind: "creative" | "video_frame";
+  frameIndex?: number;
+  frameTimeMs?: number;
 }
 
 export interface StartAnalysisParams {
@@ -119,6 +138,10 @@ export interface StartAnalysisParams {
   rejectionMessage: string | null;
   demo: boolean;
   hourlyLimit: number;
+  mediaType: "image" | "video";
+  videoMeta: VideoMeta | null;
+  transcript: string | null;
+  landingUrl: string | null;
 }
 
 export type StartAnalysisResult =
@@ -166,14 +189,15 @@ export interface DataRepo {
   listPurchases(): Promise<PurchaseRecord[]>;
 
   startAnalysis(params: StartAnalysisParams): Promise<StartAnalysisResult>;
-  uploadAsset(analysisId: string, bytes: Uint8Array, meta: ImageMeta, ext: string, sha256: string): Promise<boolean>;
+  uploadAsset(analysisId: string, bytes: Uint8Array, meta: ImageMeta, ext: string, sha256: string, opts?: AssetUploadOptions): Promise<boolean>;
   completeAnalysis(analysisId: string, result: AnalysisResult): Promise<"completed" | "already_completed" | "already_failed" | "insufficient_credits" | "error">;
   failAnalysis(analysisId: string, code: string): Promise<void>;
   recordAiRun(run: AiRunRecord): Promise<void>;
 
   listAnalyses(limit?: number): Promise<AnalysisSummary[]>;
   getAnalysis(id: string): Promise<AnalysisDetail | null>;
-  getAssetBytes(analysisId: string): Promise<{ bytes: Uint8Array; mime: string } | null>;
+  /** The creative image, or one video frame when frameIndex is given. */
+  getAssetBytes(analysisId: string, frameIndex?: number): Promise<{ bytes: Uint8Array; mime: string } | null>;
   deleteAnalysis(id: string): Promise<boolean>;
   saveAppeal(analysisId: string, appeal: AppealOut): Promise<boolean>;
 

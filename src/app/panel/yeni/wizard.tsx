@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
-import { IconAlert, IconUpload } from "@/components/icons";
+import { IconAlert, IconImage, IconUpload, IconVideo } from "@/components/icons";
 import { Button, Field, inputClass } from "@/components/ui";
+import { extractVideoFrames, VIDEO_MIME, videoErrorMessage, type ExtractedVideo } from "@/lib/video/extract-frames";
 
 type Sector = "genel" | "takviye_gida" | "estetik_klinik";
 type BrandOpt = { id: string; name: string; sector: Sector };
 
-const STEPS = ["Görsel", "Metin", "Sektör", "Beyanlar", "Ret mesajı", "Kontrol"] as const;
+const STEPS = ["Kreatif", "Metin", "Sektör", "Beyanlar", "Ret mesajı", "Kontrol"] as const;
+const FRAME_COUNT = 5;
+const MAX_VIDEO_SECONDS = 600;
 const MAX_BYTES = 5 * 1024 * 1024;
 const MIME = ["image/jpeg", "image/png", "image/webp"];
 
@@ -20,6 +23,22 @@ const SECTORS: { value: Sector; label: string; note: string }[] = [
 ];
 
 type ImageState = { file: File; url: string; width: number; height: number } | null;
+type VideoState = (ExtractedVideo & { name: string }) | null;
+type Media = "image" | "video";
+
+/** Accepts "ornek.com/kampanya" as well as full URLs; returns null when it cannot be a public web address. */
+function normalizeLandingUrl(raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(v) ? v : `https://${v}`);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (!u.hostname.includes(".") && u.hostname !== "localhost") return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
 type Phase = { kind: "editing" } | { kind: "submitting" } | { kind: "error"; message: string; retryable: boolean; analysisId?: string };
 
 function Counter({ value, soft, max }: { value: string; soft: number; max: number }) {
@@ -49,7 +68,13 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
   const shownStep = useRef(0);
 
   const [step, setStep] = useState(0);
+  const [media, setMedia] = useState<Media>("image");
   const [image, setImage] = useState<ImageState>(null);
+  const [video, setVideo] = useState<VideoState>(null);
+  const [videoBusy, setVideoBusy] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [landingUrl, setLandingUrl] = useState("");
+  const [landingError, setLandingError] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [headline, setHeadline] = useState("");
@@ -72,7 +97,32 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
   }, [step]);
 
   useEffect(() => () => { if (image) URL.revokeObjectURL(image.url); }, [image]);
+  useEffect(() => () => { video?.frames.forEach((f) => URL.revokeObjectURL(f.url)); }, [video]);
 
+  async function acceptVideo(file: File | undefined) {
+    setImageError(null);
+    if (!file) return;
+    if (!(VIDEO_MIME as readonly string[]).includes(file.type)) return setImageError("Yalnızca MP4, MOV veya WebM videolar seçilebilir.");
+    setVideoBusy(true);
+    try {
+      const v = await extractVideoFrames(file, { count: FRAME_COUNT, maxSeconds: MAX_VIDEO_SECONDS });
+      setVideo({ ...v, name: file.name });
+    } catch (e) {
+      setImageError(videoErrorMessage(e));
+    } finally {
+      setVideoBusy(false);
+    }
+  }
+
+  function acceptAny(file: File | undefined) {
+    if (!file) return;
+    if (file.type.startsWith("video/")) {
+      setMedia("video");
+      return void acceptVideo(file);
+    }
+    setMedia("image");
+    return void acceptFile(file);
+  }
   async function acceptFile(file: File | undefined) {
     setImageError(null);
     if (!file) return;
@@ -92,16 +142,25 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
   }
 
   function validate(s: number) {
-    if (s === 0 && !image) {
+    if (s === 0 && media === "image" && !image) {
       setImageError("Devam etmek için bir görsel seçin.");
       return false;
     }
+    if (s === 0 && media === "video" && !video) {
+      setImageError(videoBusy ? "Video kareleri hazırlanıyor, birkaç saniye bekle." : "Devam etmek için bir video seçin.");
+      return false;
+    }
     if (s === 1) {
+      let ok = true;
       if (!primaryText.trim()) {
         setTextError("Reklam ana metni gerekli.");
-        return false;
-      }
-      setTextError(null);
+        ok = false;
+      } else setTextError(null);
+      if (landingUrl.trim() && !normalizeLandingUrl(landingUrl)) {
+        setLandingError("Geçerli bir web adresi gir; örneğin https://ornek.com/kampanya");
+        ok = false;
+      } else setLandingError(null);
+      return ok;
     }
     return true;
   }
@@ -112,10 +171,12 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
   }
 
   async function submit() {
-    if (!image || phase.kind === "submitting") return;
+    if (phase.kind === "submitting") return;
+    if (media === "image" ? !image : !video) return;
     setPhase({ kind: "submitting" });
     const fd = new FormData();
-    fd.set("image", image.file);
+    if (media === "image" && image) fd.set("image", image.file);
+    if (media === "video" && video) video.frames.forEach((f, i) => fd.append("frames", f.blob, `kare-${i + 1}.jpg`));
     fd.set(
       "payload",
       JSON.stringify({
@@ -127,6 +188,13 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
         description,
         rejectionMessage: rejection.trim() || null,
         flags,
+        mediaType: media,
+        video:
+          media === "video" && video
+            ? { mime: video.mime, durationSec: video.durationSec, width: video.width, height: video.height, sizeBytes: video.sizeBytes, frameTimesMs: video.frames.map((f) => f.timeMs) }
+            : null,
+        transcript: media === "video" ? transcript.trim() || null : null,
+        landingUrl: normalizeLandingUrl(landingUrl),
       }),
     );
     try {
@@ -156,13 +224,16 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
       <div className="sheet mt-8 rounded-2xl border border-line px-6 py-12 text-center" role="status" aria-live="polite">
         <div className="mx-auto size-12 animate-spin rounded-full border-[3px] border-line border-t-coral motion-reduce:animate-none" aria-hidden />
         <p className="mt-6 font-display text-2xl font-semibold">Reklamın inceleniyor…</p>
-        <p className="mx-auto mt-2 max-w-md text-ink-soft">Görsel doğrulanıyor, kural kartları uygulanıyor, güvenli metin ve varyantlar hazırlanıyor. Genellikle 10–60 saniye sürer; bu sayfadan ayrılma.</p>
+        <p className="mx-auto mt-2 max-w-md text-ink-soft">
+          {media === "video" ? "Video kareleri doğrulanıyor" : "Görsel doğrulanıyor"}
+          {normalizeLandingUrl(landingUrl) ? ", açılış sayfası taranıyor" : ""}, kural kartları uygulanıyor, güvenli metin ve varyantlar hazırlanıyor. Genellikle 10–60 saniye sürer; bu sayfadan ayrılma.
+        </p>
       </div>
     );
   }
 
   const stepTitle = [
-    "Reklam görselini yükle",
+    media === "video" ? "Reklam videosunu seç" : "Reklam görselini yükle",
     "Reklam metnini gir",
     "Sektörü ve markayı seç",
     "İçerik beyanları",
@@ -206,39 +277,76 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
 
         {step === 0 ? (
           <div className="mt-5">
+            <div role="radiogroup" aria-label="Kreatif türü" className="inline-flex rounded-xl border border-line-strong bg-paper/60 p-1">
+              {([
+                ["image", "Görsel", IconImage],
+                ["video", "Video / Reels", IconVideo],
+              ] as const).map(([value, label, Icon]) => (
+                <label key={value} className="flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-[0.92rem] font-semibold text-ink-soft has-[:checked]:bg-ink has-[:checked]:text-paper has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-coral">
+                  <input type="radio" name="media" value={value} checked={media === value} onChange={() => { setMedia(value); setImageError(null); }} className="sr-only" />
+                  <Icon className="size-4.5" /> {label}
+                </label>
+              ))}
+            </div>
+
             <label
               htmlFor={`${ids}-file`}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
-              onDrop={(e) => { e.preventDefault(); setDragOver(false); void acceptFile(e.dataTransfer.files?.[0]); }}
-              className={`grid cursor-pointer place-items-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors ${dragOver ? "border-coral bg-coral-tint/40" : "border-line-strong bg-paper/60 hover:bg-paper-2/60"}`}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); acceptAny(e.dataTransfer.files?.[0]); }}
+              className={`mt-4 grid cursor-pointer place-items-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors ${dragOver ? "border-coral bg-coral-tint/40" : "border-line-strong bg-paper/60 hover:bg-paper-2/60"}`}
             >
-              {image ? (
+              {media === "image" && image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={image.url} alt="Yüklenecek reklam görselinin önizlemesi" className="max-h-72 rounded-lg border border-line object-contain shadow-sm" />
+              ) : media === "video" && videoBusy ? (
+                <span className="flex flex-col items-center gap-3 text-ink-soft" role="status">
+                  <span className="size-8 animate-spin rounded-full border-[3px] border-line border-t-coral motion-reduce:animate-none" aria-hidden />
+                  <span className="font-semibold text-ink">Videodan kareler alınıyor…</span>
+                </span>
+              ) : media === "video" && video ? (
+                <span className="flex max-w-full gap-2 overflow-x-auto pb-1">
+                  {video.frames.map((f, i) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={f.url} src={f.url} alt={`Kare ${i + 1}, ${(f.timeMs / 1000).toLocaleString("tr-TR", { maximumFractionDigits: 1 })}. saniye`} className="h-40 w-auto shrink-0 rounded-md border border-line object-cover shadow-sm" />
+                  ))}
+                </span>
               ) : (
                 <span className="flex flex-col items-center gap-3 text-ink-soft">
-                  <IconUpload className="size-8 text-ink" />
-                  <span className="font-semibold text-ink">Görseli sürükle bırak ya da seçmek için tıkla</span>
-                  <span className="text-[0.85rem]">JPG, PNG veya WebP · en fazla 5 MB · en kısa kenar en az 200 px</span>
+                  {media === "video" ? <IconVideo className="size-8 text-ink" /> : <IconUpload className="size-8 text-ink" />}
+                  <span className="font-semibold text-ink">{media === "video" ? "Videoyu sürükle bırak ya da seçmek için tıkla" : "Görseli sürükle bırak ya da seçmek için tıkla"}</span>
+                  <span className="text-[0.85rem]">
+                    {media === "video" ? "MP4, MOV veya WebM · en fazla 10 dakika · video cihazından çıkmaz" : "JPG, PNG veya WebP · en fazla 5 MB · en kısa kenar en az 200 px"}
+                  </span>
                 </span>
               )}
             </label>
             <input
               id={`${ids}-file`}
+              key={media}
               ref={fileInput}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept={media === "video" ? "video/mp4,video/quicktime,video/webm" : "image/jpeg,image/png,image/webp"}
               className="sr-only"
+              aria-label={media === "video" ? "Reklam videosu" : "Reklam görseli"}
               aria-describedby={imageError ? `${ids}-file-err` : undefined}
               aria-invalid={imageError ? true : undefined}
-              onChange={(e) => void acceptFile(e.target.files?.[0])}
+              onChange={(e) => (media === "video" ? void acceptVideo(e.target.files?.[0]) : void acceptFile(e.target.files?.[0]))}
             />
-            {image ? (
+            {media === "image" && image ? (
               <p className="mt-3 text-[0.88rem] text-ink-soft">
                 <span className="font-semibold text-ink">{image.file.name}</span> · <span className="tabular">{image.width}×{image.height}</span> px · <span className="tabular">{(image.file.size / 1024 / 1024).toLocaleString("tr-TR", { maximumFractionDigits: 1 })}</span> MB{" "}
                 <button type="button" className="ml-2 font-semibold text-coral-deep underline-offset-4 hover:underline" onClick={() => fileInput.current?.click()}>Değiştir</button>
               </p>
+            ) : null}
+            {media === "video" && video && !videoBusy ? (
+              <p className="mt-3 text-[0.88rem] text-ink-soft">
+                <span className="font-semibold text-ink">{video.name}</span> · <span className="tabular">{video.width}×{video.height}</span> px · <span className="tabular">{video.durationSec.toLocaleString("tr-TR", { maximumFractionDigits: 1 })}</span> sn · <span className="tabular">{video.frames.length}</span> kare analiz edilecek{" "}
+                <button type="button" className="ml-2 font-semibold text-coral-deep underline-offset-4 hover:underline" onClick={() => fileInput.current?.click()}>Değiştir</button>
+              </p>
+            ) : null}
+            {media === "video" ? (
+              <p className="mt-3 max-w-2xl text-[0.85rem] text-muted">Video dosyası yüklenmez. Tarayıcın videodan birkaç kare alır; yalnızca bu kareler ve süre, çözünürlük bilgisi gönderilir. Ses analiz edilmez, konuşmayı bir sonraki adımda yazabilirsin.</p>
             ) : null}
             {imageError ? <p id={`${ids}-file-err`} role="alert" className="mt-3 text-[0.9rem] font-medium text-coral-deep">{imageError}</p> : null}
           </div>
@@ -254,6 +362,23 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
             </Field>
             <Field label="Açıklama (isteğe bağlı)" htmlFor="description" hint={<Counter value={description} soft={30} max={255} />}>
               <input id="description" maxLength={255} value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
+            </Field>
+            {media === "video" ? (
+              <Field
+                label="Videodaki konuşma ve ekran yazıları (isteğe bağlı)"
+                htmlFor="transcript"
+                hint={<span>Dış ses, altyazı ve ekranda geçen vaatleri yaz; aynı kurallarla taranır. <Counter value={transcript} soft={3000} max={3000} /></span>}
+              >
+                <textarea id="transcript" rows={5} maxLength={3000} value={transcript} onChange={(e) => setTranscript(e.target.value)} className={inputClass} placeholder="Örn. “İlk 100 kişiye yüzde 50 indirim, hemen kaydır!”" />
+              </Field>
+            ) : null}
+            <Field
+              label="Açılış sayfası bağlantısı (isteğe bağlı)"
+              htmlFor="landingUrl"
+              error={landingError}
+              hint="Reklamın yönlendirdiği sayfa. Bir kez okunur; fiyat, indirim ve marka tutarlılığı kontrol edilir. Sayfa içeriği saklanmaz."
+            >
+              <input id="landingUrl" type="url" inputMode="url" autoComplete="url" maxLength={2048} value={landingUrl} onChange={(e) => setLandingUrl(e.target.value)} aria-invalid={landingError ? true : undefined} className={inputClass} placeholder="https://ornek.com/kampanya" />
             </Field>
           </div>
         ) : null}
@@ -316,17 +441,31 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
 
         {step === 5 ? (
           <div className="mt-5 grid gap-5 sm:grid-cols-[10rem_1fr]">
-            {image ? (
+            {media === "image" && image ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={image.url} alt="Reklam görseli önizlemesi" className="w-40 rounded-lg border border-line object-cover" />
             ) : null}
+            {media === "video" && video?.frames[0] ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={video.frames[0].url} alt="Videonun ilk karesi" className="w-40 rounded-lg border border-line object-cover" />
+            ) : null}
             <dl className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-[0.92rem]">
+              <dt className="text-muted">Kreatif</dt>
+              <dd>
+                {media === "video" && video ? (
+                  <>Video · <span className="tabular">{video.durationSec.toLocaleString("tr-TR", { maximumFractionDigits: 1 })}</span> sn · <span className="tabular">{video.frames.length}</span> kare</>
+                ) : (
+                  "Görsel"
+                )}
+              </dd>
               <dt className="text-muted">Sektör</dt><dd>{SECTORS.find((s) => s.value === sector)?.label}</dd>
               <dt className="text-muted">Başlık</dt><dd className="break-words">{headline || "—"}</dd>
               <dt className="text-muted">Ana metin</dt><dd className="line-clamp-4 break-words">{primaryText}</dd>
               <dt className="text-muted">Açıklama</dt><dd className="break-words">{description || "—"}</dd>
               <dt className="text-muted">Beyanlar</dt>
               <dd>{[flags.influencerPost && "Etkileyici", flags.aiHumanCharacter && "YZ karakter", flags.aiRealPersonCopy && "Dijital kopya"].filter(Boolean).join(", ") || "Yok"}</dd>
+              {media === "video" ? (<><dt className="text-muted">Video metni</dt><dd>{transcript.trim() ? "Var, taranacak" : "Yok"}</dd></>) : null}
+              <dt className="text-muted">Açılış sayfası</dt><dd className="break-all">{normalizeLandingUrl(landingUrl) ?? "Yok"}</dd>
               <dt className="text-muted">Ret mesajı</dt><dd>{rejection.trim() ? "Var, itiraz taslağı hazırlanacak" : "Yok"}</dd>
             </dl>
             <p className="text-[0.88rem] text-ink-soft sm:col-span-2">

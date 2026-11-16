@@ -5,7 +5,8 @@ export interface AiRequest {
   input: AdInput;
   /** Only rules the model may cite. Anything else in the response is dropped. */
   rules: Pick<RuleRecord, "id" | "title" | "description" | "riskyExamples" | "domain" | "status">[];
-  image?: { base64: string; mime: ImageMeta["mime"] } | null;
+  /** One image creative, or up to 4 frames of a video in time order. */
+  images?: { base64: string; mime: ImageMeta["mime"]; label?: string }[];
 }
 
 export interface AiRunMeta {

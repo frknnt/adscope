@@ -7,7 +7,7 @@ import { z } from "zod";
  */
 export const AiFindingSchema = z.object({
   rule_id: z.string().min(3).max(64),
-  field: z.enum(["headline", "primary_text", "description", "image"]),
+  field: z.enum(["headline", "primary_text", "description", "image", "transcript"]),
   matched_text: z.string().max(300).nullable(),
   explanation_tr: z.string().min(10).max(600),
   suggestion_tr: z.string().min(5).max(400),

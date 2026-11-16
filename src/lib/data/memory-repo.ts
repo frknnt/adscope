@@ -3,7 +3,7 @@ import { createHmac, randomUUID, scryptSync, timingSafeEqual } from "node:crypto
 import { dirname } from "node:path";
 import { cookies } from "next/headers";
 import { demoSessionSecret, retentionDefaultDays } from "@/lib/env";
-import type { AnalysisResult, AppealOut, ImageMeta, RuleRecord } from "@/lib/engine/types";
+import type { AnalysisResult, AppealOut, ImageMeta, RuleRecord, VideoMeta } from "@/lib/engine/types";
 import { RULE_CATALOG, type Sector } from "@/lib/rules/catalog";
 import { findPackage } from "@/lib/payments/packages";
 import type {
@@ -11,6 +11,7 @@ import type {
   AiRunRecord,
   AnalysisDetail,
   AnalysisSummary,
+  AssetUploadOptions,
   AuthResult,
   Brand,
   DataRepo,
@@ -55,7 +56,20 @@ interface StoredAnalysis {
   expiresAt: string;
   result: AnalysisResult | null;
   appeal: (AppealOut & { createdAt: string }) | null;
-  asset: { id: string; mime: string; width: number; height: number; sizeBytes: number; dataB64: string } | null;
+  asset: StoredAsset | null;
+  mediaType?: "image" | "video";
+  videoMeta?: VideoMeta | null;
+  transcript?: string | null;
+  landingUrl?: string | null;
+  frames?: (StoredAsset & { index: number; timeMs: number })[];
+}
+interface StoredAsset {
+  id: string;
+  mime: string;
+  width: number;
+  height: number;
+  sizeBytes: number;
+  dataB64: string;
 }
 interface Store {
   users: StoredUser[];
@@ -157,6 +171,7 @@ function summary(a: StoredAnalysis): AnalysisSummary {
     legalRiskLevel: a.result?.legal_risk_level ?? null,
     legalFindingCount: a.result?.legal_finding_count ?? null,
     creativeScore: a.result?.creative_score ?? null,
+    mediaType: a.mediaType ?? "image",
     createdAt: a.createdAt,
     expiresAt: a.expiresAt,
   };
@@ -324,6 +339,11 @@ export class MemoryRepo implements DataRepo {
         result: null,
         appeal: null,
         asset: null,
+        mediaType: p.mediaType,
+        videoMeta: p.mediaType === "video" ? p.videoMeta : null,
+        transcript: p.transcript,
+        landingUrl: p.landingUrl,
+        frames: [],
       };
       s.analyses.push(a);
       persist();
@@ -335,11 +355,21 @@ export class MemoryRepo implements DataRepo {
     return store().analyses.find((a) => a.id === id && a.userId === userId) ?? null;
   }
 
-  async uploadAsset(analysisId: string, bytes: Uint8Array, meta: ImageMeta) {
+  async uploadAsset(analysisId: string, bytes: Uint8Array, meta: ImageMeta, _ext?: string, _sha?: string, opts: AssetUploadOptions = { kind: "creative" }) {
     const u = await this.requireUser();
     const a = this.own(analysisId, u.id);
     if (!a) return false;
-    a.asset = { id: randomUUID(), mime: meta.mime, width: meta.width, height: meta.height, sizeBytes: meta.sizeBytes, dataB64: Buffer.from(bytes).toString("base64") };
+    const stored: StoredAsset = { id: randomUUID(), mime: meta.mime, width: meta.width, height: meta.height, sizeBytes: meta.sizeBytes, dataB64: Buffer.from(bytes).toString("base64") };
+    if (opts.kind === "video_frame") {
+      const index = opts.frameIndex ?? 0;
+      a.frames = a.frames ?? [];
+      if (a.frames.some((f) => f.index === index)) return false; // mirrors the unique index
+      a.frames.push({ ...stored, index, timeMs: opts.frameTimeMs ?? 0 });
+      a.frames.sort((x, y) => x.index - y.index);
+    } else {
+      if (a.asset) return false;
+      a.asset = stored;
+    }
     persist();
     return true;
   }
@@ -449,15 +479,21 @@ export class MemoryRepo implements DataRepo {
       })),
       appeal: a.appeal,
       asset: a.asset ? { id: a.asset.id, mime: a.asset.mime, width: a.asset.width, height: a.asset.height, sizeBytes: a.asset.sizeBytes } : null,
+      frames: (a.frames ?? []).map((f) => ({ index: f.index, timeMs: f.timeMs, width: f.width, height: f.height })),
+      videoMeta: a.videoMeta ?? null,
+      transcript: a.transcript ?? null,
+      landingUrl: a.landingUrl ?? null,
     };
   }
 
-  async getAssetBytes(analysisId: string) {
+  async getAssetBytes(analysisId: string, frameIndex?: number) {
     const u = await this.getUser();
     if (!u) return null;
     const a = this.own(analysisId, u.id);
-    if (!a?.asset) return null;
-    return { bytes: new Uint8Array(Buffer.from(a.asset.dataB64, "base64")), mime: a.asset.mime };
+    if (!a) return null;
+    const asset = frameIndex === undefined ? a.asset : (a.frames ?? []).find((f) => f.index === frameIndex);
+    if (!asset) return null;
+    return { bytes: new Uint8Array(Buffer.from(asset.dataB64, "base64")), mime: asset.mime };
   }
 
   async deleteAnalysis(id: string) {

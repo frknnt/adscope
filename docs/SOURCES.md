@@ -62,6 +62,17 @@ Takviye gıdalarda karşılaştırmalı reklam: Bakanlık duyurusu sağlık beya
 | TR-ESTETIK-FIYAT-KAMPANYA | requires_review | Sağlık Bakanlığı | — | — |
 | TR-RY-UCRETSIZ | draft | Mevzuat Bilgi Sistemi | — | — |
 
+## Sezon takvimi tarihleri (16.11.2026)
+
+| Tarih | Kaynak | Durum |
+|---|---|---|
+| Sevgililer Günü (14 Şubat), Dünya Kadınlar Günü (8 Mart), 23 Nisan, Öğretmenler Günü (24 Kasım), Yılbaşı, 11.11 | Sabit günler | Hesaplanır. |
+| Anneler Günü (Mayıs'ın 2. pazarı), Babalar Günü (Haziran'ın 3. pazarı), Efsane Cuma (Kasım'ın son cuması), Siber Pazartesi (Efsane Cuma'dan sonraki pazartesi) | Yerleşik kural | Hesaplanır. |
+| Ramazan Bayramı 2026: 20–22 Mart; 2027: 9–11 Mart (arife 8 Mart) | İkincil kaynaklar (yayımlanmış takvim siteleri, birbiriyle tutarlı) | **Doğrulanmadı.** Diyanet ve mevzuat.gov.tr bu ortamdan okunamadı. Arayüzde ve .ics'te uyarı var. |
+| Kurban Bayramı 2026: 27–30 Mayıs; 2027: 16–19 Mayıs (arife 15 Mayıs) | İkincil kaynaklar | **Doğrulanmadı.** |
+
+Takvimdeki uyum hatırlatmaları bulgu değildir; bağlı kural kartının durumu yanında gösterilir. 23 Nisan için çocuklara yönelik reklamlarla ilgili aktif kural kartı yoktur; arayüz bunu açıkça söyler ve uzman görüşü önerir.
+
 ## Ödeme sağlayıcıları (16.11.2026)
 
 | Sağlayıcı | Bulgu | Durum |

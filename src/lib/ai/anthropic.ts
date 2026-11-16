@@ -15,7 +15,8 @@ Kesin kurallar:
 - "Kesin onay", "hukuken uygundur", "reklam reddedilmez" gibi garanti ifadeleri kullanma.
 - safe_text: riskli ifadeleri çıkarılmış, doğal Türkçe, aynı ürünü anlatan güvenli bir ana metin.
 - variants: tam 5 adet, farklı tonlarda (Samimi, Kurumsal, Genç, WhatsApp / DM, Kısa ve net), çeviri kokmayan doğal Türkçe. Varyantlar kural kartlarındaki riskli ifadeleri içermemeli.
-- visual: görseldeki metin yoğunluğu (10 = az metin, ideal), ürün görünürlüğü ve marka tutarlılığı için 0-10 puan ve kısa Türkçe gerekçe.`;
+- visual: görseldeki metin yoğunluğu (10 = az metin, ideal), ürün görünürlüğü ve marka tutarlılığı için 0-10 puan ve kısa Türkçe gerekçe.
+- Video reklamlarda sana videodan alınmış kareler zaman sırasıyla verilir. Karelerdeki ekran yazılarını ve <transcript> içindeki konuşma metnini de kural kartlarına göre incele. Kare bulgularında field "image", konuşma metni bulgularında field "transcript" olmalı. visual puanında ilk karenin dikkat çekiciliğini de değerlendir.`;
 
 function buildUserText(req: AiRequest) {
   const cards = req.rules
@@ -26,8 +27,8 @@ function buildUserText(req: AiRequest) {
     .join("\n");
   const i = req.input;
   // User-provided strings are fenced as data.
-  const esc = (s: string) => s.replace(/<\/?ad[^>]*>/gi, "");
-  return `<rule_cards>\n${cards}\n</rule_cards>\n\n<ad>\n<sector>${i.sector}</sector>\n<headline>${esc(i.headline)}</headline>\n<primary_text>${esc(i.primaryText)}</primary_text>\n<description>${esc(i.description)}</description>\n<brand>${esc(i.brandName ?? "")}</brand>\n</ad>\n\nReklamı yalnızca yukarıdaki kural kartlarına göre analiz et ve şemaya uygun JSON döndür.`;
+  const esc = (s: string) => s.replace(/<\/?(ad|transcript|video|rule_cards)\b[^>]*>/gi, "");
+  return `<rule_cards>\n${cards}\n</rule_cards>\n\n<ad>\n<sector>${i.sector}</sector>\n<headline>${esc(i.headline)}</headline>\n<primary_text>${esc(i.primaryText)}</primary_text>\n<description>${esc(i.description)}</description>\n${i.video ? `<video duration_sec="${Math.round(i.video.durationSec)}" width="${i.video.width}" height="${i.video.height}" />\n<transcript>${esc(i.transcript ?? "")}</transcript>\n` : ""}<brand>${esc(i.brandName ?? "")}</brand>\n</ad>\n\nReklamı yalnızca yukarıdaki kural kartlarına göre analiz et ve şemaya uygun JSON döndür.`;
 }
 
 export class AnthropicProvider implements AiProvider {
@@ -48,8 +49,9 @@ export class AnthropicProvider implements AiProvider {
     if (!this.client) return { ok: false, reason: "not_configured", meta: meta() };
 
     const content: Anthropic.ContentBlockParam[] = [];
-    if (req.image) {
-      content.push({ type: "image", source: { type: "base64", media_type: req.image.mime, data: req.image.base64 } });
+    for (const img of (req.images ?? []).slice(0, 4)) {
+      if (img.label) content.push({ type: "text", text: img.label });
+      content.push({ type: "image", source: { type: "base64", media_type: img.mime, data: img.base64 } });
     }
     content.push({ type: "text", text: buildUserText(req) });
 

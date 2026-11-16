@@ -4,8 +4,8 @@ import { ButtonLink, Disclaimer } from "@/components/ui";
 export const metadata: Metadata = { title: "Nasıl çalışır? · AdScope" };
 
 const STEPS = [
-  { t: "Görseli yükle", d: "JPG, PNG veya WebP; en fazla 5 MB. Dosya türü yalnızca uzantıdan değil, dosyanın kendi imzasından kontrol edilir." },
-  { t: "Metni gir", d: "Ana metin, başlık ve açıklama. Meta'daki alanlarla aynı sırada." },
+  { t: "Görseli veya videoyu seç", d: "Görsel: JPG, PNG veya WebP, en fazla 5 MB; dosya türü dosyanın kendi imzasından kontrol edilir. Video/Reels: MP4, MOV veya WebM; video cihazından çıkmaz, tarayıcın beş kare alır ve yalnızca bu kareler gönderilir." },
+  { t: "Metni gir", d: "Ana metin, başlık ve açıklama. Videoda dış ses ve ekran yazılarını da yazabilirsin. İstersen açılış sayfası bağlantısını ekle; indirim, fiyat ve marka tutarlılığı kontrol edilir." },
   { t: "Sektörü seç", d: "Genel, takviye gıda veya estetik/klinik. Sektör paketi ilgili kural kartlarını ekler." },
   { t: "Beyanlarını işaretle", d: "Etkileyici paylaşımı mı, yapay zekâ ile üretilmiş insan karakteri var mı? Bu bilgiler görselden çıkarılamadığı için senden alınır." },
   { t: "Ret mesajı varsa yapıştır", d: "Daha önce reddedildiyse Meta'nın mesajını ekle; itiraz taslağı da hazırlansın." },
@@ -56,7 +56,7 @@ export default function HowItWorksPage() {
           <div>
             <h3 className="text-lg font-bold text-ink">Kreatif skoru (0–100)</h3>
             <p className="mt-2">
-              Yedi alt skorun toplamıdır: harekete geçirici çağrı (20), başlık (15), ana metin uzunluğu (15), okunabilirlik (15), görsel çözünürlüğü (10), format oranı (10) ve görsel değerlendirme (15). Görsel değerlendirme yapay zekâ ile yapılır; yapay zekâ kapalıyken nötr puan verilir ve bu raporda belirtilir.
+              Yedi alt skorun toplamıdır: harekete geçirici çağrı (20), başlık (15), ana metin uzunluğu (15), okunabilirlik (15), görsel çözünürlüğü (10), format oranı (10) ve görsel değerlendirme (15). Videoda çözünürlük ve format yerine video çözünürlüğü (5), süre (5) ve Reels formatı (10) puanlanır. Görsel değerlendirme yapay zekâ ile yapılır; yapay zekâ kapalıyken nötr puan verilir ve bu raporda belirtilir. Video ve açılış sayfası notları kreatif kalite önerisidir; Meta veya mevzuat riskini değiştirmez.
             </p>
           </div>
           <div>

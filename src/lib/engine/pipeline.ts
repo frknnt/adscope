@@ -1,10 +1,12 @@
 import type { AiProvider, AiResult } from "@/lib/ai/provider";
 import { buildAppeal } from "./appeal";
+import { landingChecks } from "./landing";
+import { videoFindings } from "./video";
 import { buildSafeText, buildVariants } from "./rewrite";
 import { runRuleEngine, severityFor } from "./rule-engine";
 import { buildBreakdown, type VisualAssessment } from "./scoring";
 import { fold, tidy } from "./text";
-import type { AdInput, AnalysisResult, EngineFinding, RuleRecord, VariantOut } from "./types";
+import type { AdInput, AnalysisResult, EngineFinding, LandingReport, RuleRecord, VariantOut } from "./types";
 
 export const ENGINE_VERSION = "adscope-engine/1.0.0";
 
@@ -17,6 +19,7 @@ function fieldValue(input: AdInput, field: string) {
   if (field === "headline") return input.headline;
   if (field === "primary_text") return input.primaryText;
   if (field === "description") return input.description;
+  if (field === "transcript") return input.transcript ?? "";
   return "";
 }
 
@@ -31,6 +34,7 @@ export function acceptAiFindings(input: AdInput, rules: RuleRecord[], ai: AiResu
     if (!rule || seen.has(rule.id)) continue;
     if (rule.status !== "active" && rule.status !== "requires_review") continue;
     if (f.field !== "image") {
+      // Text findings must quote the ad itself; a quote that is not there is dropped.
       if (!f.matched_text) continue;
       if (!fold(fieldValue(input, f.field)).includes(fold(f.matched_text))) continue;
     }
@@ -59,7 +63,8 @@ export async function runPipeline(params: {
   input: AdInput;
   rules: RuleRecord[];
   ai?: AiProvider | null;
-  imageBase64?: string | null;
+  /** The image creative, or a video's frames in time order. Sent to the AI provider only. */
+  images?: { base64: string; mime: "image/jpeg" | "image/png" | "image/webp"; label?: string }[];
 }): Promise<PipelineOutput> {
   const { input } = params;
   // Never let draft/retired rules into the engine.
@@ -79,9 +84,18 @@ export async function runPipeline(params: {
         domain: r.domain,
         status: r.status,
       })),
-      image: params.imageBase64 && input.image ? { base64: params.imageBase64, mime: input.image.mime } : null,
+      images: params.images ?? [],
     });
     findings = [...findings, ...acceptAiFindings(input, rules, ai, findings)];
+  }
+
+  // Video and landing page notes (creative_quality heuristics, never policy/legal violations).
+  findings = [...findings, ...videoFindings(input)];
+  let landingReport: LandingReport | null = null;
+  if (input.landing) {
+    const lc = landingChecks(input, input.landing);
+    landingReport = lc.report;
+    findings = [...findings, ...lc.findings];
   }
 
   const order = { red: 0, yellow: 1, info: 2 } as const;
@@ -97,7 +111,7 @@ export async function runPipeline(params: {
         }
       : null;
 
-  const { breakdown, meta, legal, creative } = buildBreakdown(input, findings, visual);
+  const { breakdown, meta, legal, creative } = buildBreakdown(input, findings, visual, landingReport);
 
   // Safe text: deterministic by default; AI text accepted only if it passes the rule re-check.
   const activeRules = rules.filter((r) => r.status === "active");

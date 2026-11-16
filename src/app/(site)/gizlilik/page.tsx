@@ -10,7 +10,8 @@ export default function PrivacyPage() {
       <h2>Topladığımız veriler</h2>
       <ul>
         <li><strong>Hesap verileri:</strong> e-posta adresi, şifrenin tek yönlü özeti, isteğe bağlı ad ve şirket adı.</li>
-        <li><strong>Reklam içerikleri:</strong> yüklediğiniz görsel, reklam metinleri, isteğe bağlı ret mesajı ve bunlardan üretilen rapor.</li>
+        <li><strong>Reklam içerikleri:</strong> yüklediğiniz görsel, reklam metinleri, isteğe bağlı ret mesajı ve bunlardan üretilen rapor. Video analizinde video dosyası yüklenmez; tarayıcınızın videodan aldığı en fazla altı kare, süre ve çözünürlük bilgisi ile yazdığınız video metni işlenir.</li>
+        <li><strong>Açılış sayfası bağlantısı:</strong> bağlantı verirseniz sayfa sunucumuzdan bir kez okunur. Sayfa metni yalnızca kontrol için kullanılır, saklanmaz; raporda bağlantı, sayfa başlığı ve kontrol sonuçları tutulur.</li>
         <li><strong>Kredi ve ödeme kayıtları:</strong> kredi hareketleri ve ödeme sağlayıcısından gelen sipariş numarası, paket ve tutar. Kart bilgileri AdScope&apos;a ulaşmaz.</li>
         <li><strong>Onay kayıtları:</strong> hangi metnin hangi sürümünü ne zaman onayladığınız.</li>
         <li><strong>Teknik kayıtlar:</strong> hata kodları ve süre ölçümleri. Bu kayıtlarda reklam içeriği, kişisel veri veya gizli anahtar tutulmaz.</li>

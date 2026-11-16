@@ -14,6 +14,9 @@
 | Demo satın alma | **Demo.** Yalnızca `APP_MODE=demo` iken görünür, kayıtlarda "Demo (ödeme alınmadı)" yazar. |
 | Bellek içi veri katmanı | **Demo.** Supabase değişkenleri yokken kullanılır; aynı kredi ve sahiplik kurallarını taklit eder, süreç yeniden başlayınca silinir. |
 | PDF rapor | Tarayıcının "PDF olarak kaydet" yazdırma akışı (yazdırmaya özel stil). Sunucu tarafı PDF üretimi yok. |
+| Video / Reels analizi | **Gerçek.** Kareler tarayıcıda çıkarılır, sunucuda imzasından doğrulanır, özel depoda saklanır. Tarayıcının açamadığı formatlar (çoğu zaman MOV/HEVC) için MP4 (H.264) önerilir. Ses ve konuşma otomatik çözümlenmez; kullanıcı yazar. |
+| Açılış sayfası taraması | **Gerçek.** Sunucu tarafında tek istek; JavaScript çalıştırılmaz, giriş/çerez onayı arkasındaki içerik görülmez. |
+| Sezon takvimi | **Hesaplanan.** Sabit ve kurala bağlı günler koddan hesaplanır. Ramazan ve Kurban Bayramı 2026–2027 tarihleri ikincil kaynaklardan alındı, **Diyanet'le doğrulanmadı**; 2028 ve sonrası eklenmedi. |
 | Saklama süresi temizliği | `/api/cron/retention` uç noktası hazır; zamanlayıcı (ör. Vercel Cron) kurulmadı. |
 
 ## Kabul kriterleri ve test karşılığı
@@ -33,10 +36,14 @@
 | Garanti ifadesi yok, uyarı her raporda | birim + e2e |
 | Mobil ve masaüstü, taşma yok | e2e `demo-mobile` (Pixel 7) ve masaüstü |
 | Klavye ve erişilebilirlik (axe, WCAG 2 A/AA ciddi/kritik ihlal yok) | e2e |
+| Video: yalnızca kareler yüklenir, kare sayısı/biçimi sunucuda doğrulanır | e2e `video-landing.spec.ts`, bellek testi, entegrasyon (kare indeksleri, RLS) |
+| Açılış sayfası: SSRF koruması, yönlendirme, zaman aşımı | `tests/unit/features.test.ts` (yerel fikstür sunucusu), e2e |
+| Açılış sayfası ve video notları ihlal sayılmaz (yalnızca kreatif kalite) | birim |
+| Sezon takvimi tarihleri, .ics biçimi, sektör süzgeci | birim + e2e |
 | Production build | `next build` temiz (uyarı yok) |
 | Veritabanı danışmanı | `supabase db advisors`: güvenlik/performans sorunu yok; yalnızca yeni veritabanında kullanılmamış indeks bilgileri |
 
-Son çalıştırma (16.11.2026): birim + entegrasyon 42/42, uçtan uca 53/53 (1 mobil klavye testi bilerek atlandı).
+Son çalıştırma (16.11.2026, video/açılış sayfası/takvim eklendikten sonra): birim + entegrasyon 65/65, uçtan uca 65/65 (demo masaüstü, demo mobil, Supabase masaüstü; 1 mobil klavye testi bilerek atlandı). Uzun süre açık kalan bir demo sunucusu yeniden kullanılırsa kayıt hız sınırı (IP başına 10 dakikada 20) dolabilir; temiz sunucuyla çalıştırın.
 
 ## Varsayımlar (doğrulanmalı)
 
@@ -45,7 +52,9 @@ Son çalıştırma (16.11.2026): birim + entegrasyon 42/42, uçtan uca 53/53 (1 
 3. Anthropic API verisinin model eğitiminde kullanılmadığı, sağlayıcının ticari koşullarına dayanıyor; sözleşme sürümü yayın öncesinde kontrol edilmeli.
 4. Yasal sayfalar (gizlilik, KVKK, koşullar) taslaktır; veri sorumlusu bilgisi yer tutucu.
 5. Saklama süresi varsayılanı 90 gün; kullanıcı 7–365 gün arası seçebilir.
-6. Görsel metni (OCR) yapay zekâ kapalıyken okunmaz; görseldeki ifadeler yalnızca yapay zekâ açıkken değerlendirilir.
+6. Görsel metni (OCR) yapay zekâ kapalıyken okunmaz; görseldeki ifadeler yalnızca yapay zekâ açıkken değerlendirilir. Aynısı video kareleri için de geçerli.
+7. Video için 5 kare, en uzun video 10 dakika ve yapay zekâya en fazla 4 kare gönderimi ürün kararıdır.
+8. Sezon takviminde hazırlık (yayından 14 gün önce), incelemeye gönderme (yayından 3 gün önce) ve dönem başına yayın süresi ürün varsayımıdır; Meta'nın inceleme süresi taahhüdü değildir.
 
 ## Üretime geçmeden önce
 
@@ -60,11 +69,13 @@ Son çalıştırma (16.11.2026): birim + entegrasyon 42/42, uçtan uca 53/53 (1 
 9. Bellek içi hız sınırlayıcı tek sunucu içindir; çok örnekli dağıtımda Postgres tabanlı saatlik sınır zaten devrede, dakikalık sınır için paylaşımlı bir depo (ör. Upstash) değerlendirilsin.
 10. Hata izleme (ör. Sentry) eklenirse reklam içeriği ve kişisel veri gönderilmeyecek şekilde filtrelensin.
 11. Alan adı, KVKK VERBİS yükümlülüğü ve fatura süreci netleşsin.
+12. Ramazan ve Kurban Bayramı tarihleri Diyanet'in resmî takviminden teyit edilsin, sonraki yıllar eklensin (`src/lib/calendar/season.ts` → `RELIGIOUS_HOLIDAYS`).
+13. Açılış sayfası taraması sunucunun ağından çıkar; üretimde çıkış trafiği bir egress proxy veya ayrı ağ üzerinden sınırlandırılabilir.
 
 ## Bitti
 
-Pazarlama sitesi (ana sayfa, nasıl çalışır, fiyatlandırma, kural kartları), giriş/kayıt ve onaylar, başlangıç ayarı, pano, 7 adımlı analiz sihirbazı, sonuç sayfası (3 skor, bulgular, kaynak bağlantıları, skor dökümü, güvenli metin, 5 varyant), yazdırılabilir rapor, itiraz asistanı, geçmiş ve silme, krediler ve defter, ayarlar ve hesap silme, gizlilik/KVKK/koşullar taslakları, demo modu, ödeme adaptörleri, webhook ve saklama uç noktaları.
+Video/Reels analizi, açılış sayfası taraması ve sezon takvimi (MVP sonrası). Pazarlama sitesi (ana sayfa, nasıl çalışır, fiyatlandırma, kural kartları), giriş/kayıt ve onaylar, başlangıç ayarı, pano, 7 adımlı analiz sihirbazı, sonuç sayfası (3 skor, bulgular, kaynak bağlantıları, skor dökümü, güvenli metin, 5 varyant), yazdırılabilir rapor, itiraz asistanı, geçmiş ve silme, krediler ve defter, ayarlar ve hesap silme, gizlilik/KVKK/koşullar taslakları, demo modu, ödeme adaptörleri, webhook ve saklama uç noktaları.
 
 ## Sonraya (backlog, arayüzde "Yakında")
 
-Video/Reels analizi, açılış sayfası taraması, Meta Reklam Kütüphanesi panosu, ajans çalışma alanı ve ekipler, sezon takvimi, Meta hesabı bağlama, gerçek kampanya verisi, Google Ads ve TikTok desteği, sunucu tarafı PDF, varyantları CSV olarak dışa aktarma, şifre sıfırlama ekranı.
+Meta Reklam Kütüphanesi panosu, ajans çalışma alanı ve ekipler, Meta hesabı bağlama, videoda otomatik konuşma çözümleme, gerçek kampanya verisi, Google Ads ve TikTok desteği, sunucu tarafı PDF, varyantları CSV olarak dışa aktarma, şifre sıfırlama ekranı.

@@ -8,6 +8,12 @@ Türk KOBİ'leri, e-ticaret markaları ve ajanslar için reklam ön kontrol arac
 
 Ayrıca her bulgu için kaynağı olan kural kartı ve düzeltme önerisi, güvenli metin, beş Türkçe varyant ve ret mesajı girilirse TR + EN itiraz taslağı üretir.
 
+MVP sonrası eklenenler:
+
+- **Video / Reels analizi.** Video dosyası sunucuya gönderilmez. Tarayıcı videodan 5 kare (JPEG, en uzun kenar 1080 px) alır, süreyi ve çözünürlüğü ölçer; yalnızca bunlar yüklenir. Kareler yapay zekâ açıksa görsel olarak değerlendirilir, kullanıcının yazdığı dış ses ve ekran yazıları aynı kural kartlarıyla taranır, format (9:16, süre, çözünürlük) kreatif skoruna yansır. Ses analiz edilmez.
+- **Açılış sayfası taraması.** Reklamın bağlantısı sunucudan bir kez, SSRF korumasıyla okunur (yalnızca herkese açık http/https; özel/yerel ağ adresleri, kimlik bilgili ve standart dışı portlu adresler reddedilir; her yönlendirme ve DNS çözümlemesi bağlantı anında yeniden denetlenir; 8 sn, 1,5 MB, yalnızca HTML). Reklamdaki indirim oranı, fiyat, marka, konu ve kampanya koşulları sayfayla karşılaştırılır; sayfa metni kural kartlarıyla da taranır. Sayfa içeriği saklanmaz, raporda yalnızca kontrol sonuçları tutulur.
+- **Türk sezon takvimi** (`/panel/takvim`). Önümüzdeki 12 ayın özel günleri; her biri için hazırlığa başlama, incelemeye gönderme ve yayın tarihleri, kreatif önerileri ve kural kartlarına bağlı uyum hatırlatmaları. Sektöre göre süzülür, `.ics` olarak takvime eklenir. Dini bayram tarihleri ikincil kaynaklardan alındı ve Diyanet takvimiyle doğrulanmadı; arayüzde bu açıkça yazar.
+
 > Risk değerlendirmesidir, hukuki görüş değildir. Ürün hiçbir çıktısında onay, hukuki uygunluk veya reddedilmeme garantisi vermez.
 
 Ayrıntılar:
@@ -88,6 +94,8 @@ npm run db:advisors            # Supabase güvenlik ve performans danışmanı
 
 Önceden kurulu bir Chromium kullanmak için `PW_CHROMIUM_PATH=/yol/chrome` verin.
 
+Demo e2e sunucusu `LANDING_SCAN_ALLOW_PRIVATE=true` ile açılır; böylece açılış sayfası testi 127.0.0.1 üzerindeki fikstür sunucusunu okuyabilir. Bu değişken `APP_MODE=production` veya `NODE_ENV=production` iken yok sayılır. Supabase projesindeki e2e koşusu bu değişken olmadan çalıştığı için açılış sayfası adımını atlar.
+
 ## Dağıtım (gizli önizleme)
 
 Önerilen: Vercel + Supabase Cloud.
@@ -102,9 +110,12 @@ npm run db:advisors            # Supabase güvenlik ve performans danışmanı
 ```
 src/app/(site)        pazarlama, kural kartları, yasal sayfalar
 src/app/(auth)        giriş, kayıt, sunucu eylemleri
-src/app/panel         panel, sihirbaz, rapor, itiraz, geçmiş, krediler, ayarlar
+src/app/panel         panel, sihirbaz, rapor, itiraz, geçmiş, krediler, ayarlar, sezon takvimi
 src/app/api           analiz, görsel, webhook, cron uç noktaları
-src/lib/engine        kural motoru, skorlama, güvenli metin, varyantlar, itiraz
+src/lib/engine        kural motoru, skorlama, güvenli metin, varyantlar, itiraz, video ve açılış sayfası kontrolleri
+src/lib/landing       açılış sayfasını SSRF korumalı okuyan sunucu modülü
+src/lib/video         tarayıcıda videodan kare çıkarma
+src/lib/calendar      sezon takvimi tarihleri ve .ics üretimi
 src/lib/rules         kural kartı kataloğu (tek doğru kaynak)
 src/lib/ai            sağlayıcıdan bağımsız yapay zekâ katmanı + Anthropic adaptörü
 src/lib/data          DataRepo arayüzü: Supabase ve bellek içi uygulamaları

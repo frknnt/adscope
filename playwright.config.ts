@@ -35,6 +35,8 @@ export default defineConfig({
       SUPABASE_SECRET_KEY: "",
       ANTHROPIC_API_KEY: "",
       DEMO_SESSION_SECRET: "e2e-only-secret-not-for-production-0123456789",
+      // Lets the landing page scan reach the fixture server on 127.0.0.1. Ignored in production.
+      LANDING_SCAN_ALLOW_PRIVATE: "true",
     },
   },
 });

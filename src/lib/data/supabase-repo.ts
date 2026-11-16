@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient, createUserClient } from "@/lib/supabase/server";
 import { siteUrl } from "@/lib/env";
-import type { AppealOut, RuleRecord } from "@/lib/engine/types";
+import type { AppealOut, RuleRecord, VideoMeta } from "@/lib/engine/types";
 import type { RuleCardDef, Sector } from "@/lib/rules/catalog";
 import { findPackage } from "@/lib/payments/packages";
 import type {
@@ -33,6 +33,7 @@ function toSummary(r: Row): AnalysisSummary {
     legalRiskLevel: (r.legal_risk_level as AnalysisSummary["legalRiskLevel"]) ?? null,
     legalFindingCount: (r.legal_finding_count as number) ?? null,
     creativeScore: (r.creative_score as number) ?? null,
+    mediaType: r.media_type === "video" ? "video" : "image",
     createdAt: r.created_at as string,
     expiresAt: (r.expires_at as string) ?? null,
   };
@@ -251,10 +252,29 @@ export class SupabaseRepo implements DataRepo {
       return { ok: false, code: "error" };
     }
     const row = (Array.isArray(data) ? data[0] : data) as { analysis_id: string; status: AnalysisSummary["status"]; created: boolean };
+    if (row.created && (p.mediaType !== "image" || p.transcript || p.landingUrl)) {
+      // Users have no UPDATE grant on analyses; the server sets the media fields right after creation.
+      const { error: updErr } = await this.admin()
+        .from("analyses")
+        .update({ media_type: p.mediaType, video_meta: p.videoMeta, transcript: p.transcript, landing_url: p.landingUrl })
+        .eq("id", row.analysis_id)
+        .eq("user_id", u.id);
+      if (updErr) {
+        await this.failAnalysis(row.analysis_id, "start_failed");
+        return { ok: false, code: "error" };
+      }
+    }
     return { ok: true, analysisId: row.analysis_id, status: row.status, created: row.created };
   }
 
-  async uploadAsset(analysisId: string, bytes: Uint8Array, meta: Parameters<DataRepo["uploadAsset"]>[2], ext: string, sha256: string) {
+  async uploadAsset(
+    analysisId: string,
+    bytes: Uint8Array,
+    meta: Parameters<DataRepo["uploadAsset"]>[2],
+    ext: string,
+    sha256: string,
+    opts: Parameters<DataRepo["uploadAsset"]>[5] = { kind: "creative" },
+  ) {
     const u = await this.requireUser();
     const path = `${u.id}/${analysisId}/${crypto.randomUUID()}.${ext}`;
     // Upload with the USER client so storage ownership policies are enforced.
@@ -272,8 +292,16 @@ export class SupabaseRepo implements DataRepo {
       width: meta.width,
       height: meta.height,
       sha256,
+      kind: opts.kind,
+      frame_index: opts.kind === "video_frame" ? (opts.frameIndex ?? 0) : null,
+      frame_time_ms: opts.kind === "video_frame" ? (opts.frameTimeMs ?? 0) : null,
     });
-    return !insErr;
+    if (insErr) {
+      // Do not leave an orphaned object behind.
+      await (await this.db()).storage.from(BUCKET).remove([path]);
+      return false;
+    }
+    return true;
   }
 
   async completeAnalysis(analysisId: string, result: Parameters<DataRepo["completeAnalysis"]>[1]) {
@@ -306,7 +334,7 @@ export class SupabaseRepo implements DataRepo {
   async listAnalyses(limit = 100) {
     const { data } = await (await this.db())
       .from("analyses")
-      .select("id,status,failure_code,sector,headline,primary_text,meta_risk_score,meta_risk_level,legal_risk_level,legal_finding_count,creative_score,created_at,expires_at")
+      .select("id,status,failure_code,sector,headline,primary_text,meta_risk_score,meta_risk_level,legal_risk_level,legal_finding_count,creative_score,media_type,created_at,expires_at")
       .order("created_at", { ascending: false })
       .limit(limit);
     return (data ?? []).map(toSummary);
@@ -324,8 +352,19 @@ export class SupabaseRepo implements DataRepo {
         .order("position"),
       db.from("generated_variants").select("*").eq("analysis_id", id).order("kind").order("position"),
       db.from("appeal_drafts").select("*").eq("analysis_id", id).maybeSingle(),
-      db.from("analysis_assets").select("id,mime_type,width,height,size_bytes").eq("analysis_id", id).maybeSingle(),
+      db.from("analysis_assets").select("id,kind,frame_index,frame_time_ms,mime_type,width,height,size_bytes").eq("analysis_id", id),
     ]);
+    const assets = (asset ?? []) as Row[];
+    const creative = assets.find((x) => x.kind === "creative") ?? null;
+    const frames = assets
+      .filter((x) => x.kind === "video_frame")
+      .map((x) => ({
+        index: x.frame_index as number,
+        timeMs: (x.frame_time_ms as number) ?? 0,
+        width: (x.width as number) ?? null,
+        height: (x.height as number) ?? null,
+      }))
+      .sort((x, y) => x.index - y.index);
     const fv: FindingView[] = (findings ?? []).map((f: Row) => {
       const rv = f.rule_versions as Row | null;
       return {
@@ -389,15 +428,27 @@ export class SupabaseRepo implements DataRepo {
             createdAt: appeal.created_at,
           }
         : null,
-      asset: asset
-        ? { id: asset.id, mime: asset.mime_type, width: asset.width, height: asset.height, sizeBytes: asset.size_bytes }
+      asset: creative
+        ? {
+            id: creative.id as string,
+            mime: creative.mime_type as string,
+            width: (creative.width as number) ?? null,
+            height: (creative.height as number) ?? null,
+            sizeBytes: creative.size_bytes as number,
+          }
         : null,
+      frames,
+      videoMeta: (a.video_meta as VideoMeta | null) ?? null,
+      transcript: a.transcript ?? null,
+      landingUrl: a.landing_url ?? null,
     };
   }
 
-  async getAssetBytes(analysisId: string) {
+  async getAssetBytes(analysisId: string, frameIndex?: number) {
     const db = await this.db();
-    const { data: asset } = await db.from("analysis_assets").select("storage_path,mime_type").eq("analysis_id", analysisId).maybeSingle();
+    let q = db.from("analysis_assets").select("storage_path,mime_type").eq("analysis_id", analysisId);
+    q = frameIndex === undefined ? q.eq("kind", "creative") : q.eq("kind", "video_frame").eq("frame_index", frameIndex);
+    const { data: asset } = await q.maybeSingle();
     if (!asset) return null;
     // Download with the user client: storage policies decide.
     const { data, error } = await db.storage.from(BUCKET).download(asset.storage_path);

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { IconAppeal, IconPlus } from "@/components/icons";
+import { IconAppeal, IconCalendar, IconPlus } from "@/components/icons";
+import { daysUntil, istanbulToday, phaseOf, upcomingEvents } from "@/lib/calendar/season";
 import { ButtonLink } from "@/components/ui";
 import { getRepo } from "@/lib/data";
 import { requirePanelUser } from "@/app/panel/guard";
@@ -14,6 +15,8 @@ export default async function DashboardPage() {
   const completed = analyses.filter((a) => a.status === "completed");
   const highRisk = completed.filter((a) => a.metaRiskLevel === "high" || a.legalRiskLevel === "high").length;
   const name = profile?.displayName?.split(" ")[0];
+  const today = istanbulToday();
+  const nextSeason = upcomingEvents({ from: today, days: 120, sector: profile?.defaultSector ?? null })[0] ?? null;
 
   return (
     <div>
@@ -53,7 +56,18 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      <section className="mt-10 grid gap-4 md:grid-cols-2">
+      <section className="mt-10 grid gap-4 md:grid-cols-3">
+        {nextSeason ? (
+          <Link href={`/panel/takvim#${nextSeason.key}`} className="group rounded-2xl border border-line bg-card p-5 no-underline hover:border-line-strong">
+            <span className="flex items-center gap-2 font-bold text-ink"><IconCalendar className="size-5 text-coral-deep" /> Sıradaki dönem: {nextSeason.name}</span>
+            <span className="mt-1.5 block text-[0.93rem] text-ink-soft">
+              <span className="tabular">{Math.max(0, daysUntil(nextSeason.start, today))}</span> gün kaldı.{" "}
+              {phaseOf(nextSeason, today) === "yayinda" || phaseOf(nextSeason, today) === "incelemeye-gonder"
+                ? "Reklam dönemi başladı ya da çok yakın; yayındaki reklamlarını şimdi kontrol et."
+                : `Reklamları en geç ${new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${nextSeason.submitBy}T12:00:00Z`))} tarihinde incelemeye gönder.`}
+            </span>
+          </Link>
+        ) : null}
         <Link href="/panel/itiraz" className="group rounded-2xl border border-line bg-card p-5 no-underline hover:border-line-strong">
           <span className="flex items-center gap-2 font-bold text-ink"><IconAppeal className="size-5 text-coral-deep" /> Reklamın reddedildi mi?</span>
           <span className="mt-1.5 block text-[0.93rem] text-ink-soft">Ret mesajını yapıştır; itiraz mı yoksa yeni reklam mı daha mantıklı, söyleyelim ve TR + EN taslak hazırlayalım.</span>

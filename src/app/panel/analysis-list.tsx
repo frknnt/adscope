@@ -21,7 +21,7 @@ export function AnalysisList({ items, showDelete = false }: { items: AnalysisSum
               {a.headline || a.primaryText.slice(0, 80) || "Başlıksız reklam"}
             </Link>
             <p className="mt-0.5 text-[0.82rem] text-muted">
-              {SECTOR_LABEL[a.sector]} · <time dateTime={a.createdAt}>{formatDateTimeTr(a.createdAt)}</time>
+              {a.mediaType === "video" ? "Video · " : ""}{SECTOR_LABEL[a.sector]} · <time dateTime={a.createdAt}>{formatDateTimeTr(a.createdAt)}</time>
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">

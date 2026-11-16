@@ -177,10 +177,26 @@ export default async function HomePage() {
             </dl>
           </div>
           <div className="rounded-2xl border border-paper/15 p-6">
-            <p className="font-semibold">Yakında</p>
-            <p className="mt-1 text-sm text-paper/75">Bu özellikler henüz çalışmıyor; MVP kapsamı dışında.</p>
+            <p className="font-semibold">Yeni</p>
+            <ul className="mt-3 space-y-3 text-[0.95rem] text-paper/90">
+              {[
+                ["Video ve Reels analizi", "Video cihazından çıkmaz; tarayıcı birkaç kare alır. Kareler, dış ses metni ve format (9:16, süre, çözünürlük) incelenir."],
+                ["Açılış sayfası taraması", "Reklamdaki indirim, fiyat ve marka sayfada da aynı mı? Sayfa bir kez okunur, içeriği saklanmaz."],
+                ["Türk sezon takvimi", "Özel günler için hazırlık ve incelemeye gönderme tarihleri, dönemin uyum hatırlatmaları ve takvime ekleme."],
+              ].map(([t, d]) => (
+                <li key={t} className="border-b border-paper/10 pb-3">
+                  <span className="flex items-center justify-between gap-3">
+                    <span className="font-semibold">{t}</span>
+                    <span className="rounded-full bg-coral-deep px-2 py-0.5 text-[0.7rem] font-bold uppercase tracking-wide text-paper">Yeni</span>
+                  </span>
+                  <span className="mt-1 block text-[0.85rem] leading-relaxed text-paper/75">{d}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-6 font-semibold">Yakında</p>
+            <p className="mt-1 text-sm text-paper/75">Bu özellikler henüz çalışmıyor.</p>
             <ul className="mt-4 space-y-2.5 text-[0.95rem] text-paper/90">
-              {["Video ve Reels kanca analizi", "Landing page uyumu", "AB rakip ilham panosu (Meta Ad Library)", "Ajans çalışma alanları ve ekip", "Türk sezon takvimi", "Meta reklam hesabı bağlama", "Google Ads ve TikTok politikaları"].map((x) => (
+              {["AB rakip ilham panosu (Meta Ad Library)", "Ajans çalışma alanları ve ekip", "Meta reklam hesabı bağlama", "Google Ads ve TikTok politikaları"].map((x) => (
                 <li key={x} className="flex items-center justify-between gap-3 border-b border-paper/10 pb-2.5">
                   <span>{x}</span>
                   <span className="rounded-full bg-paper/10 px-2 py-0.5 text-[0.7rem] font-semibold uppercase tracking-wide">Yakında</span>

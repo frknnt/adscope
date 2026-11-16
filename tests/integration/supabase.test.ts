@@ -194,4 +194,34 @@ describe.skipIf(!reachable)("Supabase: auth, RLS, storage, credits", () => {
     expect((data ?? []).some((r) => r.status === "draft")).toBe(false);
     expect((data ?? []).length).toBeGreaterThan(10);
   });
+
+  it("video analyses keep frames per analysis and enforce media constraints", async () => {
+    const run = await startAnalysis(a.id);
+    const id = run.analysis_id;
+    // A video row must carry its metadata; users cannot set media fields themselves.
+    const noMeta = await admin().from("analyses").update({ media_type: "video" }).eq("id", id);
+    expect(noMeta.error).not.toBeNull();
+    const byUser = await a.client.from("analyses").update({ transcript: "x" }).eq("id", id).select();
+    expect(byUser.data ?? []).toHaveLength(0);
+    const meta = { mime: "video/mp4", durationSec: 12, width: 1080, height: 1920, sizeBytes: 1000, frameCount: 2 };
+    const ok = await admin().from("analyses").update({ media_type: "video", video_meta: meta, transcript: "Merhaba", landing_url: "https://ornek.com/" }).eq("id", id);
+    expect(ok.error).toBeNull();
+    const badUrl = await admin().from("analyses").update({ landing_url: "javascript:alert(1)" }).eq("id", id);
+    expect(badUrl.error).not.toBeNull();
+
+    const row = (i: number) => ({ analysis_id: id, user_id: a.id, storage_path: `${a.id}/${id}/${randomUUID()}.jpg`, mime_type: "image/jpeg", size_bytes: 10, width: 1080, height: 1920, sha256: "a".repeat(64), kind: "video_frame", frame_index: i, frame_time_ms: i * 1000 });
+    expect((await admin().from("analysis_assets").insert([row(0), row(1)])).error).toBeNull();
+    expect((await admin().from("analysis_assets").insert(row(1))).error).not.toBeNull(); // one row per frame index
+    expect((await admin().from("analysis_assets").insert({ ...row(2), kind: "creative" })).error).not.toBeNull(); // creative has no frame index
+    const frames = await a.client.from("analysis_assets").select("frame_index").eq("analysis_id", id).order("frame_index");
+    expect(frames.data?.map((f) => f.frame_index)).toEqual([0, 1]);
+    expect((await b.client.from("analysis_assets").select("id").eq("analysis_id", id)).data ?? []).toHaveLength(0);
+
+    // Landing and transcript findings are accepted by complete_analysis.
+    const result = await engineResult();
+    result.findings.push({ ...result.findings[0], rule_version_id: null, domain: "creative_quality", severity: "info", field: "landing_page", matched_text: null, origin: "heuristic" });
+    expect((await admin().rpc("complete_analysis", { p_analysis_id: id, p_result: result })).data).toBe("completed");
+    const fields = await a.client.from("findings").select("field").eq("analysis_id", id);
+    expect(fields.data?.some((f) => f.field === "landing_page")).toBe(true);
+  });
 });

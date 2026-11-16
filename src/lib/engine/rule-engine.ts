@@ -1,10 +1,16 @@
 import { findMatches, fold } from "./text";
 import type { AdInput, EngineFinding, Field, RuleRecord, Severity } from "./types";
 
-const TEXT_FIELDS: { key: Field; get: (i: Pick<AdInput, "headline" | "primaryText" | "description">) => string }[] = [
+type EngineInput = Pick<AdInput, "headline" | "primaryText" | "description" | "flags" | "transcript" | "landing">;
+
+// Order matters: a rule reports its first match, so the ad's own fields come before the
+// video transcript and the landing page.
+const TEXT_FIELDS: { key: Field; get: (i: EngineInput) => string }[] = [
   { key: "headline", get: (i) => i.headline },
   { key: "primary_text", get: (i) => i.primaryText },
   { key: "description", get: (i) => i.description },
+  { key: "transcript", get: (i) => i.transcript ?? "" },
+  { key: "landing_page", get: (i) => (i.landing?.status === "ok" ? `${i.landing.title} . ${i.landing.h1.join(" . ")} . ${i.landing.text}` : "") },
 ];
 
 export function severityFor(rule: Pick<RuleRecord, "status" | "riskLevel">): Severity {
@@ -14,8 +20,8 @@ export function severityFor(rule: Pick<RuleRecord, "status" | "riskLevel">): Sev
   return "info";
 }
 
-function hasAdLabel(input: Pick<AdInput, "headline" | "primaryText" | "description">) {
-  const all = fold(`${input.headline} ${input.primaryText} ${input.description}`);
+function hasAdLabel(input: EngineInput) {
+  const all = fold(`${input.headline} ${input.primaryText} ${input.description} ${input.transcript ?? ""}`);
   return /(^|[^a-z])(reklam|tanitim)([^a-z]|$)/.test(all);
 }
 
@@ -43,7 +49,7 @@ function toFinding(rule: RuleRecord, field: Field, matchedText: string | null): 
  * active + requires_review rules for the sector. Draft/retired rules must never be passed.
  */
 export function runRuleEngine(
-  input: Pick<AdInput, "headline" | "primaryText" | "description" | "flags">,
+  input: EngineInput,
   rules: RuleRecord[],
 ): EngineFinding[] {
   const findings: EngineFinding[] = [];
@@ -55,7 +61,7 @@ export function runRuleEngine(
     // Flag-driven rules (wizard checkboxes)
     if (rule.flagTrigger === "ai_human_character" && input.flags.aiHumanCharacter) {
       const disclosed = /yapay zeka ile (olusturul|uretil)/.test(
-        fold(`${input.headline} ${input.primaryText} ${input.description}`),
+        fold(`${input.headline} ${input.primaryText} ${input.description} ${input.transcript ?? ""}`),
       );
       if (!disclosed) findings.push(toFinding(rule, "image", null));
       continue;
