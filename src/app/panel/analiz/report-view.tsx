@@ -1,0 +1,235 @@
+import Link from "next/link";
+import { HighlightedText } from "@/components/highlighted-text";
+import { IconAlert, IconExternal, IconInfo } from "@/components/icons";
+import { LevelPill, SEVERITY_LABEL, ScaleBar } from "@/components/risk";
+import { DOMAIN_LABEL, RULE_STATUS_LABEL, SECTOR_LABEL, formatDateTimeTr, formatDateTr } from "@/components/rule-status";
+import { Disclaimer } from "@/components/ui";
+import type { AnalysisDetail, FindingView } from "@/lib/data/types";
+import { CopyButton } from "../forms";
+
+const FIELD_LABEL: Record<string, string> = { headline: "Başlık", primary_text: "Ana metin", description: "Açıklama", image: "Görsel", general: "Genel" };
+
+const SEV_STYLE = {
+  red: { dot: "bg-coral", ring: "border-coral/45", text: "text-coral-deep", tint: "bg-coral-tint" },
+  yellow: { dot: "bg-[#e9b43c]", ring: "border-[#e9b43c]/60", text: "text-amber", tint: "bg-amber-tint" },
+  info: { dot: "bg-info", ring: "border-info/30", text: "text-info", tint: "bg-info-tint" },
+} as const;
+
+function FindingItem({ f }: { f: FindingView }) {
+  const s = SEV_STYLE[f.severity];
+  const unverified = f.rule && f.rule.status !== "active";
+  return (
+    <li className={`rounded-2xl border bg-card p-5 ${s.ring} break-inside-avoid`}>
+      <div className="flex flex-wrap items-center gap-2 text-[0.75rem] font-bold">
+        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 ${s.tint} ${s.text}`}>
+          <span className={`size-1.5 rounded-full ${s.dot}`} aria-hidden />
+          {SEVERITY_LABEL[f.severity]}
+        </span>
+        <span className="text-muted">{DOMAIN_LABEL[f.domain]}</span>
+        {f.field ? <span className="text-muted">· {FIELD_LABEL[f.field] ?? f.field}</span> : null}
+        {f.origin === "ai" ? <span className="text-muted">· yapay zekâ tespiti</span> : null}
+      </div>
+      <h4 className="mt-2.5 text-[1.05rem] font-bold leading-snug">
+        {f.matchedText ? <><span className={f.severity === "red" ? "mark-risk" : f.severity === "yellow" ? "mark-warn" : "mark-info"}>“{f.matchedText}”</span> · </> : null}
+        {f.title}
+      </h4>
+      <p className="mt-2 text-[0.94rem] leading-relaxed text-ink-soft">{f.explanation}</p>
+      <p className="mt-2 text-[0.94rem] leading-relaxed"><span className="font-semibold">Düzeltme: </span>{f.suggestion}</p>
+      {f.rule ? (
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-dashed border-line pt-3 text-[0.8rem] text-muted">
+          <Link href={`/kurallar#${f.rule.id}`} className="font-semibold text-ink tabular">{f.rule.id} · v{f.rule.version}</Link>
+          <span>{RULE_STATUS_LABEL[f.rule.status]}</span>
+          <span>Son doğrulama {formatDateTr(f.rule.lastVerifiedAt)}</span>
+          <a href={f.rule.sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-coral-deep">
+            {f.rule.sourceOrg} <IconExternal className="size-3" aria-hidden /><span className="sr-only">(yeni sekmede açılır)</span>
+          </a>
+        </div>
+      ) : null}
+      {unverified ? (
+        <p className="mt-2 flex items-start gap-1.5 text-[0.8rem] text-muted"><IconInfo className="mt-0.5 size-3.5 shrink-0" /> Bu kural resmî kaynakta henüz doğrulanmadı; ihlal olarak sayılmaz ve risk seviyesini değiştirmez.</p>
+      ) : null}
+    </li>
+  );
+}
+
+export function ReportView({ a, print = false }: { a: AnalysisDetail; print?: boolean }) {
+  const groups = (["red", "yellow", "info"] as const).map((sev) => ({ sev, items: a.findings.filter((f) => f.severity === sev) }));
+  const marks = a.findings.map((f) => ({ text: f.matchedText, severity: f.severity }));
+  const bd = a.scoreBreakdown;
+  const safe = a.variants.find((v) => v.kind === "safe");
+  const variants = a.variants.filter((v) => v.kind === "variant").sort((x, y) => x.position - y.position);
+
+  return (
+    <div className="flex flex-col gap-10">
+      {/* Scores */}
+      <section aria-labelledby="skorlar" className="grid gap-4 md:grid-cols-3">
+        <h2 id="skorlar" className="sr-only">Skorlar</h2>
+        <div className="rounded-2xl border border-line bg-card p-5 break-inside-avoid">
+          <p className="text-[0.8rem] font-semibold text-muted">Meta ret riski</p>
+          <p className="mt-1 flex items-baseline gap-3"><span className="font-display text-5xl font-semibold tabular">{a.metaRiskScore}</span><LevelPill level={a.metaRiskLevel} /></p>
+          <ScaleBar value={a.metaRiskScore ?? 0} label="Meta ret riski skoru" />
+        </div>
+        <div className="rounded-2xl border border-line bg-card p-5 break-inside-avoid">
+          <p className="text-[0.8rem] font-semibold text-muted">Türk mevzuatı riski</p>
+          <p className="mt-1 flex items-baseline gap-3"><span className="font-display text-5xl font-semibold tabular">{a.legalFindingCount}</span><span className="text-sm text-muted">doğrulanmış bulgu</span></p>
+          <p className="mt-3"><LevelPill level={a.legalRiskLevel} /></p>
+          {bd ? <p className="mt-2 text-[0.82rem] leading-snug text-ink-soft">{bd.legal.reason}</p> : null}
+        </div>
+        <div className="rounded-2xl border border-line bg-card p-5 break-inside-avoid">
+          <p className="text-[0.8rem] font-semibold text-muted">Kreatif skoru</p>
+          <p className="mt-1 flex items-baseline gap-2"><span className="font-display text-5xl font-semibold tabular">{a.creativeScore}</span><span className="text-sm text-muted">/ 100</span></p>
+          <ScaleBar value={a.creativeScore ?? 0} invert label="Kreatif skoru" />
+        </div>
+      </section>
+
+      {/* Creative and text */}
+      <section aria-labelledby="reklam" className="grid gap-6 md:grid-cols-[minmax(0,15rem)_1fr]">
+        <h2 id="reklam" className="sr-only">İncelenen reklam</h2>
+        {a.asset ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={`/api/analyses/${a.id}/asset`} alt="İncelenen reklam görseli" className="w-full rounded-xl border border-line bg-white object-contain" width={a.asset.width ?? undefined} height={a.asset.height ?? undefined} />
+        ) : (
+          <div className="grid aspect-square place-items-center rounded-xl border border-dashed border-line text-sm text-muted">Görsel silinmiş</div>
+        )}
+        <div className="sheet rounded-2xl border border-line p-5">
+          {a.headline ? <p className="text-lg font-bold"><HighlightedText text={a.headline} marks={marks} /></p> : null}
+          <p className="mt-2 whitespace-pre-line leading-relaxed"><HighlightedText text={a.primaryText} marks={marks} /></p>
+          {a.description ? <p className="mt-3 text-[0.92rem] text-ink-soft"><HighlightedText text={a.description} marks={marks} /></p> : null}
+          <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-dashed border-line pt-3 text-[0.8rem] text-muted">
+            <span>{SECTOR_LABEL[a.sector]}</span>
+            {a.asset?.width ? <span className="tabular">{a.asset.width}×{a.asset.height} px</span> : null}
+            <span>{a.aiProvider && !a.aiProvider.startsWith("deterministic") ? "Kural motoru + yapay zekâ" : a.aiProvider?.includes("kullanılamadı") ? "Kural motoru (yapay zekâ yanıtı kullanılamadı)" : "Kural motoru (yapay zekâ kapalı)"}</span>
+          </p>
+        </div>
+      </section>
+
+      {/* Findings */}
+      <section aria-labelledby="bulgular">
+        <h2 id="bulgular" className="font-display text-2xl font-semibold">Bulgular <span className="text-base font-normal text-muted">· {a.findings.length}</span></h2>
+        {a.findings.length === 0 ? (
+          <p className="mt-4 rounded-2xl border border-line bg-card px-5 py-4 text-ink-soft">Aktif kural kartlarına göre işaretlenen bir ifade bulunmadı. Bu, reklamın onaylanacağı anlamına gelmez; görseldeki metin ve hedefleme ayrıca kontrol edilmelidir.</p>
+        ) : (
+          groups.filter((g) => g.items.length).map((g) => (
+            <div key={g.sev} className="mt-5">
+              <h3 className={`flex items-center gap-2 text-[0.95rem] font-bold ${SEV_STYLE[g.sev].text}`}>
+                {g.sev === "info" ? <IconInfo className="size-4" /> : <IconAlert className="size-4" />}
+                {SEVERITY_LABEL[g.sev]} · {g.items.length}
+              </h3>
+              <ul className="mt-3 grid gap-3">{g.items.map((f) => <FindingItem key={f.id} f={f} />)}</ul>
+            </div>
+          ))
+        )}
+      </section>
+
+      {/* Score breakdown */}
+      {bd ? (
+        <section aria-labelledby="skor-detay" className="rounded-2xl border border-line bg-card p-5 break-inside-avoid">
+          <h2 id="skor-detay" className="font-display text-xl font-semibold">Skorlar nasıl oluştu?</h2>
+          <div className="mt-4 grid gap-8 md:grid-cols-2">
+            <div>
+              <h3 className="text-sm font-bold">Meta ret riski</h3>
+              <table className="mt-2 w-full text-[0.88rem]">
+                <tbody className="divide-y divide-line">
+                  <tr><td className="py-1.5 pr-3 text-ink-soft">{bd.meta.baseReason}</td><td className="py-1.5 text-right font-semibold tabular">+{bd.meta.base}</td></tr>
+                  {bd.meta.items.map((i) => (
+                    <tr key={i.ruleId}><td className="py-1.5 pr-3 text-ink-soft">{i.title}</td><td className="py-1.5 text-right font-semibold tabular">+{i.points}</td></tr>
+                  ))}
+                  <tr><td className="py-1.5 pr-3 font-semibold">Toplam (en fazla 100)</td><td className="py-1.5 text-right font-bold tabular">{a.metaRiskScore}</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <h3 className="text-sm font-bold">Kreatif skoru</h3>
+              <table className="mt-2 w-full text-[0.88rem]">
+                <tbody className="divide-y divide-line">
+                  {bd.creative.map((c) => (
+                    <tr key={c.key}>
+                      <td className="py-1.5 pr-3"><span className="font-semibold">{c.label}</span><span className="block text-[0.8rem] text-ink-soft">{c.reason}</span></td>
+                      <td className="py-1.5 text-right align-top font-semibold tabular whitespace-nowrap">{c.score} / {c.max}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {/* Safe text */}
+      {safe ? (
+        <section aria-labelledby="guvenli" className="break-inside-avoid">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="guvenli" className="font-display text-2xl font-semibold">Güvenli metin önerisi</h2>
+            {!print ? <CopyButton text={[safe.headline, safe.primaryText, safe.description].filter(Boolean).join("\n\n")} /> : null}
+          </div>
+          <div className="mt-3 rounded-2xl border border-green/30 bg-green-tint/50 p-5">
+            {safe.headline ? <p className="font-bold">{safe.headline}</p> : null}
+            <p className="mt-1 whitespace-pre-line leading-relaxed">{safe.primaryText}</p>
+            {safe.description ? <p className="mt-2 text-[0.92rem] text-ink-soft">{safe.description}</p> : null}
+          </div>
+          <p className="mt-2 text-[0.82rem] text-muted">Öneri, aynı kural kartlarıyla yeniden tarandı: {safe.recheckRed} kırmızı, {safe.recheckYellow} sarı bayrak.</p>
+        </section>
+      ) : null}
+
+      {/* Variants */}
+      {variants.length ? (
+        <section aria-labelledby="varyantlar" className={print ? "print-break" : ""}>
+          <h2 id="varyantlar" className="font-display text-2xl font-semibold">Beş Türkçe varyant</h2>
+          <ol className="mt-4 grid gap-3 md:grid-cols-2">
+            {variants.map((v) => (
+              <li key={v.position} className="flex flex-col rounded-2xl border border-line bg-card p-5 break-inside-avoid">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[0.8rem] font-bold text-coral-deep">{v.tone}</span>
+                  {!print ? <CopyButton text={[v.headline, v.primaryText, v.description].filter(Boolean).join("\n\n")} /> : null}
+                </div>
+                {v.headline ? <p className="mt-2 font-bold">{v.headline}</p> : null}
+                <p className="mt-1 whitespace-pre-line text-[0.94rem] leading-relaxed">{v.primaryText}</p>
+                {v.description ? <p className="mt-2 text-[0.88rem] text-ink-soft">{v.description}</p> : null}
+                <p className="mt-auto pt-3 text-[0.78rem] text-muted">
+                  Yeniden tarama: {v.recheckRed === 0 && v.recheckYellow === 0 ? "bayrak yok" : `${v.recheckRed} kırmızı, ${v.recheckYellow} sarı`}
+                </p>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
+
+      {/* Appeal */}
+      {a.appeal ? (
+        <section id="itiraz" aria-labelledby="itiraz-h" className="scroll-mt-6 break-inside-avoid">
+          <h2 id="itiraz-h" className="font-display text-2xl font-semibold">İtiraz asistanı</h2>
+          <div className={`mt-4 rounded-2xl p-5 ${a.appeal.recommendation === "new_ad" ? "bg-amber-tint" : "bg-info-tint"}`}>
+            <p className="font-bold">{a.appeal.recommendation === "new_ad" ? "Öneri: itiraz yerine düzeltilmiş yeni reklam" : "Öneri: itiraz edilebilir"}</p>
+            <p className="mt-1.5 text-[0.94rem] leading-relaxed text-ink-soft">{a.appeal.explanation_tr}</p>
+            {a.appeal.detected_policies.length ? <p className="mt-2 text-[0.85rem] text-ink-soft">Ret mesajında tespit edilen politika: {a.appeal.detected_policies.join(", ")}</p> : null}
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {([["Türkçe taslak", a.appeal.draft_tr], ["İngilizce taslak (Meta destek formu için)", a.appeal.draft_en]] as const).map(([label, text]) => (
+              <div key={label} className="rounded-2xl border border-line bg-card p-5">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-bold">{label}</h3>
+                  {!print ? <CopyButton text={text} /> : null}
+                </div>
+                <p className="mt-3 whitespace-pre-line text-[0.92rem] leading-relaxed">{text}</p>
+              </div>
+            ))}
+          </div>
+          <h3 className="mt-5 text-sm font-bold">Göndermeden önce</h3>
+          <ul className="mt-2 grid gap-1.5 text-[0.92rem]">
+            {a.appeal.checklist.map((c) => (
+              <li key={c.label} className="flex gap-2"><span aria-hidden className="text-muted">☐</span>{c.label}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <footer className="flex flex-col gap-3 text-[0.8rem] text-muted">
+        <Disclaimer />
+        <p>
+          Rapor kimliği <span className="tabular">{a.id}</span> · {a.completedAt ? formatDateTimeTr(a.completedAt) : formatDateTimeTr(a.createdAt)} · {a.engineVersion}
+          {a.expiresAt ? <> · {formatDateTr(a.expiresAt)} tarihinde otomatik silinecek</> : null}
+        </p>
+      </footer>
+    </div>
+  );
+}

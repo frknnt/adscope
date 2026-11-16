@@ -1,0 +1,355 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useId, useRef, useState } from "react";
+import { IconAlert, IconUpload } from "@/components/icons";
+import { Button, Field, inputClass } from "@/components/ui";
+
+type Sector = "genel" | "takviye_gida" | "estetik_klinik";
+type BrandOpt = { id: string; name: string; sector: Sector };
+
+const STEPS = ["Görsel", "Metin", "Sektör", "Beyanlar", "Ret mesajı", "Kontrol"] as const;
+const MAX_BYTES = 5 * 1024 * 1024;
+const MIME = ["image/jpeg", "image/png", "image/webp"];
+
+const SECTORS: { value: Sector; label: string; note: string }[] = [
+  { value: "genel", label: "Genel", note: "E-ticaret, hizmet, perakende" },
+  { value: "takviye_gida", label: "Takviye gıda", note: "Vitamin, mineral, bitkisel ürün" },
+  { value: "estetik_klinik", label: "Estetik / klinik", note: "Medikal estetik, güzellik merkezi" },
+];
+
+type ImageState = { file: File; url: string; width: number; height: number } | null;
+type Phase = { kind: "editing" } | { kind: "submitting" } | { kind: "error"; message: string; retryable: boolean; analysisId?: string };
+
+function Counter({ value, soft, max }: { value: string; soft: number; max: number }) {
+  const n = [...value].length;
+  return (
+    <span className={`tabular ${n > soft ? "text-amber" : "text-muted"}`}>
+      {n} / {max}
+      {n > soft ? ` · ${soft} karakterden sonrası mobilde kesilebilir` : ""}
+    </span>
+  );
+}
+
+function readImageSize(url: string) {
+  return new Promise<{ width: number; height: number } | null>((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+export function AnalysisWizard({ brands, defaultSector, balance }: { brands: BrandOpt[]; defaultSector: Sector; balance: number }) {
+  const router = useRouter();
+  const ids = useId();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const shownStep = useRef(0);
+
+  const [step, setStep] = useState(0);
+  const [image, setImage] = useState<ImageState>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [headline, setHeadline] = useState("");
+  const [primaryText, setPrimaryText] = useState("");
+  const [description, setDescription] = useState("");
+  const [textError, setTextError] = useState<string | null>(null);
+  const [sector, setSector] = useState<Sector>(defaultSector);
+  const [brandId, setBrandId] = useState<string>("");
+  const [flags, setFlags] = useState({ influencerPost: false, aiHumanCharacter: false, aiRealPersonCopy: false });
+  const [rejection, setRejection] = useState("");
+  const [phase, setPhase] = useState<Phase>({ kind: "editing" });
+  // One id per attempt: a double click or network retry of the same attempt reuses it (idempotent server side).
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+
+  useEffect(() => {
+    // Move focus only when the step actually changes (not on mount, not on StrictMode re-runs).
+    if (shownStep.current === step) return;
+    shownStep.current = step;
+    headingRef.current?.focus();
+  }, [step]);
+
+  useEffect(() => () => { if (image) URL.revokeObjectURL(image.url); }, [image]);
+
+  async function acceptFile(file: File | undefined) {
+    setImageError(null);
+    if (!file) return;
+    if (!MIME.includes(file.type)) return setImageError("Yalnızca JPG, PNG veya WebP görseller yüklenebilir.");
+    if (file.size > MAX_BYTES) return setImageError("Görsel en fazla 5 MB olabilir.");
+    const url = URL.createObjectURL(file);
+    const size = await readImageSize(url);
+    if (!size) {
+      URL.revokeObjectURL(url);
+      return setImageError("Görsel okunamadı. Dosya bozuk olabilir; başka bir dosya deneyin.");
+    }
+    if (Math.min(size.width, size.height) < 200) {
+      URL.revokeObjectURL(url);
+      return setImageError("Görsel çok küçük. En kısa kenar en az 200 piksel olmalı.");
+    }
+    setImage({ file, url, ...size });
+  }
+
+  function validate(s: number) {
+    if (s === 0 && !image) {
+      setImageError("Devam etmek için bir görsel seçin.");
+      return false;
+    }
+    if (s === 1) {
+      if (!primaryText.trim()) {
+        setTextError("Reklam ana metni gerekli.");
+        return false;
+      }
+      setTextError(null);
+    }
+    return true;
+  }
+
+  function next() {
+    if (!validate(step)) return;
+    setStep((s) => Math.min(s + 1, STEPS.length - 1));
+  }
+
+  async function submit() {
+    if (!image || phase.kind === "submitting") return;
+    setPhase({ kind: "submitting" });
+    const fd = new FormData();
+    fd.set("image", image.file);
+    fd.set(
+      "payload",
+      JSON.stringify({
+        clientRequestId: requestId,
+        brandId: brandId || null,
+        sector,
+        headline,
+        primaryText,
+        description,
+        rejectionMessage: rejection.trim() || null,
+        flags,
+      }),
+    );
+    try {
+      const res = await fetch("/api/analyses", { method: "POST", body: fd });
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; analysisId?: string; code?: string; message?: string } | null;
+      if (res.ok && data?.ok && data.analysisId) {
+        router.push(`/panel/analiz/${data.analysisId}`);
+        router.refresh();
+        return;
+      }
+      // A finished attempt cannot be resubmitted with the same id: next try is a new attempt.
+      setRequestId(crypto.randomUUID());
+      setPhase({
+        kind: "error",
+        message: data?.message ?? "Beklenmeyen bir sorun oluştu. Krediniz düşülmedi; lütfen tekrar deneyin.",
+        retryable: data?.code !== "insufficient_credits",
+        analysisId: data?.analysisId,
+      });
+    } catch {
+      // Network failure: the server may or may not have finished. Keep the same id so a retry is deduplicated.
+      setPhase({ kind: "error", message: "Bağlantı kesildi. Krediniz yalnızca rapor tamamlanırsa düşer; tekrar denediğinizde aynı analiz kaldığı yerden döner.", retryable: true });
+    }
+  }
+
+  if (phase.kind === "submitting") {
+    return (
+      <div className="sheet mt-8 rounded-2xl border border-line px-6 py-12 text-center" role="status" aria-live="polite">
+        <div className="mx-auto size-12 animate-spin rounded-full border-[3px] border-line border-t-coral motion-reduce:animate-none" aria-hidden />
+        <p className="mt-6 font-display text-2xl font-semibold">Reklamın inceleniyor…</p>
+        <p className="mx-auto mt-2 max-w-md text-ink-soft">Görsel doğrulanıyor, kural kartları uygulanıyor, güvenli metin ve varyantlar hazırlanıyor. Genellikle 10–60 saniye sürer; bu sayfadan ayrılma.</p>
+      </div>
+    );
+  }
+
+  const stepTitle = [
+    "Reklam görselini yükle",
+    "Reklam metnini gir",
+    "Sektörü ve markayı seç",
+    "İçerik beyanları",
+    "Daha önce reddedildi mi?",
+    "Kontrol et ve başlat",
+  ][step];
+
+  return (
+    <div className="mt-8">
+      <ol className="flex flex-wrap gap-x-1 gap-y-2 text-[0.8rem] font-semibold" aria-label="Adımlar">
+        {STEPS.map((s, i) => (
+          <li key={s} className="flex items-center gap-1">
+            <span
+              aria-current={i === step ? "step" : undefined}
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ${i === step ? "bg-ink text-paper" : i < step ? "bg-paper-2 text-ink" : "text-muted"}`}
+            >
+              <span className="tabular">{i + 1}</span> {s}
+            </span>
+            {i < STEPS.length - 1 ? <span className="text-line-strong" aria-hidden>—</span> : null}
+          </li>
+        ))}
+        <li className="flex items-center gap-1 text-muted"><span className="text-line-strong" aria-hidden>—</span><span className="px-2.5 py-1"><span className="tabular">7</span> Rapor</span></li>
+      </ol>
+
+      <section className="mt-6 rounded-2xl border border-line bg-card p-5 sm:p-8" aria-labelledby={`${ids}-h`}>
+        <h2 id={`${ids}-h`} ref={headingRef} tabIndex={-1} className="font-display text-2xl font-semibold outline-none">
+          <span className="sr-only">Adım {step + 1} / 7: </span>
+          {stepTitle}
+        </h2>
+
+        {phase.kind === "error" ? (
+          <div role="alert" className="mt-5 flex gap-3 rounded-xl bg-coral-tint px-4 py-3 text-[0.93rem] text-coral-deep">
+            <IconAlert className="mt-0.5 size-5 shrink-0" />
+            <div>
+              <p className="font-semibold">{phase.message}</p>
+              {phase.analysisId ? <Link href={`/panel/analiz/${phase.analysisId}`} className="font-semibold text-coral-deep">Kaydı görüntüle</Link> : null}
+              {!phase.retryable ? <Link href="/panel/krediler" className="ml-3 font-semibold text-coral-deep">Kredi yükle</Link> : null}
+            </div>
+          </div>
+        ) : null}
+
+        {step === 0 ? (
+          <div className="mt-5">
+            <label
+              htmlFor={`${ids}-file`}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); void acceptFile(e.dataTransfer.files?.[0]); }}
+              className={`grid cursor-pointer place-items-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors ${dragOver ? "border-coral bg-coral-tint/40" : "border-line-strong bg-paper/60 hover:bg-paper-2/60"}`}
+            >
+              {image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={image.url} alt="Yüklenecek reklam görselinin önizlemesi" className="max-h-72 rounded-lg border border-line object-contain shadow-sm" />
+              ) : (
+                <span className="flex flex-col items-center gap-3 text-ink-soft">
+                  <IconUpload className="size-8 text-ink" />
+                  <span className="font-semibold text-ink">Görseli sürükle bırak ya da seçmek için tıkla</span>
+                  <span className="text-[0.85rem]">JPG, PNG veya WebP · en fazla 5 MB · en kısa kenar en az 200 px</span>
+                </span>
+              )}
+            </label>
+            <input
+              id={`${ids}-file`}
+              ref={fileInput}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="sr-only"
+              aria-describedby={imageError ? `${ids}-file-err` : undefined}
+              aria-invalid={imageError ? true : undefined}
+              onChange={(e) => void acceptFile(e.target.files?.[0])}
+            />
+            {image ? (
+              <p className="mt-3 text-[0.88rem] text-ink-soft">
+                <span className="font-semibold text-ink">{image.file.name}</span> · <span className="tabular">{image.width}×{image.height}</span> px · <span className="tabular">{(image.file.size / 1024 / 1024).toLocaleString("tr-TR", { maximumFractionDigits: 1 })}</span> MB{" "}
+                <button type="button" className="ml-2 font-semibold text-coral-deep underline-offset-4 hover:underline" onClick={() => fileInput.current?.click()}>Değiştir</button>
+              </p>
+            ) : null}
+            {imageError ? <p id={`${ids}-file-err`} role="alert" className="mt-3 text-[0.9rem] font-medium text-coral-deep">{imageError}</p> : null}
+          </div>
+        ) : null}
+
+        {step === 1 ? (
+          <div className="mt-5 grid gap-5">
+            <Field label="Ana metin" htmlFor="primaryText" error={textError} hint={<Counter value={primaryText} soft={125} max={2200} />}>
+              <textarea id="primaryText" rows={6} maxLength={2200} value={primaryText} onChange={(e) => setPrimaryText(e.target.value)} aria-invalid={textError ? true : undefined} className={inputClass} placeholder="Reklamın gönderi metni" />
+            </Field>
+            <Field label="Başlık (isteğe bağlı)" htmlFor="headline" hint={<Counter value={headline} soft={40} max={255} />}>
+              <input id="headline" maxLength={255} value={headline} onChange={(e) => setHeadline(e.target.value)} className={inputClass} />
+            </Field>
+            <Field label="Açıklama (isteğe bağlı)" htmlFor="description" hint={<Counter value={description} soft={30} max={255} />}>
+              <input id="description" maxLength={255} value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
+            </Field>
+          </div>
+        ) : null}
+
+        {step === 2 ? (
+          <div className="mt-5 grid gap-6">
+            <fieldset>
+              <legend className="text-sm font-semibold">Sektör</legend>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {SECTORS.map((s) => (
+                  <label key={s.value} className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-white/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-white has-[:checked]:shadow-[0_0_0_1px_var(--ink)]">
+                    <input type="radio" name="sector" value={s.value} checked={sector === s.value} onChange={() => setSector(s.value)} className="mt-1 accent-ink" />
+                    <span>
+                      <span className="block text-[0.95rem] font-semibold">{s.label}</span>
+                      <span className="block text-[0.82rem] text-muted">{s.note}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            {brands.length ? (
+              <Field label="Marka (isteğe bağlı)" htmlFor="brand">
+                <select id="brand" value={brandId} onChange={(e) => setBrandId(e.target.value)} className={`${inputClass} max-w-sm`}>
+                  <option value="">Marka seçme</option>
+                  {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </Field>
+            ) : null}
+          </div>
+        ) : null}
+
+        {step === 3 ? (
+          <fieldset className="mt-5">
+            <legend className="max-w-2xl text-[0.95rem] text-ink-soft">Bunlar görselden güvenilir biçimde anlaşılamaz, o yüzden senden alıyoruz. İşaretlediğin her madde ilgili kural kartını devreye sokar.</legend>
+            <div className="mt-4 grid gap-3">
+              {([
+                ["influencerPost", "Etkileyici (influencer) iş birliği", "Reklam bir sosyal medya fenomeninin hesabından yayınlanacak ya da ücretli/ürün karşılığı iş birliği içeriyor."],
+                ["aiHumanCharacter", "Yapay zekâ ile üretilmiş insan karakteri", "Görselde gerçekte var olmayan, yapay zekâ ile oluşturulmuş bir kişi yer alıyor."],
+                ["aiRealPersonCopy", "Gerçek bir kişinin dijital kopyası", "Gerçek bir kişinin görüntüsü veya sesi yapay zekâ ile yeniden üretildi."],
+              ] as const).map(([key, title, note]) => (
+                <label key={key} className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-white/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-white">
+                  <input type="checkbox" checked={flags[key]} onChange={(e) => setFlags((f) => ({ ...f, [key]: e.target.checked }))} className="mt-1 size-4.5 accent-ink" />
+                  <span>
+                    <span className="block text-[0.95rem] font-semibold">{title}</span>
+                    <span className="block text-[0.85rem] text-ink-soft">{note}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ) : null}
+
+        {step === 4 ? (
+          <div className="mt-5">
+            <Field label="Meta ret mesajı (isteğe bağlı)" htmlFor="rejection" hint="Varsa yapıştır; raporla birlikte TR + EN itiraz taslağı da hazırlanır. Yoksa bu adımı boş geç.">
+              <textarea id="rejection" rows={5} maxLength={3000} value={rejection} onChange={(e) => setRejection(e.target.value)} className={inputClass} />
+            </Field>
+          </div>
+        ) : null}
+
+        {step === 5 ? (
+          <div className="mt-5 grid gap-5 sm:grid-cols-[10rem_1fr]">
+            {image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={image.url} alt="Reklam görseli önizlemesi" className="w-40 rounded-lg border border-line object-cover" />
+            ) : null}
+            <dl className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-[0.92rem]">
+              <dt className="text-muted">Sektör</dt><dd>{SECTORS.find((s) => s.value === sector)?.label}</dd>
+              <dt className="text-muted">Başlık</dt><dd className="break-words">{headline || "—"}</dd>
+              <dt className="text-muted">Ana metin</dt><dd className="line-clamp-4 break-words">{primaryText}</dd>
+              <dt className="text-muted">Açıklama</dt><dd className="break-words">{description || "—"}</dd>
+              <dt className="text-muted">Beyanlar</dt>
+              <dd>{[flags.influencerPost && "Etkileyici", flags.aiHumanCharacter && "YZ karakter", flags.aiRealPersonCopy && "Dijital kopya"].filter(Boolean).join(", ") || "Yok"}</dd>
+              <dt className="text-muted">Ret mesajı</dt><dd>{rejection.trim() ? "Var, itiraz taslağı hazırlanacak" : "Yok"}</dd>
+            </dl>
+            <p className="text-[0.88rem] text-ink-soft sm:col-span-2">
+              Bu analiz <strong className="text-ink">1 kredi</strong> kullanır (bakiye: <span className="tabular">{balance}</span>). Kredi yalnızca rapor tamamlanınca düşer.
+            </p>
+          </div>
+        ) : null}
+
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
+          <Button type="button" variant="quiet" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="px-0">
+            Geri
+          </Button>
+          {step < STEPS.length - 1 ? (
+            <Button type="button" onClick={next}>
+              {step === 4 && !rejection.trim() ? "Atla" : "Devam"}
+            </Button>
+          ) : (
+            <Button type="button" variant="accent" onClick={submit} disabled={balance < 1} className="h-12 px-6">
+              {phase.kind === "error" && phase.retryable ? "Tekrar dene" : "Analizi başlat"}
+            </Button>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}

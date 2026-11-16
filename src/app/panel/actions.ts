@@ -1,0 +1,130 @@
+"use server";
+
+import { randomUUID } from "node:crypto";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { regenerateAppeal } from "@/lib/analysis/service";
+import { getCurrentUser, getRepo } from "@/lib/data";
+import { demoPurchasesAllowed } from "@/lib/env";
+import { findPackage } from "@/lib/payments/packages";
+import { getPaymentProvider } from "@/lib/payments";
+
+export type ActionState = { error: string | null; ok?: string | null };
+
+const sector = z.enum(["genel", "takviye_gida", "estetik_klinik"]);
+
+async function requireUser() {
+  const u = await getCurrentUser();
+  if (!u) redirect("/giris");
+  return u;
+}
+
+const onboardingSchema = z.object({
+  displayName: z.string().trim().max(80),
+  companyName: z.string().trim().max(120),
+  sector,
+  brandName: z.string().trim().max(80),
+  tone: z.enum(["samimi", "kurumsal", "genc"]),
+});
+
+export async function completeOnboardingAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  await requireUser();
+  const parsed = onboardingSchema.safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { error: "Lütfen alanları kontrol edin." };
+  const repo = getRepo();
+  const d = parsed.data;
+  if (d.brandName) {
+    const existing = await repo.listBrands();
+    if (!existing.some((b) => b.name.toLocaleLowerCase("tr-TR") === d.brandName.toLocaleLowerCase("tr-TR"))) {
+      const brand = await repo.createBrand({ name: d.brandName, sector: d.sector, tone: d.tone });
+      if (!brand) return { error: "Marka kaydedilemedi. Lütfen tekrar deneyin." };
+    }
+  }
+  const ok = await repo.updateProfile({
+    displayName: d.displayName || null,
+    companyName: d.companyName || null,
+    defaultSector: d.sector,
+    onboardingCompletedAt: new Date().toISOString(),
+  });
+  if (!ok) return { error: "Bilgiler kaydedilemedi. Lütfen tekrar deneyin." };
+  redirect("/panel/yeni");
+}
+
+const settingsSchema = z.object({
+  displayName: z.string().trim().max(80),
+  companyName: z.string().trim().max(120),
+  sector,
+  retentionDays: z.coerce.number().int().min(7).max(365),
+});
+
+export async function saveSettingsAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  await requireUser();
+  const parsed = settingsSchema.safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { error: "Saklama süresi 7 ile 365 gün arasında olmalı." };
+  const ok = await getRepo().updateProfile({
+    displayName: parsed.data.displayName || null,
+    companyName: parsed.data.companyName || null,
+    defaultSector: parsed.data.sector,
+    retentionDays: parsed.data.retentionDays,
+  });
+  if (!ok) return { error: "Ayarlar kaydedilemedi. Lütfen tekrar deneyin." };
+  revalidatePath("/panel/ayarlar");
+  return { error: null, ok: "Ayarlar kaydedildi. Yeni saklama süresi bundan sonraki analizlere uygulanır." };
+}
+
+export async function deleteAnalysisAction(form: FormData) {
+  await requireUser();
+  const id = z.uuid().safeParse(form.get("id"));
+  if (id.success) await getRepo().deleteAnalysis(id.data);
+  revalidatePath("/panel/gecmis");
+  revalidatePath("/panel");
+  if (form.get("from") === "detail") redirect("/panel/gecmis?silindi=1");
+}
+
+export async function deleteAccountAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  await requireUser();
+  const confirm = String(form.get("confirm") ?? "").trim().toLocaleUpperCase("tr-TR");
+  if (confirm !== "SİL") return { error: "Onaylamak için kutuya büyük harflerle SİL yazın." };
+  const ok = await getRepo().deleteAccount();
+  if (!ok) return { error: "Hesap silinemedi. Lütfen tekrar deneyin; sorun sürerse bize yazın." };
+  redirect("/?hesap=silindi");
+}
+
+export async function demoPurchaseAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  await requireUser();
+  if (!demoPurchasesAllowed()) return { error: "Demo satın alma bu ortamda kapalı." };
+  const pkg = findPackage(String(form.get("packageId") ?? ""));
+  if (!pkg) return { error: "Paket bulunamadı." };
+  // Each click is its own demo order; the event id makes the ledger write idempotent if the action is replayed.
+  const eventId = z.uuid().safeParse(form.get("eventId")).success ? String(form.get("eventId")) : randomUUID();
+  const res = await getRepo().applyDemoPurchase(pkg.id, eventId);
+  revalidatePath("/panel", "layout");
+  return res.applied
+    ? { error: null, ok: `${pkg.credits} demo kredisi eklendi. Gerçek ödeme alınmadı.` }
+    : { error: null, ok: "Bu demo satın alma zaten işlenmişti; kredi tekrar eklenmedi." };
+}
+
+export async function startCheckoutAction(form: FormData) {
+  const user = await requireUser();
+  const provider = getPaymentProvider(String(form.get("provider") ?? ""));
+  const pkg = findPackage(String(form.get("packageId") ?? ""));
+  if (!provider || !pkg || !provider.isConfigured()) redirect("/panel/krediler?odeme=kapali");
+  const url = provider.checkoutUrl(pkg, user.id, user.email);
+  if (!url) redirect("/panel/krediler?odeme=kapali");
+  redirect(url);
+}
+
+const appealSchema = z.object({
+  analysisId: z.uuid(),
+  rejectionMessage: z.string().trim().min(10, "Meta'nın ret mesajını yapıştırın (en az 10 karakter).").max(3000),
+});
+
+export async function appealAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  await requireUser();
+  const parsed = appealSchema.safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const res = await regenerateAppeal(parsed.data.analysisId, parsed.data.rejectionMessage);
+  if (!res.ok) return { error: "İtiraz taslağı hazırlanamadı. Analizin tamamlanmış olduğundan emin olun." };
+  redirect(`/panel/analiz/${parsed.data.analysisId}#itiraz`);
+}

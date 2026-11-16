@@ -1,0 +1,181 @@
+@import "tailwindcss";
+
+/* AdScope design tokens: navy ink on warm paper, coral as the risk/attention signal. */
+:root {
+  --ink: #13213c;
+  --ink-2: #24365a;
+  --ink-soft: #3d4c6b;
+  --paper: #f7f4ee;
+  --paper-2: #efe9de;
+  --card: #fffdf9;
+  --line: #ddd4c4;
+  --line-strong: #c7bca8;
+  --muted: #56607a;
+  --coral: #e2553a;
+  --coral-deep: #b23a21;
+  --coral-tint: #fbe2d9;
+  --amber: #8a5600;
+  --amber-tint: #faefd3;
+  --info: #2c5784;
+  --info-tint: #e4ecf5;
+  --green: #2b6a4c;
+  --green-tint: #e0efe6;
+  --focus: #e2553a;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-soft: var(--ink-soft);
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-card: var(--card);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-muted: var(--muted);
+  --color-coral: var(--coral);
+  --color-coral-deep: var(--coral-deep);
+  --color-coral-tint: var(--coral-tint);
+  --color-amber: var(--amber);
+  --color-amber-tint: var(--amber-tint);
+  --color-info: var(--info);
+  --color-info-tint: var(--info-tint);
+  --color-green: var(--green);
+  --color-green-tint: var(--green-tint);
+  --font-sans: "Manrope Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces Variable", ui-serif, Georgia, serif;
+}
+
+html {
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv01";
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--coral);
+  color: var(--ink);
+}
+
+* {
+  caret-color: var(--coral-deep);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+/* Programmatic focus targets (step headings) are not interactive. */
+[tabindex="-1"]:focus-visible {
+  outline: none;
+}
+
+a {
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 1px;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 96, "SOFT" 30;
+  letter-spacing: -0.02em;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* Highlighter-pen mark: AdScope's signature for a flagged phrase. */
+.mark-risk {
+  background: linear-gradient(transparent 55%, color-mix(in oklab, var(--coral) 45%, transparent) 55%);
+  padding: 0 0.1em;
+  border-radius: 2px;
+}
+.mark-warn {
+  background: linear-gradient(transparent 55%, color-mix(in oklab, #e9b43c 55%, transparent) 55%);
+  padding: 0 0.1em;
+  border-radius: 2px;
+}
+.mark-info {
+  background: linear-gradient(transparent 60%, color-mix(in oklab, var(--info) 22%, transparent) 60%);
+  padding: 0 0.1em;
+  border-radius: 2px;
+}
+
+/* Paper grain for the report sheet */
+.sheet {
+  background:
+    radial-gradient(circle at 1px 1px, color-mix(in oklab, var(--ink) 5%, transparent) 1px, transparent 0) 0 0 / 14px 14px,
+    var(--card);
+}
+
+/* Scrollbars */
+* {
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reveal {
+    animation: reveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .draw-mark {
+    background-size: 0% 100%;
+    background-repeat: no-repeat;
+    animation: draw 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0.001;
+    transform: translateY(8px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes draw {
+  to {
+    background-size: 100% 100%;
+  }
+}
+
+@media print {
+  html, body {
+    background: #fff !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-break {
+    break-inside: avoid;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  @page {
+    margin: 14mm;
+  }
+}
