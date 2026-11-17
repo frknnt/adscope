@@ -17,7 +17,7 @@ export default async function NewAnalysisPage({ searchParams }: { searchParams: 
       <h1 className="font-display text-4xl font-semibold leading-tight">Yeni analiz</h1>
       <p className="mt-2 text-ink-soft">Yedi adım, yaklaşık bir dakika. Yüklediğin içerik model eğitiminde kullanılmaz.</p>
       {template ? (
-        <p className="mt-4 max-w-3xl rounded-xl bg-info-tint px-4 py-3 text-[0.9rem] text-info">
+        <p className="mt-4 max-w-3xl rounded-xl bg-info-tint px-4 py-3 text-body text-info">
           <strong>{template.title}</strong> şablonuyla başladın. Köşeli parantezli alanları kendi bilgilerinle değiştir; şablon bir başlangıç noktasıdır, analiz yine de yapılır.
         </p>
       ) : null}

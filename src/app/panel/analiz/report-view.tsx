@@ -40,18 +40,18 @@ function CreativeMedia({ a, base }: { a: AnalysisDetail; base: string }) {
               <li key={f.index} className="flex flex-col items-center gap-0.5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={`${base}?frame=${f.index}`} alt={`${sec(f.timeMs / 1000)}. saniye`} loading="lazy" className="aspect-[9/16] w-full rounded-md border border-line bg-ink object-cover" />
-                <span className="text-[0.7rem] text-muted tabular">{sec(f.timeMs / 1000)} sn</span>
+                <span className="text-fine text-muted tabular">{sec(f.timeMs / 1000)} sn</span>
               </li>
             ))}
           </ul>
         ) : null}
-        <figcaption className="text-[0.75rem] text-muted">Video yüklenmedi; tarayıcıda alınan {a.frames.length} kare incelendi.</figcaption>
+        <figcaption className="text-fine text-muted">Video yüklenmedi; tarayıcıda alınan {a.frames.length} kare incelendi.</figcaption>
       </figure>
     );
   }
   if (a.asset) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={`${base}`} alt="İncelenen reklam görseli" className="w-full rounded-xl border border-line bg-white object-contain" width={a.asset.width ?? undefined} height={a.asset.height ?? undefined} />;
+    return <img src={`${base}`} alt="İncelenen reklam görseli" className="w-full rounded-xl border border-line bg-field object-contain" width={a.asset.width ?? undefined} height={a.asset.height ?? undefined} />;
   }
   return <div className="grid aspect-square place-items-center rounded-xl border border-dashed border-line text-sm text-muted">Görsel silinmiş</div>;
 }
@@ -81,7 +81,7 @@ function LandingSection({ report, base, hasScreenshot }: { report: LandingReport
     <section aria-labelledby="acilis" className="rounded-2xl border border-line bg-card p-5 break-inside-avoid">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 id="acilis" className="flex items-center gap-2 font-display text-xl font-semibold"><IconLink className="size-5" /> Açılış sayfası taraması</h2>
-        <p className="text-[0.85rem] text-muted">
+        <p className="text-small text-muted">
           {report.source === "screenshot" ? LANDING_SOURCE.screenshot : LANDING_STATUS[report.status]}
           {report.source === "fetch+screenshot" ? " · ekran görüntüsü de okundu" : ""} · <span className="tabular">{passed}/{applicable.length}</span> kontrol geçti · {formatDateTimeTr(report.fetchedAt)}
         </p>
@@ -90,11 +90,11 @@ function LandingSection({ report, base, hasScreenshot }: { report: LandingReport
         {hasScreenshot ? (
           <a href={`${base}?screenshot=1`} target="_blank" rel="noopener noreferrer" className="block self-start">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`${base}?screenshot=1`} alt="Yüklenen açılış sayfası ekran görüntüsü" loading="lazy" className="max-h-56 w-full rounded-lg border border-line bg-white object-cover object-top" />
+            <img src={`${base}?screenshot=1`} alt="Yüklenen açılış sayfası ekran görüntüsü" loading="lazy" className="max-h-56 w-full rounded-lg border border-line bg-field object-cover object-top" />
             <span className="sr-only">(yeni sekmede açılır)</span>
           </a>
         ) : null}
-        <p className={`${hasScreenshot ? "" : "mt-2 "}break-all text-[0.85rem] text-ink-soft`}>
+        <p className={`${hasScreenshot ? "" : "mt-2 "}break-all text-small text-ink-soft`}>
           {report.finalUrl ?? (report.requestedUrl || "Bağlantı verilmedi")}
           {report.title ? <span className="block break-normal font-semibold text-ink">{report.title}</span> : null}
           {report.screenshot === "unread" ? <span className="mt-1 block break-normal text-amber">Ekran görüntüsü saklandı ama metni otomatik okunamadı (yapay zekâ kapalı veya yanıt kullanılamadı); aşağıdaki kontroller sınırlı.</span> : null}
@@ -105,20 +105,20 @@ function LandingSection({ report, base, hasScreenshot }: { report: LandingReport
         {report.checks.map((c) => (
           <li key={c.key} className="flex gap-3 py-2.5">
             <span
-              className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full text-[0.7rem] font-bold ${c.ok === null ? "bg-paper-2 text-muted" : c.ok ? "bg-green-tint text-green" : "bg-amber-tint text-amber"}`}
+              className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full text-fine font-bold ${c.ok === null ? "bg-paper-2 text-muted" : c.ok ? "bg-green-tint text-green" : "bg-amber-tint text-amber"}`}
               aria-hidden
             >
               {c.ok === null ? "–" : c.ok ? <IconCheck className="size-3.5" /> : "!"}
             </span>
-            <span className="text-[0.92rem]">
+            <span className="text-body">
               <span className="font-semibold">{c.label}</span>
               <span className="sr-only">: {c.ok === null ? "uygulanmadı" : c.ok ? "geçti" : "dikkat"}</span>
-              <span className="block break-words text-[0.84rem] text-ink-soft">{c.detail}</span>
+              <span className="block break-words text-small text-ink-soft">{c.detail}</span>
             </span>
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-[0.8rem] text-muted">
+      <p className="mt-3 text-meta text-muted">
         {fromShot
           ? "Ekran görüntüsündeki metin yapay zekâ ile okundu ve yalnızca metin olarak karşılaştırıldı; görüntü raporla birlikte saklanır, sayfanın görünmeyen bölümleri değerlendirilemez."
           : "Sayfa bir kez, sunucudan okundu; içeriği saklanmadı. Giriş, çerez onayı veya JavaScript ile yüklenen bölümler görülmemiş olabilir; böyle sayfalar için ekran görüntüsü ekleyebilirsin."}
@@ -166,13 +166,13 @@ function VideoReviewSection({ review, base }: { review: VideoReview; base: strin
     <section aria-labelledby="video-inceleme" className="rounded-2xl border border-line bg-card p-5 break-inside-avoid">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 id="video-inceleme" className="font-display text-xl font-semibold">Video kanca incelemesi</h2>
-        <p className="text-[0.85rem] text-muted">{review.reviewedByAi ? "Kareler yapay zekâ ile incelendi" : "Yalnızca ölçümler (yapay zekâ kapalı)"}</p>
+        <p className="text-small text-muted">{review.reviewedByAi ? "Kareler yapay zekâ ile incelendi" : "Yalnızca ölçümler (yapay zekâ kapalı)"}</p>
       </div>
       <dl className="mt-4 divide-y divide-line">
         {rows.map((r) => (
           <div key={r.label} className="grid gap-1 py-2.5 sm:grid-cols-[14rem_1fr] sm:gap-4">
-            <dt className="text-[0.88rem] font-semibold">{r.label}</dt>
-            <dd className={`text-[0.9rem] ${r.warn ? "font-medium text-amber" : "text-ink-soft"}`}>{r.value}</dd>
+            <dt className="text-small font-semibold">{r.label}</dt>
+            <dd className={`text-body ${r.warn ? "font-medium text-amber" : "text-ink-soft"}`}>{r.value}</dd>
           </div>
         ))}
       </dl>
@@ -184,20 +184,20 @@ function VideoReviewSection({ review, base }: { review: VideoReview; base: strin
               <li key={n.frame} className="flex gap-3 rounded-xl bg-paper/70 p-2.5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={`${base}?frame=${n.frame - 1}`} alt="" loading="lazy" className="aspect-[9/16] w-10 shrink-0 rounded border border-line bg-ink object-cover" />
-                <span className="text-[0.86rem]"><span className="font-semibold">Kare {n.frame}.</span> {n.note}</span>
+                <span className="text-small"><span className="font-semibold">Kare {n.frame}.</span> {n.note}</span>
               </li>
             ))}
           </ol>
         </>
       ) : null}
-      <p className="mt-3 text-[0.8rem] text-muted">Kanca, altyazı ve güvenli alan notları kreatif önerisidir; politika veya mevzuat ihlali değildir.</p>
+      <p className="mt-3 text-meta text-muted">Kanca, altyazı ve güvenli alan notları kreatif önerisidir; politika veya mevzuat ihlali değildir.</p>
     </section>
   );
 }
 
 const SEV_STYLE = {
   red: { dot: "bg-coral", ring: "border-coral/45", text: "text-coral-deep", tint: "bg-coral-tint" },
-  yellow: { dot: "bg-[#e9b43c]", ring: "border-[#e9b43c]/60", text: "text-amber", tint: "bg-amber-tint" },
+  yellow: { dot: "bg-caution", ring: "border-caution/60", text: "text-amber", tint: "bg-amber-tint" },
   info: { dot: "bg-info", ring: "border-info/30", text: "text-info", tint: "bg-info-tint" },
 } as const;
 
@@ -206,7 +206,7 @@ function FindingItem({ f, platform, feedback }: { f: FindingView; platform: Plat
   const unverified = f.rule && f.rule.status !== "active";
   return (
     <li className={`rounded-2xl border bg-card p-5 ${s.ring} break-inside-avoid`}>
-      <div className="flex flex-wrap items-center gap-2 text-[0.75rem] font-bold">
+      <div className="flex flex-wrap items-center gap-2 text-fine font-bold">
         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 ${s.tint} ${s.text}`}>
           <span className={`size-1.5 rounded-full ${s.dot}`} aria-hidden />
           {SEVERITY_LABEL[f.severity]}
@@ -219,10 +219,10 @@ function FindingItem({ f, platform, feedback }: { f: FindingView; platform: Plat
         {f.matchedText ? <><span className={f.severity === "red" ? "mark-risk" : f.severity === "yellow" ? "mark-warn" : "mark-info"}>“{f.matchedText}”</span> · </> : null}
         {f.title}
       </h4>
-      <p className="mt-2 text-[0.94rem] leading-relaxed text-ink-soft">{f.explanation}</p>
-      <p className="mt-2 text-[0.94rem] leading-relaxed"><span className="font-semibold">Düzeltme: </span>{f.suggestion}</p>
+      <p className="mt-2 text-body leading-relaxed text-ink-soft">{f.explanation}</p>
+      <p className="mt-2 text-body leading-relaxed"><span className="font-semibold">Düzeltme: </span>{f.suggestion}</p>
       {f.rule ? (
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-dashed border-line pt-3 text-[0.8rem] text-muted">
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-dashed border-line pt-3 text-meta text-muted">
           <Link href={`/kurallar#${f.rule.id}`} className="font-semibold text-ink tabular">{f.rule.id} · v{f.rule.version}</Link>
           <span>{RULE_STATUS_LABEL[f.rule.status]}</span>
           <span>Son doğrulama {formatDateTr(f.rule.lastVerifiedAt)}</span>
@@ -232,7 +232,7 @@ function FindingItem({ f, platform, feedback }: { f: FindingView; platform: Plat
         </div>
       ) : null}
       {unverified ? (
-        <p className="mt-2 flex items-start gap-1.5 text-[0.8rem] text-muted"><IconInfo className="mt-0.5 size-3.5 shrink-0" /> Bu kural resmî kaynakta henüz doğrulanmadı; ihlal olarak sayılmaz ve risk seviyesini değiştirmez.</p>
+        <p className="mt-2 flex items-start gap-1.5 text-meta text-muted"><IconInfo className="mt-0.5 size-3.5 shrink-0" /> Bu kural resmî kaynakta henüz doğrulanmadı; ihlal olarak sayılmaz ve risk seviyesini değiştirmez.</p>
       ) : null}
       {feedback ? <FindingFeedbackForm analysisId={feedback.analysisId} findingId={f.id} current={feedback.current} /> : null}
     </li>
@@ -248,7 +248,7 @@ function DmSection({ dm, print }: { dm: DmKit; print: boolean }) {
   return (
     <section aria-labelledby="dm-h" className="break-inside-avoid">
       <h2 id="dm-h" className="font-display text-2xl font-semibold">WhatsApp / DM şablonları</h2>
-      <p className="mt-1 text-[0.92rem] text-ink-soft">Reklamdaki vaatlerle uyumlu, aynı kural kartlarıyla yeniden taranmış öneriler: {dm.recheck_red} kırmızı, {dm.recheck_yellow} sarı bayrak.</p>
+      <p className="mt-1 text-body text-ink-soft">Reklamdaki vaatlerle uyumlu, aynı kural kartlarıyla yeniden taranmış öneriler: {dm.recheck_red} kırmızı, {dm.recheck_yellow} sarı bayrak.</p>
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         {blocks.map(([title, hint, text]) => (
           <div key={title} className="flex flex-col rounded-2xl border border-line bg-card p-5">
@@ -256,8 +256,8 @@ function DmSection({ dm, print }: { dm: DmKit; print: boolean }) {
               <h3 className="text-sm font-bold">{title}</h3>
               {!print ? <CopyButton text={text} /> : null}
             </div>
-            <p className="mt-1 text-[0.78rem] text-muted">{hint}</p>
-            <p className="mt-3 whitespace-pre-line text-[0.92rem] leading-relaxed">{text}</p>
+            <p className="mt-1 text-meta text-muted">{hint}</p>
+            <p className="mt-3 whitespace-pre-line text-body leading-relaxed">{text}</p>
           </div>
         ))}
       </div>
@@ -267,10 +267,10 @@ function DmSection({ dm, print }: { dm: DmKit; print: boolean }) {
           {!print ? <CopyButton text={dm.starter_questions.join("\n")} /> : null}
         </div>
         <ul className="mt-2 flex flex-wrap gap-2">
-          {dm.starter_questions.map((q) => <li key={q} className="rounded-full bg-paper px-3 py-1 text-[0.88rem]">{q}</li>)}
+          {dm.starter_questions.map((q) => <li key={q} className="rounded-full bg-paper px-3 py-1 text-small">{q}</li>)}
         </ul>
       </div>
-      <ul className="mt-3 grid gap-1 text-[0.82rem] text-muted">
+      <ul className="mt-3 grid gap-1 text-meta text-muted">
         {dm.notes.map((n) => <li key={n} className="flex gap-1.5"><IconInfo className="mt-0.5 size-3.5 shrink-0" />{n}</li>)}
       </ul>
     </section>
@@ -304,18 +304,18 @@ export function ReportView({
       <section aria-labelledby="skorlar" className="grid gap-4 md:grid-cols-3">
         <h2 id="skorlar" className="sr-only">Skorlar</h2>
         <div className="rounded-2xl border border-line bg-card p-5 break-inside-avoid">
-          <p className="text-[0.8rem] font-semibold text-muted">{PLATFORM_SHORT[a.platform]} ret riski</p>
+          <p className="text-meta font-semibold text-muted">{PLATFORM_SHORT[a.platform]} ret riski</p>
           <p className="mt-1 flex items-baseline gap-3"><span className="font-display text-5xl font-semibold tabular">{a.metaRiskScore}</span><LevelPill level={a.metaRiskLevel} /></p>
           <ScaleBar value={a.metaRiskScore ?? 0} label={`${PLATFORM_SHORT[a.platform]} ret riski skoru`} />
         </div>
         <div className="rounded-2xl border border-line bg-card p-5 break-inside-avoid">
-          <p className="text-[0.8rem] font-semibold text-muted">Türk mevzuatı riski</p>
+          <p className="text-meta font-semibold text-muted">Türk mevzuatı riski</p>
           <p className="mt-1 flex items-baseline gap-3"><span className="font-display text-5xl font-semibold tabular">{a.legalFindingCount}</span><span className="text-sm text-muted">doğrulanmış bulgu</span></p>
           <p className="mt-3"><LevelPill level={a.legalRiskLevel} /></p>
-          {bd ? <p className="mt-2 text-[0.82rem] leading-snug text-ink-soft">{bd.legal.reason}</p> : null}
+          {bd ? <p className="mt-2 text-meta leading-snug text-ink-soft">{bd.legal.reason}</p> : null}
         </div>
         <div className="rounded-2xl border border-line bg-card p-5 break-inside-avoid">
-          <p className="text-[0.8rem] font-semibold text-muted">Kreatif skoru</p>
+          <p className="text-meta font-semibold text-muted">Kreatif skoru</p>
           <p className="mt-1 flex items-baseline gap-2"><span className="font-display text-5xl font-semibold tabular">{a.creativeScore}</span><span className="text-sm text-muted">/ 100</span></p>
           <ScaleBar value={a.creativeScore ?? 0} invert label="Kreatif skoru" />
         </div>
@@ -328,20 +328,20 @@ export function ReportView({
         <div className="sheet rounded-2xl border border-line p-5">
           {a.headline ? <p className="text-lg font-bold"><HighlightedText text={a.headline} marks={marks} /></p> : null}
           <p className="mt-2 whitespace-pre-line leading-relaxed"><HighlightedText text={a.primaryText} marks={marks} /></p>
-          {a.description ? <p className="mt-3 text-[0.92rem] text-ink-soft"><HighlightedText text={a.description} marks={marks} /></p> : null}
+          {a.description ? <p className="mt-3 text-body text-ink-soft"><HighlightedText text={a.description} marks={marks} /></p> : null}
           {a.transcript ? (
             <div className="mt-4 border-t border-dashed border-line pt-3">
-              <p className="text-[0.78rem] font-semibold text-muted">Videodaki konuşma ve ekran yazıları</p>
-              <p className="mt-1 whitespace-pre-line text-[0.94rem] leading-relaxed"><HighlightedText text={a.transcript} marks={marks} /></p>
+              <p className="text-meta font-semibold text-muted">Videodaki konuşma ve ekran yazıları</p>
+              <p className="mt-1 whitespace-pre-line text-body leading-relaxed"><HighlightedText text={a.transcript} marks={marks} /></p>
             </div>
           ) : null}
           {a.speechTranscript ? (
             <div className="mt-4 border-t border-dashed border-line pt-3">
-              <p className="text-[0.78rem] font-semibold text-muted">Videodaki konuşma (otomatik yazıya döküldü, hatalı olabilir)</p>
-              <p className="mt-1 whitespace-pre-line text-[0.94rem] leading-relaxed"><HighlightedText text={a.speechTranscript} marks={marks} /></p>
+              <p className="text-meta font-semibold text-muted">Videodaki konuşma (otomatik yazıya döküldü, hatalı olabilir)</p>
+              <p className="mt-1 whitespace-pre-line text-body leading-relaxed"><HighlightedText text={a.speechTranscript} marks={marks} /></p>
             </div>
           ) : null}
-          <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-dashed border-line pt-3 text-[0.8rem] text-muted">
+          <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-dashed border-line pt-3 text-meta text-muted">
             <span>{SECTOR_LABEL[a.sector]}</span>
             <span>{PLATFORM_INFO[a.platform].label}</span>
             {a.mediaType === "video" && a.videoMeta ? (
@@ -364,7 +364,7 @@ export function ReportView({
         ) : (
           groups.filter((g) => g.items.length).map((g) => (
             <div key={g.sev} className="mt-5">
-              <h3 className={`flex items-center gap-2 text-[0.95rem] font-bold ${SEV_STYLE[g.sev].text}`}>
+              <h3 className={`flex items-center gap-2 text-body font-bold ${SEV_STYLE[g.sev].text}`}>
                 {g.sev === "info" ? <IconInfo className="size-4" /> : <IconAlert className="size-4" />}
                 {SEVERITY_LABEL[g.sev]} · {g.items.length}
               </h3>
@@ -388,7 +388,7 @@ export function ReportView({
           <div className="mt-4 grid gap-8 md:grid-cols-2">
             <div>
               <h3 className="text-sm font-bold">{PLATFORM_SHORT[a.platform]} ret riski</h3>
-              <table className="mt-2 w-full text-[0.88rem]">
+              <table className="mt-2 w-full text-small">
                 <tbody className="divide-y divide-line">
                   <tr><td className="py-1.5 pr-3 text-ink-soft">{bd.meta.baseReason}</td><td className="py-1.5 text-right font-semibold tabular">+{bd.meta.base}</td></tr>
                   {bd.meta.items.map((i) => (
@@ -400,11 +400,11 @@ export function ReportView({
             </div>
             <div>
               <h3 className="text-sm font-bold">Kreatif skoru</h3>
-              <table className="mt-2 w-full text-[0.88rem]">
+              <table className="mt-2 w-full text-small">
                 <tbody className="divide-y divide-line">
                   {bd.creative.map((c) => (
                     <tr key={c.key}>
-                      <td className="py-1.5 pr-3"><span className="font-semibold">{c.label}</span><span className="block text-[0.8rem] text-ink-soft">{c.reason}</span></td>
+                      <td className="py-1.5 pr-3"><span className="font-semibold">{c.label}</span><span className="block text-meta text-ink-soft">{c.reason}</span></td>
                       <td className="py-1.5 text-right align-top font-semibold tabular whitespace-nowrap">{c.score} / {c.max}</td>
                     </tr>
                   ))}
@@ -425,9 +425,9 @@ export function ReportView({
           <div className="mt-3 rounded-2xl border border-green/30 bg-green-tint/50 p-5">
             {safe.headline ? <p className="font-bold">{safe.headline}</p> : null}
             <p className="mt-1 whitespace-pre-line leading-relaxed">{safe.primaryText}</p>
-            {safe.description ? <p className="mt-2 text-[0.92rem] text-ink-soft">{safe.description}</p> : null}
+            {safe.description ? <p className="mt-2 text-body text-ink-soft">{safe.description}</p> : null}
           </div>
-          <p className="mt-2 text-[0.82rem] text-muted">Öneri, aynı kural kartlarıyla yeniden tarandı: {safe.recheckRed} kırmızı, {safe.recheckYellow} sarı bayrak.</p>
+          <p className="mt-2 text-meta text-muted">Öneri, aynı kural kartlarıyla yeniden tarandı: {safe.recheckRed} kırmızı, {safe.recheckYellow} sarı bayrak.</p>
         </section>
       ) : null}
 
@@ -437,7 +437,7 @@ export function ReportView({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 id="varyantlar" className="font-display text-2xl font-semibold">Beş Türkçe varyant</h2>
             {!print && !assetBase ? (
-              <a href={`/api/analyses/${a.id}/export?format=csv`} className="no-print inline-flex items-center gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-[0.82rem] font-semibold text-ink hover:bg-paper-2" download>
+              <a href={`/api/analyses/${a.id}/export?format=csv`} className="no-print inline-flex items-center gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-meta font-semibold text-ink hover:bg-paper-2" download>
                 Tablo olarak indir (CSV)
               </a>
             ) : null}
@@ -446,13 +446,13 @@ export function ReportView({
             {variants.map((v) => (
               <li key={v.position} className="flex flex-col rounded-2xl border border-line bg-card p-5 break-inside-avoid">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[0.8rem] font-bold text-coral-deep">{v.tone}</span>
+                  <span className="text-meta font-bold text-coral-deep">{v.tone}</span>
                   {!print ? <CopyButton text={[v.headline, v.primaryText, v.description].filter(Boolean).join("\n\n")} /> : null}
                 </div>
                 {v.headline ? <p className="mt-2 font-bold">{v.headline}</p> : null}
-                <p className="mt-1 whitespace-pre-line text-[0.94rem] leading-relaxed">{v.primaryText}</p>
-                {v.description ? <p className="mt-2 text-[0.88rem] text-ink-soft">{v.description}</p> : null}
-                <p className="mt-auto pt-3 text-[0.78rem] text-muted">
+                <p className="mt-1 whitespace-pre-line text-body leading-relaxed">{v.primaryText}</p>
+                {v.description ? <p className="mt-2 text-small text-ink-soft">{v.description}</p> : null}
+                <p className="mt-auto pt-3 text-meta text-muted">
                   Yeniden tarama: {v.recheckRed === 0 && v.recheckYellow === 0 ? "bayrak yok" : `${v.recheckRed} kırmızı, ${v.recheckYellow} sarı`}
                 </p>
               </li>
@@ -469,8 +469,8 @@ export function ReportView({
           <h2 id="itiraz-h" className="font-display text-2xl font-semibold">İtiraz asistanı</h2>
           <div className={`mt-4 rounded-2xl p-5 ${a.appeal.recommendation === "new_ad" ? "bg-amber-tint" : "bg-info-tint"}`}>
             <p className="font-bold">{a.appeal.recommendation === "new_ad" ? "Öneri: itiraz yerine düzeltilmiş yeni reklam" : "Öneri: itiraz edilebilir"}</p>
-            <p className="mt-1.5 text-[0.94rem] leading-relaxed text-ink-soft">{a.appeal.explanation_tr}</p>
-            {a.appeal.detected_policies.length ? <p className="mt-2 text-[0.85rem] text-ink-soft">Ret mesajında tespit edilen politika: {a.appeal.detected_policies.join(", ")}</p> : null}
+            <p className="mt-1.5 text-body leading-relaxed text-ink-soft">{a.appeal.explanation_tr}</p>
+            {a.appeal.detected_policies.length ? <p className="mt-2 text-small text-ink-soft">Ret mesajında tespit edilen politika: {a.appeal.detected_policies.join(", ")}</p> : null}
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             {([["Türkçe taslak", a.appeal.draft_tr], ["İngilizce taslak (Meta destek formu için)", a.appeal.draft_en]] as const).map(([label, text]) => (
@@ -479,12 +479,12 @@ export function ReportView({
                   <h3 className="text-sm font-bold">{label}</h3>
                   {!print ? <CopyButton text={text} /> : null}
                 </div>
-                <p className="mt-3 whitespace-pre-line text-[0.92rem] leading-relaxed">{text}</p>
+                <p className="mt-3 whitespace-pre-line text-body leading-relaxed">{text}</p>
               </div>
             ))}
           </div>
           <h3 className="mt-5 text-sm font-bold">Göndermeden önce</h3>
-          <ul className="mt-2 grid gap-1.5 text-[0.92rem]">
+          <ul className="mt-2 grid gap-1.5 text-body">
             {a.appeal.checklist.map((c) => (
               <li key={c.label} className="flex gap-2"><span aria-hidden className="text-muted">☐</span>{c.label}</li>
             ))}
@@ -492,7 +492,7 @@ export function ReportView({
         </section>
       ) : null}
 
-      <footer className="flex flex-col gap-3 text-[0.8rem] text-muted">
+      <footer className="flex flex-col gap-3 text-meta text-muted">
         <Disclaimer />
         <p>
           Rapor kimliği <span className="tabular">{a.id}</span> · {a.completedAt ? formatDateTimeTr(a.completedAt) : formatDateTimeTr(a.createdAt)} · {a.engineVersion}

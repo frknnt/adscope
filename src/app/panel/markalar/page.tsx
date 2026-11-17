@@ -3,6 +3,7 @@ import { getRepo } from "@/lib/data";
 import { SECTOR_LABEL } from "@/lib/sectors";
 import { deleteBrandAction } from "../agency-actions";
 import { BrandForm } from "../agency-forms";
+import { EmptyState } from "@/components/ui";
 
 export const metadata = { title: "Markalar" };
 
@@ -27,7 +28,7 @@ export default async function BrandsPage() {
       <section aria-labelledby="marka-listesi" className="mt-8">
         <h2 id="marka-listesi" className="font-display text-2xl font-semibold">Markaların <span className="text-base font-normal text-muted">· {brands.length}</span></h2>
         {brands.length === 0 ? (
-          <p className="mt-3 text-ink-soft">Henüz marka yok. İlk markanı yukarıdan ekle; analiz sihirbazında seçebilirsin.</p>
+          <EmptyState className="mt-4" title="Henüz marka yok.">İlk markanı yukarıdan ekle; analiz sihirbazında seçebilirsin.</EmptyState>
         ) : (
           <ul className="mt-4 grid gap-4">
             {brands.map((b) => (
@@ -36,22 +37,22 @@ export default async function BrandsPage() {
                   <div className="flex items-center gap-3">
                     {b.hasLogo ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={`/api/brands/${b.id}/logo`} alt="" className="size-10 rounded-lg border border-line bg-white object-contain" />
+                      <img src={`/api/brands/${b.id}/logo`} alt="" className="size-10 rounded-lg border border-line bg-field object-contain" />
                     ) : (
                       <span aria-hidden className="grid size-10 place-items-center rounded-lg bg-paper font-display text-lg font-semibold">{b.name.slice(0, 1).toLocaleUpperCase("tr-TR")}</span>
                     )}
                     <div>
                       <h3 className="text-lg font-bold">{b.name}</h3>
-                      <p className="text-[0.85rem] text-muted">{SECTOR_LABEL[b.sector]} · {TONE[b.tone]} · {b.bannedWords.length} yasaklı kelime</p>
+                      <p className="text-small text-muted">{SECTOR_LABEL[b.sector]} · {TONE[b.tone]} · {b.bannedWords.length} yasaklı kelime</p>
                     </div>
                   </div>
                   <form action={deleteBrandAction}>
                     <input type="hidden" name="id" value={b.id} />
-                    <button type="submit" className="text-[0.88rem] font-semibold text-coral-deep">Markayı sil</button>
+                    <button type="submit" className="text-small font-semibold text-coral-deep">Markayı sil</button>
                   </form>
                 </div>
                 <details className="mt-4">
-                  <summary className="cursor-pointer text-[0.9rem] font-semibold">Düzenle</summary>
+                  <summary className="cursor-pointer text-body font-semibold">Düzenle</summary>
                   <div className="mt-4"><BrandForm brand={b} /></div>
                 </details>
               </li>

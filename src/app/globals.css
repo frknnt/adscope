@@ -2,18 +2,25 @@
 
 /* AdScope design tokens: navy ink on warm paper, coral as the risk/attention signal. */
 :root {
+  color-scheme: light;
   --ink: #13213c;
   --ink-2: #24365a;
   --ink-soft: #3d4c6b;
   --paper: #f7f4ee;
   --paper-2: #efe9de;
   --card: #fffdf9;
+  --field: #ffffff;
   --line: #ddd4c4;
   --line-strong: #c7bca8;
   --muted: #56607a;
+  --placeholder: #7b8296;
   --coral: #e2553a;
   --coral-deep: #b23a21;
   --coral-tint: #fbe2d9;
+  --accent: #e8603f;
+  --accent-hover: #ea6a50;
+  --on-accent: #13213c;
+  --caution: #e9b43c;
   --amber: #8a5600;
   --amber-tint: #faefd3;
   --info: #2c5784;
@@ -21,6 +28,40 @@
   --green: #2b6a4c;
   --green-tint: #e0efe6;
   --focus: #e2553a;
+  --shadow-color: 19 33 60;
+}
+
+/* Dark theme follows the OS setting on screen only; print always uses the light sheet. */
+@media screen and (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --ink: #edf0f6;
+    --ink-2: #d3d9e6;
+    --ink-soft: #b4bdd0;
+    --paper: #0e1626;
+    --paper-2: #18233a;
+    --card: #131d31;
+    --field: #0f192b;
+    --line: #26334d;
+    --line-strong: #3a4966;
+    --muted: #97a1b8;
+    --placeholder: #7d879e;
+    --coral: #f0705a;
+    --coral-deep: #ff8f78;
+    --coral-tint: #3a1f1d;
+    --accent: #ef6c4e;
+    --accent-hover: #f37f64;
+    --on-accent: #13213c;
+    --caution: #e9b43c;
+    --amber: #f2c46b;
+    --amber-tint: #33290f;
+    --info: #8fb5e3;
+    --info-tint: #182a42;
+    --green: #7fd0a5;
+    --green-tint: #15302a;
+    --focus: #f0705a;
+    --shadow-color: 0 0 0;
+  }
 }
 
 @theme inline {
@@ -42,6 +83,23 @@
   --color-info-tint: var(--info-tint);
   --color-green: var(--green);
   --color-green-tint: var(--green-tint);
+  --color-field: var(--field);
+  --color-placeholder: var(--placeholder);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-caution: var(--caution);
+
+  /* Type scale for UI text (display sizes stay per-page). No line-height on purpose: inherits. */
+  --text-fine: 0.75rem;
+  --text-meta: 0.8125rem;
+  --text-small: 0.875rem;
+  --text-body: 0.9375rem;
+
+  --shadow-raised: 0 18px 40px -28px rgb(var(--shadow-color) / 0.5);
+  --shadow-float: 0 30px 60px -30px rgb(var(--shadow-color) / 0.45);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --font-sans: "Manrope Variable", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Fraunces Variable", ui-serif, Georgia, serif;
 }
@@ -61,8 +119,8 @@ body {
 }
 
 ::selection {
-  background: var(--coral);
-  color: var(--ink);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 * {
@@ -109,7 +167,7 @@ p {
   border-radius: 2px;
 }
 .mark-warn {
-  background: linear-gradient(transparent 55%, color-mix(in oklab, #e9b43c 55%, transparent) 55%);
+  background: linear-gradient(transparent 55%, color-mix(in oklab, var(--caution) 55%, transparent) 55%);
   padding: 0 0.1em;
   border-radius: 2px;
 }
@@ -131,7 +189,26 @@ p {
   scrollbar-color: var(--line-strong) transparent;
 }
 
+/* Select chevron drawn with two gradients so it follows the theme colours. */
+.select {
+  appearance: none;
+  padding-right: 2.25rem;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 1.15rem) 55%, calc(100% - 0.8rem) 55%;
+  background-size: 0.35rem 0.35rem;
+  background-repeat: no-repeat;
+}
+
+/* Loading placeholder; static when the visitor prefers reduced motion. */
+.skeleton {
+  background: var(--paper-2);
+  border-radius: 0.5rem;
+}
+
 @media (prefers-reduced-motion: no-preference) {
+  .skeleton {
+    animation: pulse 1.6s ease-in-out infinite;
+  }
   .reveal {
     animation: reveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
@@ -152,6 +229,12 @@ p {
     opacity: 1;
     transform: none;
     filter: none;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
   }
 }
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { IconAlert, IconImage, IconUpload, IconVideo } from "@/components/icons";
-import { Button, Field, inputClass } from "@/components/ui";
+import { Button, Field, inputClass, selectClass, Stepper } from "@/components/ui";
 import { creditCostFor } from "@/lib/analysis/cost";
 import { analyzeAudio, extractVideoFrames, VIDEO_MIME, videoErrorMessage, type AudioInfo, type ExtractedVideo } from "@/lib/video/extract-frames";
 
@@ -304,24 +304,11 @@ export function AnalysisWizard({
   return (
     <div className="mt-8">
       {fromLink ? (
-        <p className="mb-6 max-w-3xl rounded-xl bg-info-tint px-4 py-3 text-[0.9rem] text-info">
+        <p className="mb-6 max-w-3xl rounded-xl bg-info-tint px-4 py-3 text-body text-info">
           Metin tarayıcı eklentisinden veya ilham panosundan geldi. Göndermeden önce kontrol et; görseli ilk adımda sen ekleyeceksin.
         </p>
       ) : null}
-      <ol className="flex flex-wrap gap-x-1 gap-y-2 text-[0.8rem] font-semibold" aria-label="Adımlar">
-        {STEPS.map((s, i) => (
-          <li key={s} className="flex items-center gap-1">
-            <span
-              aria-current={i === step ? "step" : undefined}
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ${i === step ? "bg-ink text-paper" : i < step ? "bg-paper-2 text-ink" : "text-muted"}`}
-            >
-              <span className="tabular">{i + 1}</span> {s}
-            </span>
-            {i < STEPS.length - 1 ? <span className="text-line-strong" aria-hidden>—</span> : null}
-          </li>
-        ))}
-        <li className="flex items-center gap-1 text-muted"><span className="text-line-strong" aria-hidden>—</span><span className="px-2.5 py-1"><span className="tabular">7</span> Rapor</span></li>
-      </ol>
+      <Stepper steps={[...STEPS, "Rapor"]} current={step} />
 
       <section className="mt-6 rounded-2xl border border-line bg-card p-5 sm:p-8" aria-labelledby={`${ids}-h`}>
         <h2 id={`${ids}-h`} ref={headingRef} tabIndex={-1} className="font-display text-2xl font-semibold outline-none">
@@ -330,7 +317,7 @@ export function AnalysisWizard({
         </h2>
 
         {phase.kind === "error" ? (
-          <div role="alert" className="mt-5 flex gap-3 rounded-xl bg-coral-tint px-4 py-3 text-[0.93rem] text-coral-deep">
+          <div role="alert" className="mt-5 flex gap-3 rounded-xl bg-coral-tint px-4 py-3 text-body text-coral-deep">
             <IconAlert className="mt-0.5 size-5 shrink-0" />
             <div>
               <p className="font-semibold">{phase.message}</p>
@@ -347,7 +334,7 @@ export function AnalysisWizard({
                 ["image", "Görsel", IconImage],
                 ["video", "Video / Reels", IconVideo],
               ] as const).map(([value, label, Icon]) => (
-                <label key={value} className="flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-[0.92rem] font-semibold text-ink-soft has-[:checked]:bg-ink has-[:checked]:text-paper has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-coral">
+                <label key={value} className="flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-body font-semibold text-ink-soft has-[:checked]:bg-ink has-[:checked]:text-paper has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-coral">
                   <input type="radio" name="media" value={value} checked={media === value} onChange={() => { setMedia(value); setImageError(null); }} className="sr-only" />
                   <Icon className="size-4.5" /> {label}
                 </label>
@@ -380,7 +367,7 @@ export function AnalysisWizard({
                 <span className="flex flex-col items-center gap-3 text-ink-soft">
                   {media === "video" ? <IconVideo className="size-8 text-ink" /> : <IconUpload className="size-8 text-ink" />}
                   <span className="font-semibold text-ink">{media === "video" ? "Videoyu sürükle bırak ya da seçmek için tıkla" : "Görseli sürükle bırak ya da seçmek için tıkla"}</span>
-                  <span className="text-[0.85rem]">
+                  <span className="text-small">
                     {media === "video" ? "MP4, MOV veya WebM · en fazla 10 dakika · video cihazından çıkmaz" : "JPG, PNG veya WebP · en fazla 5 MB · en kısa kenar en az 200 px"}
                   </span>
                 </span>
@@ -399,21 +386,21 @@ export function AnalysisWizard({
               onChange={(e) => (media === "video" ? void acceptVideo(e.target.files?.[0]) : void acceptFile(e.target.files?.[0]))}
             />
             {media === "image" && image ? (
-              <p className="mt-3 text-[0.88rem] text-ink-soft">
+              <p className="mt-3 text-small text-ink-soft">
                 <span className="font-semibold text-ink">{image.file.name}</span> · <span className="tabular">{image.width}×{image.height}</span> px · <span className="tabular">{(image.file.size / 1024 / 1024).toLocaleString("tr-TR", { maximumFractionDigits: 1 })}</span> MB{" "}
                 <button type="button" className="ml-2 font-semibold text-coral-deep underline-offset-4 hover:underline" onClick={() => fileInput.current?.click()}>Değiştir</button>
               </p>
             ) : null}
             {media === "video" && video && !videoBusy ? (
-              <p className="mt-3 text-[0.88rem] text-ink-soft">
+              <p className="mt-3 text-small text-ink-soft">
                 <span className="font-semibold text-ink">{video.name}</span> · <span className="tabular">{video.width}×{video.height}</span> px · <span className="tabular">{video.durationSec.toLocaleString("tr-TR", { maximumFractionDigits: 1 })}</span> sn · <span className="tabular">{video.frames.length}</span> kare analiz edilecek{" "}
                 <button type="button" className="ml-2 font-semibold text-coral-deep underline-offset-4 hover:underline" onClick={() => fileInput.current?.click()}>Değiştir</button>
               </p>
             ) : null}
             {media === "video" ? (
-              <p className="mt-3 max-w-2xl text-[0.85rem] text-muted">Video dosyası yüklenmez. Tarayıcın videodan altı kare alır (üçü ilk saniyelerden) ve sesin ne zaman başladığını ölçer; yalnızca bu kareler ve ölçümler gönderilir.{speechEnabled ? " Konuşmanın otomatik yazıya dökülmesini bir sonraki adımda açabilirsin." : " Konuşmayı bir sonraki adımda yazabilirsin."}</p>
+              <p className="mt-3 max-w-2xl text-small text-muted">Video dosyası yüklenmez. Tarayıcın videodan altı kare alır (üçü ilk saniyelerden) ve sesin ne zaman başladığını ölçer; yalnızca bu kareler ve ölçümler gönderilir.{speechEnabled ? " Konuşmanın otomatik yazıya dökülmesini bir sonraki adımda açabilirsin." : " Konuşmayı bir sonraki adımda yazabilirsin."}</p>
             ) : null}
-            {imageError ? <p id={`${ids}-file-err`} role="alert" className="mt-3 text-[0.9rem] font-medium text-coral-deep">{imageError}</p> : null}
+            {imageError ? <p id={`${ids}-file-err`} role="alert" className="mt-3 text-body font-medium text-coral-deep">{imageError}</p> : null}
           </div>
         ) : null}
 
@@ -438,11 +425,11 @@ export function AnalysisWizard({
               </Field>
             ) : null}
             {media === "video" && speechEnabled ? (
-              <label className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-white/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-white">
+              <label className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-field/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-field">
                 <input type="checkbox" checked={speechOptIn} onChange={(e) => setSpeechOptIn(e.target.checked)} disabled={!video?.wav} className="mt-1 accent-ink" />
                 <span>
-                  <span className="block text-[0.95rem] font-semibold">Konuşmayı otomatik yazıya dök</span>
-                  <span className="block text-[0.85rem] text-ink-soft">
+                  <span className="block text-body font-semibold">Konuşmayı otomatik yazıya dök</span>
+                  <span className="block text-small text-ink-soft">
                     {video?.wav
                       ? `Videonun ilk ${Math.min(SPEECH_SECONDS, Math.round(video.durationSec))} saniyelik sesi bir kez konuşma tanıma hizmetine gönderilir. Ses saklanmaz; çıkan metin raporda gösterilir ve kurallarla taranır.`
                       : "Bu videoda okunabilir bir ses bulunamadı."}
@@ -470,7 +457,7 @@ export function AnalysisWizard({
                 accept="image/jpeg,image/png,image/webp"
                 onChange={(e) => acceptShot(e.target.files?.[0])}
                 aria-invalid={shotError ? true : undefined}
-                className="block w-full text-[0.9rem] text-ink-soft file:mr-4 file:rounded-full file:border-0 file:bg-ink file:px-4 file:py-2 file:text-[0.85rem] file:font-semibold file:text-paper hover:file:bg-ink-soft"
+                className="block w-full text-body text-ink-soft file:mr-4 file:rounded-full file:border-0 file:bg-ink file:px-4 file:py-2 file:text-small file:font-semibold file:text-paper hover:file:bg-ink-soft"
               />
             </Field>
           </div>
@@ -482,11 +469,11 @@ export function AnalysisWizard({
               <legend className="text-sm font-semibold">Platform</legend>
               <div className="mt-3 grid gap-2 sm:grid-cols-3">
                 {PLATFORM_IDS.map((p) => (
-                  <label key={p} className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-white/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-white has-[:checked]:shadow-[0_0_0_1px_var(--ink)]">
+                  <label key={p} className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-field/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-field has-[:checked]:shadow-[0_0_0_1px_var(--ink)]">
                     <input type="radio" name="platform" value={p} checked={platform === p} onChange={() => setPlatform(p)} className="mt-1 accent-ink" />
                     <span>
-                      <span className="block text-[0.95rem] font-semibold">{PLATFORM_INFO[p].label}</span>
-                      <span className="block text-[0.82rem] text-muted">{PLATFORM_INFO[p].note}</span>
+                      <span className="block text-body font-semibold">{PLATFORM_INFO[p].label}</span>
+                      <span className="block text-meta text-muted">{PLATFORM_INFO[p].note}</span>
                     </span>
                   </label>
                 ))}
@@ -496,11 +483,11 @@ export function AnalysisWizard({
               <legend className="text-sm font-semibold">Sektör</legend>
               <div className="mt-3 grid gap-2 sm:grid-cols-3">
                 {SECTORS.map((s) => (
-                  <label key={s.value} className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-white/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-white has-[:checked]:shadow-[0_0_0_1px_var(--ink)]">
+                  <label key={s.value} className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-field/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-field has-[:checked]:shadow-[0_0_0_1px_var(--ink)]">
                     <input type="radio" name="sector" value={s.value} checked={sector === s.value} onChange={() => setSector(s.value)} className="mt-1 accent-ink" />
                     <span>
-                      <span className="block text-[0.95rem] font-semibold">{s.label}</span>
-                      <span className="block text-[0.82rem] text-muted">{s.note}</span>
+                      <span className="block text-body font-semibold">{s.label}</span>
+                      <span className="block text-meta text-muted">{s.note}</span>
                     </span>
                   </label>
                 ))}
@@ -508,7 +495,7 @@ export function AnalysisWizard({
             </fieldset>
             {brands.length ? (
               <Field label="Marka (isteğe bağlı)" htmlFor="brand">
-                <select id="brand" value={brandId} onChange={(e) => setBrandId(e.target.value)} className={`${inputClass} max-w-sm`}>
+                <select id="brand" value={brandId} onChange={(e) => setBrandId(e.target.value)} className={`${selectClass} max-w-sm`}>
                   <option value="">Marka seçme</option>
                   {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
@@ -519,18 +506,18 @@ export function AnalysisWizard({
 
         {step === 3 ? (
           <fieldset className="mt-5">
-            <legend className="max-w-2xl text-[0.95rem] text-ink-soft">Bunlar görselden güvenilir biçimde anlaşılamaz, o yüzden senden alıyoruz. İşaretlediğin her madde ilgili kural kartını devreye sokar.</legend>
+            <legend className="max-w-2xl text-body text-ink-soft">Bunlar görselden güvenilir biçimde anlaşılamaz, o yüzden senden alıyoruz. İşaretlediğin her madde ilgili kural kartını devreye sokar.</legend>
             <div className="mt-4 grid gap-3">
               {([
                 ["influencerPost", "Etkileyici (influencer) iş birliği", "Reklam bir sosyal medya fenomeninin hesabından yayınlanacak ya da ücretli/ürün karşılığı iş birliği içeriyor."],
                 ["aiHumanCharacter", "Yapay zekâ ile üretilmiş insan karakteri", "Görselde gerçekte var olmayan, yapay zekâ ile oluşturulmuş bir kişi yer alıyor."],
                 ["aiRealPersonCopy", "Gerçek bir kişinin dijital kopyası", "Gerçek bir kişinin görüntüsü veya sesi yapay zekâ ile yeniden üretildi."],
               ] as const).map(([key, title, note]) => (
-                <label key={key} className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-white/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-white">
+                <label key={key} className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-field/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-field">
                   <input type="checkbox" checked={flags[key]} onChange={(e) => setFlags((f) => ({ ...f, [key]: e.target.checked }))} className="mt-1 size-4.5 accent-ink" />
                   <span>
-                    <span className="block text-[0.95rem] font-semibold">{title}</span>
-                    <span className="block text-[0.85rem] text-ink-soft">{note}</span>
+                    <span className="block text-body font-semibold">{title}</span>
+                    <span className="block text-small text-ink-soft">{note}</span>
                   </span>
                 </label>
               ))}
@@ -556,7 +543,7 @@ export function AnalysisWizard({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={video.frames[0].url} alt="Videonun ilk karesi" className="w-40 rounded-lg border border-line object-cover" />
             ) : null}
-            <dl className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-[0.92rem]">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-body">
               <dt className="text-muted">Kreatif</dt>
               <dd>
                 {media === "video" && video ? (
@@ -586,7 +573,7 @@ export function AnalysisWizard({
               <dd className="break-all">{normalizeLandingUrl(landingUrl) ?? "Yok"}{shot ? " · ekran görüntüsü eklendi" : ""}</dd>
               <dt className="text-muted">Ret mesajı</dt><dd>{rejection.trim() ? "Var, itiraz taslağı hazırlanacak" : "Yok"}</dd>
             </dl>
-            <p className="text-[0.88rem] text-ink-soft sm:col-span-2">
+            <p className="text-small text-ink-soft sm:col-span-2">
               Bu analiz <strong className="text-ink">{creditCostFor(media)} kredi</strong> kullanır{media === "video" ? " (video analizi 2 kredidir)" : ""} (bakiye: <span className="tabular">{balance}</span>). Kredi yalnızca rapor tamamlanınca düşer.
               {balance < creditCostFor(media) ? <span className="mt-1 block font-semibold text-coral-deep">Bakiyen bu analiz için yetmiyor. <Link href="/panel/krediler" className="text-coral-deep">Kredi yükle</Link></span> : null}
             </p>

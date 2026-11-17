@@ -34,8 +34,8 @@ export default function PricingPage() {
               <span className="font-display text-4xl font-semibold tabular">{p.price}</span>
               <span className={p.featured ? "text-paper/75" : "text-muted"}>/ {p.credits} analiz</span>
             </p>
-            <p className={`mt-3 text-[0.95rem] ${p.featured ? "text-paper/85" : "text-ink-soft"}`}>{p.note}</p>
-            <ul className={`mt-5 space-y-2 text-[0.92rem] ${p.featured ? "text-paper/90" : "text-ink-soft"}`}>
+            <p className={`mt-3 text-body ${p.featured ? "text-paper/85" : "text-ink-soft"}`}>{p.note}</p>
+            <ul className={`mt-5 space-y-2 text-body ${p.featured ? "text-paper/90" : "text-ink-soft"}`}>
               <li>Meta ret riski, mevzuat riski, kreatif skoru</li>
               <li>Güvenli metin ve 5 Türkçe varyant</li>
               <li>TR + EN itiraz taslağı</li>
@@ -53,13 +53,13 @@ export default function PricingPage() {
       <section className="mt-8 flex flex-col gap-2 rounded-2xl border border-dashed border-line-strong px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-bold">Ajanslar için</h2>
-          <p className="mt-1 text-[0.92rem] text-ink-soft">
+          <p className="mt-1 text-body text-ink-soft">
             Her pakette çoklu marka, 10 kişiye kadar salt okunur ekip, avukat inceleme bağlantısı, logolu PDF ve API anahtarı var. Krediler hesap sahibinden düşer.
           </p>
         </div>
       </section>
 
-      <section className="mt-14 grid gap-6 border-t border-line pt-10 text-[0.95rem] leading-relaxed text-ink-soft md:grid-cols-2">
+      <section className="mt-14 grid gap-6 border-t border-line pt-10 text-body leading-relaxed text-ink-soft md:grid-cols-2">
         <div>
           <h2 className="text-lg font-bold text-ink">Ödeme nasıl alınıyor?</h2>
           <p className="mt-2">

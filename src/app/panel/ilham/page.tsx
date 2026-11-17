@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { IconAlert, IconBoard, IconExternal, IconInfo, IconTrash } from "@/components/icons";
 import { formatDateTr } from "@/components/rule-status";
-import { buttonClass, Disclaimer, inputClass } from "@/components/ui";
+import { buttonClass, Disclaimer, inputClass, selectClass } from "@/components/ui";
 import { requirePanelUser } from "@/app/panel/guard";
 import { getAdLibrary, isLibraryCountry, LIBRARY_COUNTRIES, runningDays, type LibraryAd, type LibraryResult } from "@/lib/ads-library/meta";
 import { getRepo } from "@/lib/data";
@@ -47,9 +47,9 @@ function checkHref(title: string, body: string) {
 }
 
 function SignalLine({ s }: { s: ReturnType<typeof signals> }) {
-  if (!s.red && !s.yellow) return <p className="text-[0.82rem] text-muted">AdScope kural setinde eşleşme yok.</p>;
+  if (!s.red && !s.yellow) return <p className="text-meta text-muted">AdScope kural setinde eşleşme yok.</p>;
   return (
-    <div className="grid gap-1 text-[0.82rem]">
+    <div className="grid gap-1 text-meta">
       <p className="flex flex-wrap items-center gap-1.5 font-semibold">
         <IconAlert className="size-4 text-amber" aria-hidden />
         AdScope sinyali:
@@ -70,28 +70,28 @@ function AdCard({ ad, country, rules, saved }: { ad: LibraryAd; country: string;
     <li className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="font-bold">{ad.pageName || "Sayfa adı yok"}</p>
-        <p className="text-[0.78rem] text-muted">
+        <p className="text-meta text-muted">
           {ad.deliveryStart ? <>Başlangıç <time dateTime={ad.deliveryStart}>{formatDateTr(ad.deliveryStart)}</time></> : null}
           {ad.deliveryStop ? <> · bitiş <time dateTime={ad.deliveryStop}>{formatDateTr(ad.deliveryStop)}</time></> : ad.deliveryStart ? " · yayında" : null}
         </p>
       </div>
       {days >= 0 ? (
-        <p className="w-fit rounded-full bg-paper-2 px-2.5 py-0.5 text-[0.78rem] font-semibold tabular">{days} gün{ad.deliveryStop ? " yayında kaldı" : "dür yayında"}</p>
+        <p className="w-fit rounded-full bg-paper-2 px-2.5 py-0.5 text-meta font-semibold tabular">{days} gün{ad.deliveryStop ? " yayında kaldı" : "dür yayında"}</p>
       ) : null}
       {title ? <p className="font-semibold leading-snug">{title}</p> : null}
-      {body ? <p className="line-clamp-6 whitespace-pre-line text-[0.9rem] text-ink-soft">{body}</p> : <p className="text-[0.88rem] text-muted">Metin yok (yalnızca görsel veya video).</p>}
-      {ad.bodies.length > 1 ? <p className="text-[0.78rem] text-muted">+{ad.bodies.length - 1} metin varyantı daha</p> : null}
-      <p className="text-[0.78rem] text-muted">
+      {body ? <p className="line-clamp-6 whitespace-pre-line text-body text-ink-soft">{body}</p> : <p className="text-small text-muted">Metin yok (yalnızca görsel veya video).</p>}
+      {ad.bodies.length > 1 ? <p className="text-meta text-muted">+{ad.bodies.length - 1} metin varyantı daha</p> : null}
+      <p className="text-meta text-muted">
         {ad.platforms.length ? ad.platforms.map((p) => p.toLowerCase()).join(", ") : null}
         {ad.euReach ? ` · AB erişimi ≈ ${new Intl.NumberFormat("tr-TR").format(ad.euReach)}` : null}
       </p>
       <SignalLine s={s} />
       <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-dashed border-line pt-3">
         <PinButton adArchiveId={ad.id} pageName={ad.pageName} title={title} body={body} country={country} deliveryStart={ad.deliveryStart} saved={saved} />
-        <Link href={checkHref(title, body)} className="rounded-full border border-line-strong px-3 py-1.5 text-[0.82rem] font-semibold no-underline hover:bg-paper-2">
+        <Link href={checkHref(title, body)} className="rounded-full border border-line-strong px-3 py-1.5 text-meta font-semibold no-underline hover:bg-paper-2">
           Benzerini kontrol et
         </Link>
-        <a href={ad.libraryUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[0.82rem] font-semibold">
+        <a href={ad.libraryUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-meta font-semibold">
           Kütüphanede aç <IconExternal className="size-3.5" aria-hidden />
           <span className="sr-only">(yeni sekmede açılır)</span>
         </a>
@@ -110,18 +110,18 @@ function SetupState() {
         Arama yapabilmek için sunucuya bir Meta erişim anahtarı tanımlanmalı. Bu bir kez, uygulamayı yöneten kişi tarafından yapılır; anahtar tarayıcıya hiç gönderilmez.
         Bağlantı kurulana kadar burada örnek ya da uydurma reklam gösterilmez.
       </p>
-      <ol className="mt-4 grid list-decimal gap-2 pl-5 text-[0.92rem]">
+      <ol className="mt-4 grid list-decimal gap-2 pl-5 text-body">
         <li>Meta for Developers üzerinde bir uygulama oluştur.</li>
         <li>Reklam Kütüphanesi API erişimi için kimlik doğrulamasını tamamla (facebook.com/ID).</li>
         <li>Graph API Explorer ile uzun ömürlü bir kullanıcı erişim anahtarı üret.</li>
         <li>
-          Anahtarı sunucu ortamına <code className="rounded bg-paper px-1.5 py-0.5 text-[0.85rem]">META_AD_LIBRARY_TOKEN</code> olarak ekle ve uygulamayı yeniden başlat.
+          Anahtarı sunucu ortamına <code className="rounded bg-paper px-1.5 py-0.5 text-small">META_AD_LIBRARY_TOKEN</code> olarak ekle ve uygulamayı yeniden başlat.
         </li>
       </ol>
-      <p className="mt-4 text-[0.85rem] text-muted">
+      <p className="mt-4 text-small text-muted">
         Not: Meta, ticari reklamları API üzerinden yalnızca AB ülkelerinde gösterilmiş olanlar için açıyor. Bu yüzden arama AB ülkelerinde, istersen yalnızca Türkçe reklamlarla yapılır.
       </p>
-      <a href="https://www.facebook.com/ads/library/api" target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-[0.9rem] font-semibold">
+      <a href="https://www.facebook.com/ads/library/api" target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-body font-semibold">
         Meta Reklam Kütüphanesi API sayfası <IconExternal className="size-3.5" aria-hidden />
         <span className="sr-only">(yeni sekmede açılır)</span>
       </a>
@@ -171,38 +171,38 @@ export default async function InspirationPage({ searchParams }: { searchParams: 
         <form method="get" action="/panel/ilham" className="mt-8 grid gap-4 rounded-2xl border border-line bg-card p-5 sm:p-6" role="search" aria-label="Reklam kütüphanesinde ara">
           <input type="hidden" name="ara" value="1" />
           <div className="grid gap-4 md:grid-cols-[1fr_12rem_12rem]">
-            <label className="grid gap-1.5 text-[0.9rem] font-semibold">
+            <label className="grid gap-1.5 text-body font-semibold">
               Arama terimi
               <input name="q" defaultValue={q} required minLength={2} maxLength={100} placeholder="ör. kolajen, diyetisyen, kampanya" className={inputClass} />
             </label>
-            <label className="grid gap-1.5 text-[0.9rem] font-semibold">
+            <label className="grid gap-1.5 text-body font-semibold">
               Gösterildiği ülke
-              <select name="ulke" defaultValue={country} className={inputClass}>
+              <select name="ulke" defaultValue={country} className={selectClass}>
                 {Object.entries(LIBRARY_COUNTRIES).map(([code, label]) => (
                   <option key={code} value={code}>{label}</option>
                 ))}
               </select>
             </label>
-            <label className="grid gap-1.5 text-[0.9rem] font-semibold">
+            <label className="grid gap-1.5 text-body font-semibold">
               Sinyal için sektör
-              <select name="sektor" defaultValue={sector} className={inputClass}>
+              <select name="sektor" defaultValue={sector} className={selectClass}>
                 {SECTOR_IDS.map((s) => <option key={s} value={s}>{SECTOR_INFO[s].label}</option>)}
               </select>
             </label>
           </div>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-[0.9rem]">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-body">
             <label className="flex items-center gap-2"><input type="checkbox" name="tr" value="1" defaultChecked={turkishOnly} className="accent-ink" /> Yalnızca Türkçe reklamlar</label>
             <label className="flex items-center gap-2"><input type="checkbox" name="aktif" value="1" defaultChecked={activeOnly} className="accent-ink" /> Yalnızca yayında olanlar</label>
             <button type="submit" className={buttonClass("accent", "ml-auto")}>Ara</button>
           </div>
-          <p className="text-[0.8rem] text-muted">Meta ticari reklamları API&apos;de yalnızca AB ülkelerinde gösterilenler için açar. Arama terimin kaydedilmez.</p>
+          <p className="text-meta text-muted">Meta ticari reklamları API&apos;de yalnızca AB ülkelerinde gösterilenler için açar. Arama terimin kaydedilmez.</p>
         </form>
       ) : (
         <SetupState />
       )}
 
       {result && !result.ok ? (
-        <p role="alert" className="mt-6 rounded-xl bg-coral-tint px-4 py-3 text-[0.92rem] text-coral-deep">{ERRORS[result.reason]}</p>
+        <p role="alert" className="mt-6 rounded-xl bg-coral-tint px-4 py-3 text-body text-coral-deep">{ERRORS[result.reason]}</p>
       ) : null}
 
       {result?.ok ? (
@@ -210,7 +210,7 @@ export default async function InspirationPage({ searchParams }: { searchParams: 
           <h2 id="sonuclar" className="font-display text-2xl font-semibold">
             {result.ads.length ? `“${q}” için ${result.ads.length} reklam` : `“${q}” için reklam bulunamadı`}
           </h2>
-          {result.ads.length > 1 ? <p className="mt-1 text-[0.85rem] text-muted">En uzun süredir yayında olanlar üstte. Uzun süre yayında kalan reklam çoğu zaman kârlı reklamdır.</p> : null}
+          {result.ads.length > 1 ? <p className="mt-1 text-small text-muted">En uzun süredir yayında olanlar üstte. Uzun süre yayında kalan reklam çoğu zaman kârlı reklamdır.</p> : null}
           {result.ads.length ? (
             <ul className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {result.ads.map((ad) => <AdCard key={ad.id} ad={ad} country={country} rules={rules} saved={pinned.has(ad.id)} />)}
@@ -238,22 +238,22 @@ export default async function InspirationPage({ searchParams }: { searchParams: 
                 <li key={p.id} className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <p className="font-bold">{p.pageName || "Sayfa adı yok"}</p>
-                    <p className="text-[0.78rem] text-muted">{LIBRARY_COUNTRIES[p.country as keyof typeof LIBRARY_COUNTRIES] ?? p.country} · kaydedildi {formatDateTr(p.createdAt)}</p>
+                    <p className="text-meta text-muted">{LIBRARY_COUNTRIES[p.country as keyof typeof LIBRARY_COUNTRIES] ?? p.country} · kaydedildi {formatDateTr(p.createdAt)}</p>
                   </div>
                   {p.title ? <p className="font-semibold leading-snug">{p.title}</p> : null}
-                  {p.body ? <p className="line-clamp-6 whitespace-pre-line text-[0.9rem] text-ink-soft">{p.body}</p> : null}
+                  {p.body ? <p className="line-clamp-6 whitespace-pre-line text-body text-ink-soft">{p.body}</p> : null}
                   <SignalLine s={s} />
                   <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-dashed border-line pt-3">
-                    <Link href={checkHref(p.title, p.body)} className="rounded-full border border-line-strong px-3 py-1.5 text-[0.82rem] font-semibold no-underline hover:bg-paper-2">
+                    <Link href={checkHref(p.title, p.body)} className="rounded-full border border-line-strong px-3 py-1.5 text-meta font-semibold no-underline hover:bg-paper-2">
                       Benzerini kontrol et
                     </Link>
-                    <a href={`https://www.facebook.com/ads/library/?id=${p.adArchiveId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[0.82rem] font-semibold">
+                    <a href={`https://www.facebook.com/ads/library/?id=${p.adArchiveId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-meta font-semibold">
                       Kütüphanede aç <IconExternal className="size-3.5" aria-hidden />
                       <span className="sr-only">(yeni sekmede açılır)</span>
                     </a>
                     <form action={deletePinAction} className="ml-auto">
                       <input type="hidden" name="id" value={p.id} />
-                      <button type="submit" className="inline-flex items-center gap-1 text-[0.82rem] font-semibold text-coral-deep" aria-label={`${p.pageName || "Reklamı"} panodan kaldır`}>
+                      <button type="submit" className="inline-flex items-center gap-1 text-meta font-semibold text-coral-deep" aria-label={`${p.pageName || "Reklamı"} panodan kaldır`}>
                         <IconTrash className="size-4" aria-hidden /> Kaldır
                       </button>
                     </form>
@@ -267,7 +267,7 @@ export default async function InspirationPage({ searchParams }: { searchParams: 
         )}
       </section>
 
-      <div className="mt-10 grid gap-3 text-[0.82rem] text-muted">
+      <div className="mt-10 grid gap-3 text-meta text-muted">
         <p>
           Bir reklamın kütüphanede yayında görünmesi, Meta tarafından kalıcı olarak onaylandığı ya da mevzuata uygun olduğu anlamına gelmez. Sinyaller yalnızca AdScope kural setindeki
           eşleşmelerdir. Reklam metinleri sahiplerine aittir; birebir kopyalamak yerine fikir almak için kullan.

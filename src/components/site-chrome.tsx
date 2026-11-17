@@ -16,7 +16,7 @@ export async function SiteHeader() {
     <header className="no-print border-b border-line/70">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-4 sm:px-6">
         <Logo />
-        <nav aria-label="Ana menü" className="order-3 flex w-full gap-5 overflow-x-auto text-[0.92rem] font-medium text-ink-soft sm:order-none sm:w-auto">
+        <nav aria-label="Ana menü" className="order-3 flex w-full gap-5 overflow-x-auto text-body font-medium text-ink-soft sm:order-none sm:w-auto">
           {NAV.map((n) => (
             <Link key={n.href} href={n.href} className="whitespace-nowrap py-1 no-underline hover:text-ink">
               {n.label}
@@ -30,7 +30,7 @@ export async function SiteHeader() {
             </ButtonLink>
           ) : (
             <>
-              <Link href="/giris" className="px-3 py-2 text-[0.92rem] font-semibold text-ink no-underline hover:underline">
+              <Link href="/giris" className="px-3 py-2 text-body font-semibold text-ink no-underline hover:underline">
                 Giriş
               </Link>
               <ButtonLink href="/kayit" variant="primary" className="h-10 px-4">
@@ -47,13 +47,13 @@ export async function SiteHeader() {
 export function SiteFooter() {
   return (
     <footer className="no-print mt-auto border-t border-line/70 bg-paper-2/60">
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 text-[0.9rem] text-ink-soft sm:grid-cols-[1.4fr_1fr_1fr] sm:px-6">
+      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 text-body text-ink-soft sm:grid-cols-[1.4fr_1fr_1fr] sm:px-6">
         <div className="max-w-sm">
           <Logo />
           <p className="mt-3 leading-relaxed">
             Reklam yayına çıkmadan önce Meta ret riskini, Türk reklam mevzuatı açısından riskleri ve kreatif kalitesini gösteren ön kontrol aracı.
           </p>
-          <p className="mt-3 text-[0.8rem]">Risk değerlendirmesidir, hukuki görüş değildir.</p>
+          <p className="mt-3 text-meta">Risk değerlendirmesidir, hukuki görüş değildir.</p>
         </div>
         <div>
           <p className="font-semibold text-ink">Ürün</p>

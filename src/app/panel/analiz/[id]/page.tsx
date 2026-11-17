@@ -38,7 +38,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
         <div className="min-w-0">
           <h1 className="font-display text-3xl font-semibold leading-tight sm:text-4xl">{title}</h1>
           <p className="mt-1.5 text-sm text-muted">{SECTOR_LABEL[a.sector]} · {PLATFORM_SHORT[a.platform]} · {formatDateTimeTr(a.createdAt)}</p>
-          {!a.ownedByMe ? <p className="mt-2 inline-flex rounded-full bg-info-tint px-3 py-1 text-[0.8rem] font-semibold text-info">Ekip analizi · salt okunur</p> : null}
+          {!a.ownedByMe ? <p className="mt-2 inline-flex rounded-full bg-info-tint px-3 py-1 text-meta font-semibold text-info">Ekip analizi · salt okunur</p> : null}
         </div>
         <div className="no-print flex flex-wrap gap-2">
           {a.status === "completed" ? (
@@ -77,7 +77,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
           {a.ownedByMe && a.status === "completed" ? (
             <section id="eposta" className="no-print mt-10 scroll-mt-6 rounded-2xl border border-line bg-card p-5 sm:p-7" aria-labelledby="eposta-h">
               <h2 id="eposta-h" className="font-display text-2xl font-semibold">Raporu e-postayla gönder</h2>
-              <p className="mt-1 text-[0.9rem] text-ink-soft">Logolu PDF rapor müşterine veya ekibine ek olarak gider. Saatte en fazla 10 gönderim.</p>
+              <p className="mt-1 text-body text-ink-soft">Logolu PDF rapor müşterine veya ekibine ek olarak gider. Saatte en fazla 10 gönderim.</p>
               <div className="mt-5"><ReportEmailForm analysisId={a.id} /></div>
             </section>
           ) : null}
@@ -90,7 +90,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
               </p>
               <div className="mt-5"><ReviewShareForm analysisId={a.id} /></div>
               {shares.length ? (
-                <ul className="mt-6 grid gap-2 text-[0.88rem]">
+                <ul className="mt-6 grid gap-2 text-small">
                   {shares.map((sh) => {
                     const active = shareActive(sh);
                     return (

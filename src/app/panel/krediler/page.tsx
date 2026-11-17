@@ -1,5 +1,5 @@
 import { formatDateTimeTr } from "@/components/rule-status";
-import { Button } from "@/components/ui";
+import { Button, DataTable } from "@/components/ui";
 import { getRepo } from "@/lib/data";
 import { requirePanelUser } from "@/app/panel/guard";
 import { demoPurchasesAllowed } from "@/lib/env";
@@ -26,13 +26,13 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
         Bakiye: <strong className="font-display text-2xl text-ink tabular">{balance}</strong> analiz. Bakiye, aşağıdaki değiştirilemez kredi hareketlerinin toplamıdır.
       </p>
       {sp.odeme === "kapali" ? (
-        <p role="alert" className="mt-5 rounded-xl bg-coral-tint px-4 py-3 text-[0.92rem] font-medium text-coral-deep">Online ödeme henüz aktif değil.</p>
+        <p role="alert" className="mt-5 rounded-xl bg-coral-tint px-4 py-3 text-body font-medium text-coral-deep">Online ödeme henüz aktif değil.</p>
       ) : null}
 
       <section aria-labelledby="paketler" className="mt-8">
         <h2 id="paketler" className="font-display text-2xl font-semibold">Kredi paketleri</h2>
         {!providers.length ? (
-          <p className="mt-2 text-[0.92rem] text-ink-soft">
+          <p className="mt-2 text-body text-ink-soft">
             Online ödeme <strong className="text-ink">yakında</strong>. Ödeme sağlayıcısı hesabı bağlandığında buradan güvenli ödeme sayfasına yönlendirileceksin.
             {demo ? " Bu demo ortamında, akışı denemek için ücretsiz demo kredisi ekleyebilirsin; gerçek ödeme alınmaz." : ""}
           </p>
@@ -62,9 +62,9 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
 
       <section aria-labelledby="hareketler" className="mt-12">
         <h2 id="hareketler" className="font-display text-2xl font-semibold">Kredi hareketleri</h2>
-        <div className="mt-4 overflow-x-auto rounded-2xl border border-line bg-card" tabIndex={0} role="region" aria-label="Kredi hareketleri tablosu">
-          <table className="w-full min-w-[32rem] text-[0.9rem]">
-            <thead className="border-b border-line text-left text-[0.8rem] text-muted">
+        <DataTable className="mt-4" label="Kredi hareketleri tablosu">
+          <table className="w-full min-w-[32rem] text-body">
+            <thead className="border-b border-line text-left text-meta text-muted">
               <tr><th scope="col" className="px-5 py-3 font-semibold">Tarih</th><th scope="col" className="px-5 py-3 font-semibold">Açıklama</th><th scope="col" className="px-5 py-3 text-right font-semibold">Değişim</th></tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -77,7 +77,7 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
               ))}
             </tbody>
           </table>
-        </div>
+        </DataTable>
       </section>
 
       {purchases.length ? (
@@ -85,7 +85,7 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
           <h2 id="siparisler" className="font-display text-2xl font-semibold">Siparişler</h2>
           <ul className="mt-4 divide-y divide-line rounded-2xl border border-line bg-card">
             {purchases.map((p) => (
-              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-[0.9rem]">
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-body">
                 <span>{formatDateTimeTr(p.createdAt)} · {p.packageId} · <span className="tabular">{p.credits}</span> kredi</span>
                 <span className="text-ink-soft">{p.isDemo ? "Demo (ödeme alınmadı)" : `${formatTry(p.amountMinor)} · ${p.provider}`}</span>
               </li>

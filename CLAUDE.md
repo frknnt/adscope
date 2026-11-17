@@ -2,7 +2,7 @@
 
 # AdScope: Claude için çalışma kuralları
 
-AdScope, Türkçe bir reklam ön kontrol ve kreatif SaaS'ıdır: reklam metni, görseli, videosu ve açılış sayfası yayından önce Meta / Google Ads / TikTok politikalarına ve Türk reklam mevzuatına göre risk açısından değerlendirilir; güvenli metin, varyantlar, itiraz taslağı ve rapor üretilir. Yol haritası: `docs/CLAUDE_KOMUTLARI.md`. Güncel durum: `docs/DURUM.md`. Kaynaklar: `docs/SOURCES.md`.
+AdScope, Türkçe bir reklam ön kontrol ve kreatif SaaS'ıdır: reklam metni, görseli, videosu ve açılış sayfası yayından önce Meta / Google Ads / TikTok politikalarına ve Türk reklam mevzuatına göre risk açısından değerlendirilir; güvenli metin, varyantlar, itiraz taslağı ve rapor üretilir. Yol haritası: `docs/CLAUDE_KOMUTLARI.md`. Güncel durum: `docs/DURUM.md`. Kaynaklar: `docs/SOURCES.md`. Arayüz kuralları, renk ve yazı ölçeği, bileşen listesi: `DESIGN.md` (yeni sabit renk veya `text-[0.xxrem]` ekleme).
 
 ## Yığın
 

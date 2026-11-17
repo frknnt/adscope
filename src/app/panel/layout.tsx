@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { signOutAction } from "@/app/(auth)/actions";
 import { IconLogout } from "@/components/icons";
+import { ToastProvider } from "@/components/interactive";
 import { Logo } from "@/components/logo";
 import { getCurrentUser, getRepo } from "@/lib/data";
 import { PanelNav } from "./panel-nav";
@@ -19,7 +20,7 @@ export default async function PanelLayout({ children }: { children: ReactNode })
       <aside className="no-print border-b border-line bg-card/70 lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-64 lg:shrink-0 lg:flex-col lg:border-b-0 lg:border-r">
         <div className="flex items-center justify-between gap-3 px-4 pt-4 lg:px-5 lg:pt-6">
           <Logo href="/panel" />
-          <Link href="/panel/krediler" className="rounded-full border border-line-strong px-3 py-1 text-[0.85rem] font-semibold text-ink no-underline lg:hidden">
+          <Link href="/panel/krediler" className="rounded-full border border-line-strong px-3 py-1 text-small font-semibold text-ink no-underline lg:hidden">
             <span className="tabular">{balance}</span> kredi
           </Link>
         </div>
@@ -28,22 +29,24 @@ export default async function PanelLayout({ children }: { children: ReactNode })
         </div>
         <div className="hidden border-t border-line px-5 py-5 lg:block">
           <Link href="/panel/krediler" className="block rounded-xl bg-paper-2 px-4 py-3 no-underline">
-            <span className="block text-[0.78rem] font-semibold text-muted">Kredi bakiyesi</span>
+            <span className="block text-meta font-semibold text-muted">Kredi bakiyesi</span>
             <span className="font-display text-3xl font-semibold tabular text-ink">{balance}</span>
             <span className="ml-1 text-sm text-ink-soft">analiz</span>
           </Link>
-          <p className="mt-4 truncate text-[0.82rem] text-muted" title={user.email}>{user.email}</p>
+          <p className="mt-4 truncate text-meta text-muted" title={user.email}>{user.email}</p>
           <form action={signOutAction} className="mt-2">
-            <button type="submit" className="inline-flex items-center gap-2 text-[0.88rem] font-semibold text-ink-soft hover:text-ink">
+            <button type="submit" className="inline-flex items-center gap-2 text-small font-semibold text-ink-soft hover:text-ink">
               <IconLogout className="size-4" /> Çıkış yap
             </button>
           </form>
         </div>
       </aside>
       <main id="icerik" className="min-w-0 flex-1 px-4 py-8 sm:px-8 lg:px-12 lg:py-10">
-        <div className="mx-auto max-w-5xl">{children}</div>
+        <div className="mx-auto max-w-5xl">
+          <ToastProvider>{children}</ToastProvider>
+        </div>
         <form action={signOutAction} className="no-print mx-auto mt-16 max-w-5xl border-t border-line pt-4 lg:hidden">
-          <button type="submit" className="inline-flex items-center gap-2 text-[0.9rem] font-semibold text-ink-soft">
+          <button type="submit" className="inline-flex items-center gap-2 text-body font-semibold text-ink-soft">
             <IconLogout className="size-4" /> Çıkış yap ({user.email})
           </button>
         </form>

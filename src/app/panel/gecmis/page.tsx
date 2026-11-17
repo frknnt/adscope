@@ -14,7 +14,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
       <p className="mt-2 text-ink-soft">
         Analizler ve görseller {profile?.retentionDays ?? 90} gün sonra otomatik silinir. Bir analizi silmek görselini de kalıcı olarak siler; düşülen kredi geri yüklenmez.
       </p>
-      {sp.silindi ? <p role="status" className="mt-5 rounded-xl bg-green-tint px-4 py-3 text-[0.92rem] font-medium text-green">Analiz ve görseli silindi.</p> : null}
+      {sp.silindi ? <p role="status" className="mt-5 rounded-xl bg-green-tint px-4 py-3 text-body font-medium text-green">Analiz ve görseli silindi.</p> : null}
       <div className="mt-8">
         {items.length ? (
           <AnalysisList items={items} showDelete />

@@ -11,7 +11,7 @@ const LEVEL_STYLE: Record<Level, string> = {
 export function LevelPill({ level, prefix }: { level: Level | null; prefix?: string }) {
   if (!level) return <span className="text-muted">—</span>;
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[0.78rem] font-bold uppercase tracking-wide ${LEVEL_STYLE[level]}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-meta font-bold uppercase tracking-wide ${LEVEL_STYLE[level]}`}>
       <span className="size-1.5 rounded-full bg-current" aria-hidden />
       {prefix ? `${prefix} ` : ""}
       {LEVEL_LABEL[level]}
@@ -44,7 +44,7 @@ export function ScaleBar({ value, invert = false, label }: { value: number; inve
           style={{ left: `${v}%` }}
         />
       </div>
-      <div className="mt-1.5 flex justify-between text-[0.7rem] font-medium text-muted tabular">
+      <div className="mt-1.5 flex justify-between text-fine font-medium text-muted tabular">
         <span>0</span>
         <span>50</span>
         <span>100</span>

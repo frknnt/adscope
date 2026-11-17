@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { IconAppeal, IconCalendar, IconPlus } from "@/components/icons";
 import { daysUntil, istanbulToday, phaseOf, upcomingEvents } from "@/lib/calendar/season";
-import { ButtonLink } from "@/components/ui";
+import { ButtonLink, EmptyState } from "@/components/ui";
 import { getRepo } from "@/lib/data";
 import { requirePanelUser } from "@/app/panel/guard";
 import { AnalysisList } from "./analysis-list";
@@ -24,23 +24,23 @@ export default async function DashboardPage() {
   return (
     <div>
       {rescan.length ? (
-        <section aria-labelledby="kural-guncel" className="mb-8 rounded-2xl border border-[#e9b43c]/60 bg-amber-tint/50 p-5">
+        <section aria-labelledby="kural-guncel" className="mb-8 rounded-2xl border border-caution/60 bg-amber-tint/50 p-5">
           <h2 id="kural-guncel" className="flex items-center gap-2 text-lg font-bold">
             <IconAlert className="size-5 text-amber" aria-hidden />
             Kurallar güncellendi: {rescan.length} eski reklamında artık yeni risk var
           </h2>
-          <p className="mt-1 text-[0.9rem] text-ink-soft">
+          <p className="mt-1 text-body text-ink-soft">
             Son 50 analizinin metnini bugünkü doğrulanmış kural kartlarıyla yeniden taradık (kredi harcanmadı). Bu reklamlar hâlâ yayındaysa gözden geçir.
           </p>
           <ul className="mt-3 grid gap-2">
             {rescan.slice(0, 5).map((h) => (
-              <li key={h.id} className="rounded-xl border border-line bg-card px-4 py-2.5 text-[0.9rem]">
+              <li key={h.id} className="rounded-xl border border-line bg-card px-4 py-2.5 text-body">
                 <Link href={`/panel/analiz/${h.id}`} className="font-semibold">{h.label}</Link>
                 <span className="text-muted">
                   {" "}· ret riski {h.oldMeta} → <strong className="text-ink">{h.newMeta}</strong>
                   {h.newLegal > h.oldLegal ? <> · mevzuat bulgusu {h.oldLegal} → <strong className="text-ink">{h.newLegal}</strong></> : null}
                 </span>
-                {h.titles.length ? <span className="block text-[0.82rem] text-muted">{h.titles.join(" · ")}</span> : null}
+                {h.titles.length ? <span className="block text-meta text-muted">{h.titles.join(" · ")}</span> : null}
               </li>
             ))}
           </ul>
@@ -61,7 +61,7 @@ export default async function DashboardPage() {
 
       {!profile?.onboardingCompletedAt ? (
         <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-line bg-card px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[0.95rem]"><strong>Sektörünü seç,</strong> raporlar ilgili kural paketiyle gelsin.</p>
+          <p className="text-body"><strong>Sektörünü seç,</strong> raporlar ilgili kural paketiyle gelsin.</p>
           <ButtonLink href="/panel/baslangic" variant="ghost" className="h-10">Başlangıç ayarları</ButtonLink>
         </div>
       ) : null}
@@ -74,11 +74,13 @@ export default async function DashboardPage() {
         {analyses.length ? (
           <div className="mt-4"><AnalysisList items={analyses} /></div>
         ) : (
-          <div className="sheet mt-4 rounded-2xl border border-dashed border-line-strong px-6 py-12 text-center">
-            <p className="font-display text-2xl font-semibold">Henüz analiz yok.</p>
-            <p className="mx-auto mt-2 max-w-md text-ink-soft">İlk reklamını yükle: görsel, ana metin ve sektör yeterli. Sonuç yaklaşık bir dakikada hazır.</p>
-            <ButtonLink href="/panel/yeni" variant="primary" className="mt-6">İlk analizi başlat</ButtonLink>
-          </div>
+          <EmptyState
+            className="mt-4"
+            title="Henüz analiz yok."
+            action={<ButtonLink href="/panel/yeni" variant="primary">İlk analizi başlat</ButtonLink>}
+          >
+            İlk reklamını yükle: görsel, ana metin ve sektör yeterli. Sonuç yaklaşık bir dakikada hazır.
+          </EmptyState>
         )}
       </section>
 
@@ -86,7 +88,7 @@ export default async function DashboardPage() {
         {nextSeason ? (
           <Link href={`/panel/takvim#${nextSeason.key}`} className="group rounded-2xl border border-line bg-card p-5 no-underline hover:border-line-strong">
             <span className="flex items-center gap-2 font-bold text-ink"><IconCalendar className="size-5 text-coral-deep" /> Sıradaki dönem: {nextSeason.name}</span>
-            <span className="mt-1.5 block text-[0.93rem] text-ink-soft">
+            <span className="mt-1.5 block text-body text-ink-soft">
               <span className="tabular">{Math.max(0, daysUntil(nextSeason.start, today))}</span> gün kaldı.{" "}
               {phaseOf(nextSeason, today) === "yayinda" || phaseOf(nextSeason, today) === "incelemeye-gonder"
                 ? "Reklam dönemi başladı ya da çok yakın; yayındaki reklamlarını şimdi kontrol et."
@@ -96,11 +98,11 @@ export default async function DashboardPage() {
         ) : null}
         <Link href="/panel/itiraz" className="group rounded-2xl border border-line bg-card p-5 no-underline hover:border-line-strong">
           <span className="flex items-center gap-2 font-bold text-ink"><IconAppeal className="size-5 text-coral-deep" /> Reklamın reddedildi mi?</span>
-          <span className="mt-1.5 block text-[0.93rem] text-ink-soft">Ret mesajını yapıştır; itiraz mı yoksa yeni reklam mı daha mantıklı, söyleyelim ve TR + EN taslak hazırlayalım.</span>
+          <span className="mt-1.5 block text-body text-ink-soft">Ret mesajını yapıştır; itiraz mı yoksa yeni reklam mı daha mantıklı, söyleyelim ve TR + EN taslak hazırlayalım.</span>
         </Link>
         <Link href="/kurallar" className="group rounded-2xl border border-line bg-card p-5 no-underline hover:border-line-strong">
           <span className="font-bold text-ink">Hangi kurallara bakıyoruz?</span>
-          <span className="mt-1.5 block text-[0.93rem] text-ink-soft">Her kural kartının kaynağı, yürürlük ve son doğrulama tarihi açık.</span>
+          <span className="mt-1.5 block text-body text-ink-soft">Her kural kartının kaynağı, yürürlük ve son doğrulama tarihi açık.</span>
         </Link>
       </section>
     </div>

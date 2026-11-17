@@ -31,7 +31,7 @@ export default async function PrintableReportPage({ params }: { params: Promise<
             <h1 className="mt-4 font-display text-3xl font-semibold leading-tight">Reklam ön kontrol raporu</h1>
             <p className="mt-1 text-sm text-muted">{a.headline || a.primaryText.slice(0, 80)} · {SECTOR_LABEL[a.sector]}</p>
           </div>
-          <p className="text-right text-[0.82rem] text-muted">
+          <p className="text-right text-meta text-muted">
             {formatDateTimeTr(a.completedAt ?? a.createdAt)}
             <br />
             <strong className="text-ink">Risk değerlendirmesidir, hukuki görüş değildir.</strong>

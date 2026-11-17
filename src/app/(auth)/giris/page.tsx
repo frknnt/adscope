@@ -15,7 +15,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
         <h1 className="font-display text-4xl font-semibold">Giriş yap</h1>
         <p className="mt-3 text-ink-soft">Raporlarına ve kredi bakiyene devam et.</p>
         {sp.durum === "dogrulama-hatasi" ? (
-          <p role="alert" className="mt-6 rounded-xl bg-coral-tint px-4 py-3 text-[0.92rem] font-medium text-coral-deep">
+          <p role="alert" className="mt-6 rounded-xl bg-coral-tint px-4 py-3 text-body font-medium text-coral-deep">
             Doğrulama bağlantısı geçersiz ya da süresi dolmuş. Giriş yapmayı deneyin veya yeniden kaydolun.
           </p>
         ) : null}

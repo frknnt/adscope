@@ -15,7 +15,7 @@ const STYLE: Record<RuleStatus, string> = {
 };
 
 export function RuleStatusPill({ status }: { status: RuleStatus }) {
-  return <span className={`rounded-full px-2 py-0.5 text-[0.75rem] font-semibold ${STYLE[status]}`}>{RULE_STATUS_LABEL[status]}</span>;
+  return <span className={`rounded-full px-2 py-0.5 text-fine font-semibold ${STYLE[status]}`}>{RULE_STATUS_LABEL[status]}</span>;
 }
 
 export { SECTOR_LABEL } from "@/lib/sectors";

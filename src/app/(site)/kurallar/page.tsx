@@ -29,14 +29,14 @@ export default async function RulesPage() {
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             {g.rules.map((r) => (
               <article key={r.id} id={r.id} className="flex scroll-mt-24 flex-col rounded-2xl border border-line bg-card p-5">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-[0.75rem] font-semibold text-muted">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-fine font-semibold text-muted">
                   <span className="tabular tracking-wide">{r.id} · v{r.version}</span>
                   <RuleStatusPill status={r.status} />
                 </div>
                 <h3 className="mt-2.5 text-lg font-bold leading-snug">{r.title}</h3>
-                <p className="mt-2 text-[0.93rem] leading-relaxed text-ink-soft">{r.description}</p>
+                <p className="mt-2 text-body leading-relaxed text-ink-soft">{r.description}</p>
                 {r.riskyExamples.length ? (
-                  <p className="mt-3 text-[0.88rem]">
+                  <p className="mt-3 text-small">
                     <span className="font-semibold">Riskli örnek: </span>
                     {r.riskyExamples.slice(0, 2).map((e, i) => (
                       <span key={e}>
@@ -46,8 +46,8 @@ export default async function RulesPage() {
                     ))}
                   </p>
                 ) : null}
-                <p className="mt-2 text-[0.88rem]"><span className="font-semibold">Güvenli yaklaşım: </span><span className="text-ink-soft">{r.safeFix}</span></p>
-                <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 border-t border-dashed border-line pt-3 text-[0.82rem]">
+                <p className="mt-2 text-small"><span className="font-semibold">Güvenli yaklaşım: </span><span className="text-ink-soft">{r.safeFix}</span></p>
+                <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 border-t border-dashed border-line pt-3 text-meta">
                   <dt className="text-muted">Sektör</dt><dd>{SECTOR_LABEL[r.sector]}</dd>
                   <dt className="text-muted">Risk seviyesi</dt><dd>{RISK_LABEL[r.riskLevel]}</dd>
                   <dt className="text-muted">Kaynak</dt><dd>{r.sourceOrg}{r.sourceReference ? ` · ${r.sourceReference}` : ""}</dd>
@@ -55,7 +55,7 @@ export default async function RulesPage() {
                   <dt className="text-muted">Son doğrulama</dt><dd className="tabular">{formatDateTr(r.lastVerifiedAt)}</dd>
                   <dt className="text-muted">Hukukçu incelemesi</dt><dd>{REVIEW_LABEL[r.legalReviewStatus]}</dd>
                 </dl>
-                <p className="mt-3 text-[0.8rem] leading-relaxed text-muted">{r.verificationNote}</p>
+                <p className="mt-3 text-meta leading-relaxed text-muted">{r.verificationNote}</p>
                 <a href={r.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-auto inline-flex items-center gap-1.5 pt-3 text-sm font-semibold text-coral-deep">
                   Resmî kaynak <IconExternal className="size-3.5" aria-hidden />
                   <span className="sr-only">(yeni sekmede açılır)</span>

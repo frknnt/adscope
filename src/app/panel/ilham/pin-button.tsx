@@ -19,11 +19,11 @@ export function PinButton(props: { adArchiveId: string; pageName: string; title:
       <button
         type="submit"
         disabled={pending || done}
-        className="rounded-full border border-line-strong px-3 py-1.5 text-[0.82rem] font-semibold hover:bg-paper-2 disabled:cursor-default disabled:opacity-70"
+        className="rounded-full border border-line-strong px-3 py-1.5 text-meta font-semibold hover:bg-paper-2 disabled:cursor-default disabled:opacity-70"
       >
         {done ? "Panoda" : pending ? "Kaydediliyor…" : "Panoya kaydet"}
       </button>
-      {state.status === "error" ? <span role="alert" className="text-[0.8rem] text-coral-deep">{state.message}</span> : null}
+      {state.status === "error" ? <span role="alert" className="text-meta text-coral-deep">{state.message}</span> : null}
     </form>
   );
 }

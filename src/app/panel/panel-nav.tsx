@@ -29,7 +29,7 @@ export function PanelNav() {
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={`flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2.5 text-[0.93rem] font-semibold no-underline transition-colors ${
+            className={`flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2.5 text-body font-semibold no-underline transition-colors ${
               active ? "bg-ink text-paper" : "text-ink-soft hover:bg-paper-2 hover:text-ink"
             }`}
           >

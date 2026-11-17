@@ -33,7 +33,7 @@ export default async function SharedReviewPage({ params }: { params: Promise<{ t
           ) : (
             <Logo href="/" />
           )}
-          <p className="mt-4 text-[0.8rem] font-bold uppercase tracking-wide text-coral-deep">Avukat incelemesi için gönderildi</p>
+          <p className="mt-4 text-meta font-bold uppercase tracking-wide text-coral-deep">Avukat incelemesi için gönderildi</p>
           <h1 className="mt-1 font-display text-3xl font-semibold leading-tight">{a.headline || a.primaryText.slice(0, 80) || "Reklam ön kontrol raporu"}</h1>
           <p className="mt-1.5 text-sm text-muted">
             {[branding.brandName, branding.agencyName ? `Gönderen: ${branding.agencyName}` : null, SECTOR_LABEL[a.sector], PLATFORM_SHORT[a.platform], formatDateTimeTr(a.completedAt ?? a.createdAt)]
@@ -43,16 +43,16 @@ export default async function SharedReviewPage({ params }: { params: Promise<{ t
         </div>
         <div className="flex flex-col items-end gap-2 text-right">
           <a href={`/inceleme/${token}/pdf`} className={buttonClass("primary")} download>PDF indir</a>
-          <p className="text-[0.8rem] text-muted">Bağlantı {formatDateTimeTr(expiresAt)} tarihine kadar geçerli.</p>
+          <p className="text-meta text-muted">Bağlantı {formatDateTimeTr(expiresAt)} tarihine kadar geçerli.</p>
         </div>
       </header>
       {note ? (
         <aside className="mt-6 rounded-2xl bg-info-tint px-5 py-4">
-          <p className="text-[0.8rem] font-bold text-info">Gönderenin notu</p>
-          <p className="mt-1 whitespace-pre-line text-[0.95rem]">{note}</p>
+          <p className="text-meta font-bold text-info">Gönderenin notu</p>
+          <p className="mt-1 whitespace-pre-line text-body">{note}</p>
         </aside>
       ) : null}
-      <aside className="mt-6 rounded-2xl border border-line bg-card px-5 py-4 text-[0.92rem] leading-relaxed text-ink-soft">
+      <aside className="mt-6 rounded-2xl border border-line bg-card px-5 py-4 text-body leading-relaxed text-ink-soft">
         <strong className="text-ink">Risk değerlendirmesidir, hukuki görüş değildir.</strong> Bu rapor, AdScope kural kartlarıyla otomatik üretilmiş bir ön
         kontroldür. Doğrulanmamış kurallar yalnızca bilgilendirme amaçlıdır. Her bulgunun kaynağı ve son doğrulama tarihi bulgunun altında yer alır.
       </aside>

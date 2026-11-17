@@ -41,9 +41,9 @@ export function RestrictionGuide() {
     <section aria-labelledby="kisitlama" className="mt-8 rounded-2xl border border-line bg-card p-5 sm:p-7">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="kisitlama" className="font-display text-2xl font-semibold">Hesabın kısıtlandıysa: adım adım</h2>
-        <p className="text-[0.85rem] font-semibold text-muted tabular" aria-live="polite">{count} / {STEPS.length} tamamlandı</p>
+        <p className="text-small font-semibold text-muted tabular" aria-live="polite">{count} / {STEPS.length} tamamlandı</p>
       </div>
-      <p className="mt-1 text-[0.9rem] text-ink-soft">Sırayla ilerle. İşaretlerin yalnızca bu tarayıcıda saklanır. Meta&apos;nın ekranları değişebilir; adımlar ne arayacağını anlatır.</p>
+      <p className="mt-1 text-body text-ink-soft">Sırayla ilerle. İşaretlerin yalnızca bu tarayıcıda saklanır. Meta&apos;nın ekranları değişebilir; adımlar ne arayacağını anlatır.</p>
       <ol className="mt-5 grid gap-3">
         {STEPS.map((s, i) => (
           <li key={s.title} className={`rounded-xl border px-4 py-3 ${done[i] ? "border-line bg-paper-2/60" : "border-line-strong"}`}>
@@ -51,13 +51,13 @@ export function RestrictionGuide() {
               <input type="checkbox" checked={done[i]} onChange={() => toggle(i)} className="mt-1 size-4 accent-ink" />
               <span>
                 <span className={`font-semibold ${done[i] ? "text-muted line-through" : ""}`}>{i + 1}. {s.title}</span>
-                <span className="mt-0.5 block text-[0.88rem] text-ink-soft">{s.body}</span>
+                <span className="mt-0.5 block text-small text-ink-soft">{s.body}</span>
               </span>
             </label>
           </li>
         ))}
       </ol>
-      <p className="mt-4 text-[0.8rem] text-muted">Bu liste genel bir rehberdir; kısıtlamanın kalkacağını garanti etmez. Risk değerlendirmesidir, hukuki görüş değildir.</p>
+      <p className="mt-4 text-meta text-muted">Bu liste genel bir rehberdir; kısıtlamanın kalkacağını garanti etmez. Risk değerlendirmesidir, hukuki görüş değildir.</p>
     </section>
   );
 }

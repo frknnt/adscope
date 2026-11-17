@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Button, Field, inputClass } from "@/components/ui";
+import { Button, Field, inputClass, selectClass } from "@/components/ui";
 import type { Brand, FindingFeedback } from "@/lib/data/types";
 import { SECTOR_IDS, SECTOR_INFO } from "@/lib/sectors";
 import type { ActionState } from "./actions";
@@ -13,10 +13,10 @@ const initial: ActionState = { error: null };
 /** A secret (invite link, review link, API key) that is shown exactly once. */
 function OneTimeSecret({ value, label }: { value: string; label: string }) {
   return (
-    <div className="grid gap-2 rounded-xl border border-ink/20 bg-white p-3">
-      <span className="text-[0.78rem] font-semibold text-muted">{label}</span>
+    <div className="grid gap-2 rounded-xl border border-ink/20 bg-field p-3">
+      <span className="text-meta font-semibold text-muted">{label}</span>
       <div className="flex flex-wrap items-center gap-2">
-        <code className="min-w-0 flex-1 break-all rounded-lg bg-paper px-3 py-2 text-[0.82rem]">{value}</code>
+        <code className="min-w-0 flex-1 break-all rounded-lg bg-paper px-3 py-2 text-meta">{value}</code>
         <CopyButton text={value} />
       </div>
     </div>
@@ -37,14 +37,14 @@ export function FindingFeedbackForm({ analysisId, findingId, current }: { analys
   if (saved || current) {
     const verdict = current?.verdict;
     return (
-      <p className="no-print mt-3 text-[0.8rem] text-muted" role="status">
+      <p className="no-print mt-3 text-meta text-muted" role="status">
         {state.ok ?? (verdict === "helpful" ? "Bu uyarıyı yararlı olarak işaretledin." : verdict === "unclear" ? "Bu uyarıyı anlaşılmadı olarak bildirdin." : "Bu uyarıyı yanlış olarak bildirdin. Teşekkürler.")}
       </p>
     );
   }
   return (
     <div className="no-print mt-3 border-t border-dashed border-line pt-3">
-      <form action={action} className="flex flex-wrap items-center gap-2 text-[0.8rem]">
+      <form action={action} className="flex flex-wrap items-center gap-2 text-meta">
         <input type="hidden" name="analysisId" value={analysisId} />
         <input type="hidden" name="findingId" value={findingId} />
         <span className="text-muted">Bu uyarı doğru mu?</span>
@@ -59,7 +59,7 @@ export function FindingFeedbackForm({ analysisId, findingId, current }: { analys
           <input type="hidden" name="analysisId" value={analysisId} />
           <input type="hidden" name="findingId" value={findingId} />
           <input type="hidden" name="verdict" value="wrong" />
-          <fieldset className="grid gap-1.5 text-[0.85rem]">
+          <fieldset className="grid gap-1.5 text-small">
             <legend className="mb-1 font-semibold">Neden yanlış?</legend>
             {REASONS.map((r, i) => (
               <label key={r.value} className="flex items-start gap-2">
@@ -72,7 +72,7 @@ export function FindingFeedbackForm({ analysisId, findingId, current }: { analys
             <textarea id={`note-${findingId}`} name="note" rows={2} maxLength={500} className={inputClass} />
           </Field>
           <div className="flex flex-wrap items-center gap-3">
-            <Button type="submit" variant="ghost" disabled={pending} className="h-9 px-4 text-[0.85rem]">{pending ? "Gönderiliyor…" : "Bildir"}</Button>
+            <Button type="submit" variant="ghost" disabled={pending} className="h-9 px-4 text-small">{pending ? "Gönderiliyor…" : "Bildir"}</Button>
             <ActionMessage state={state} />
           </div>
         </form>
@@ -92,12 +92,12 @@ export function BrandForm({ brand }: { brand?: Brand }) {
           <input id={`name-${p}`} name="name" required maxLength={80} defaultValue={brand?.name} className={inputClass} />
         </Field>
         <Field label="Sektör" htmlFor={`sector-${p}`}>
-          <select id={`sector-${p}`} name="sector" defaultValue={brand?.sector ?? "genel"} className={inputClass}>
+          <select id={`sector-${p}`} name="sector" defaultValue={brand?.sector ?? "genel"} className={selectClass}>
             {SECTOR_IDS.map((s) => <option key={s} value={s}>{SECTOR_INFO[s].label}</option>)}
           </select>
         </Field>
         <Field label="Ton" htmlFor={`tone-${p}`}>
-          <select id={`tone-${p}`} name="tone" defaultValue={brand?.tone ?? "samimi"} className={inputClass}>
+          <select id={`tone-${p}`} name="tone" defaultValue={brand?.tone ?? "samimi"} className={selectClass}>
             <option value="samimi">Samimi</option>
             <option value="kurumsal">Kurumsal</option>
             <option value="genc">Genç</option>
@@ -116,10 +116,10 @@ export function BrandForm({ brand }: { brand?: Brand }) {
         </Field>
       </div>
       <Field label="Logo (PNG veya JPG, en fazla 1 MB)" htmlFor={`logo-${p}`} hint="PDF raporun ve avukat inceleme sayfasının başlığında kullanılır.">
-        <input id={`logo-${p}`} name="logo" type="file" accept="image/png,image/jpeg" className="text-[0.9rem]" />
+        <input id={`logo-${p}`} name="logo" type="file" accept="image/png,image/jpeg" className="text-body" />
       </Field>
       {brand?.hasLogo ? (
-        <label className="flex items-center gap-2 text-[0.88rem]"><input type="checkbox" name="removeLogo" className="accent-ink" /> Mevcut logoyu kaldır</label>
+        <label className="flex items-center gap-2 text-small"><input type="checkbox" name="removeLogo" className="accent-ink" /> Mevcut logoyu kaldır</label>
       ) : null}
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" variant={brand ? "ghost" : "accent"} disabled={pending}>{pending ? "Kaydediliyor…" : brand ? "Kaydet" : "Marka ekle"}</Button>
@@ -152,7 +152,7 @@ export function ReviewShareForm({ analysisId }: { analysisId: string }) {
       <input type="hidden" name="analysisId" value={analysisId} />
       <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
         <Field label="Geçerlilik" htmlFor="share-days">
-          <select id="share-days" name="days" defaultValue="7" className={inputClass}>
+          <select id="share-days" name="days" defaultValue="7" className={selectClass}>
             <option value="3">3 gün</option>
             <option value="7">7 gün</option>
             <option value="14">14 gün</option>

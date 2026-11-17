@@ -35,36 +35,36 @@ export default async function HomePage() {
         </div>
 
         {/* Real engine output on a sample ad */}
-        <figure className="sheet reveal relative rounded-[1.4rem] border border-line p-5 shadow-[0_30px_60px_-30px_rgba(19,33,60,.45)] sm:p-7" style={{ animationDelay: "120ms" }}>
-          <figcaption className="flex items-center justify-between text-[0.75rem] font-semibold uppercase tracking-[0.08em] text-muted">
+        <figure className="sheet reveal relative rounded-[1.4rem] border border-line p-5 shadow-float sm:p-7" style={{ animationDelay: "120ms" }}>
+          <figcaption className="flex items-center justify-between text-fine font-semibold uppercase tracking-[0.08em] text-muted">
             <span>Örnek rapor · takviye gıda</span>
             <span className="tabular">AdScope motoru</span>
           </figcaption>
-          <blockquote className="mt-4 rounded-xl border border-line bg-white/80 p-4 text-[1.02rem] leading-relaxed">
+          <blockquote className="mt-4 rounded-xl border border-line bg-field/80 p-4 text-[1.02rem] leading-relaxed">
             <HighlightedText text={SAMPLE_AD.primaryText} marks={report.findings.map((f) => ({ text: f.matched_text, severity: f.severity }))} animate />
           </blockquote>
           <dl className="mt-5 grid grid-cols-3 gap-3 text-center">
             <div className="rounded-xl bg-paper-2 px-2 py-3">
-              <dt className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted">Meta ret riski</dt>
+              <dt className="text-fine font-semibold uppercase tracking-wide text-muted">Meta ret riski</dt>
               <dd className="mt-1 font-display text-2xl font-semibold tabular">{report.meta_risk_score}</dd>
               <dd className="mt-1"><LevelPill level={report.meta_risk_level} /></dd>
             </div>
             <div className="rounded-xl bg-paper-2 px-2 py-3">
-              <dt className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted">Mevzuat riski</dt>
+              <dt className="text-fine font-semibold uppercase tracking-wide text-muted">Mevzuat riski</dt>
               <dd className="mt-1 font-display text-2xl font-semibold tabular">{report.legal_finding_count}<span className="text-sm font-normal text-muted"> bulgu</span></dd>
               <dd className="mt-1"><LevelPill level={report.legal_risk_level} /></dd>
             </div>
             <div className="rounded-xl bg-paper-2 px-2 py-3">
-              <dt className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted">Kreatif skoru</dt>
+              <dt className="text-fine font-semibold uppercase tracking-wide text-muted">Kreatif skoru</dt>
               <dd className="mt-1 font-display text-2xl font-semibold tabular">{report.creative_score}</dd>
-              <dd className="mt-1 text-[0.75rem] text-muted">/ 100</dd>
+              <dd className="mt-1 text-fine text-muted">/ 100</dd>
             </div>
           </dl>
-          <ul className="mt-5 space-y-2.5 text-[0.9rem]">
+          <ul className="mt-5 space-y-2.5 text-body">
             {shown.map((f, i) => (
               <li key={i} className="flex gap-2.5">
                 <span
-                  className={`mt-1.5 size-2.5 shrink-0 rounded-full ${f.severity === "red" ? "bg-coral" : f.severity === "yellow" ? "bg-[#e9b43c]" : "bg-info"}`}
+                  className={`mt-1.5 size-2.5 shrink-0 rounded-full ${f.severity === "red" ? "bg-coral" : f.severity === "yellow" ? "bg-caution" : "bg-info"}`}
                   aria-hidden
                 />
                 <span>
@@ -73,7 +73,7 @@ export default async function HomePage() {
               </li>
             ))}
           </ul>
-          <p className="mt-4 border-t border-dashed border-line pt-3 text-[0.82rem] text-ink-soft">
+          <p className="mt-4 border-t border-dashed border-line pt-3 text-meta text-ink-soft">
             <span className="font-semibold text-ink">Güvenli öneri: </span>
             {report.safe_text}
           </p>
@@ -126,16 +126,16 @@ export default async function HomePage() {
             <Link href="/kurallar" className="font-semibold text-coral-deep">Tüm kartları gör</Link>
           </p>
         </div>
-        <article className="rounded-2xl border border-line bg-card p-6 shadow-[0_18px_40px_-28px_rgba(19,33,60,.5)]">
-          <div className="flex items-center justify-between text-[0.75rem] font-semibold uppercase tracking-[0.08em] text-muted">
+        <article className="rounded-2xl border border-line bg-card p-6 shadow-raised">
+          <div className="flex items-center justify-between text-fine font-semibold uppercase tracking-[0.08em] text-muted">
             <span className="tabular">TR-RY-INDIRIM-REFERANS · v1</span>
             <span className="rounded-full bg-green-tint px-2 py-0.5 text-green">Aktif</span>
           </div>
           <h3 className="mt-3 font-display text-xl font-semibold">İndirim oranı ve indirim öncesi fiyat</h3>
-          <p className="mt-2 text-[0.95rem] leading-relaxed text-ink-soft">
+          <p className="mt-2 text-body leading-relaxed text-ink-soft">
             İndirimden önceki fiyat, indirimin başlangıcından önceki son on gün içinde uygulanan en düşük fiyat olarak alınmalıdır.
           </p>
-          <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-[0.85rem]">
+          <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-small">
             <dt className="text-muted">Kaynak</dt>
             <dd>T.C. Ticaret Bakanlığı</dd>
             <dt className="text-muted">Yürürlük</dt>
@@ -178,7 +178,7 @@ export default async function HomePage() {
           </div>
           <div className="rounded-2xl border border-paper/15 p-6">
             <p className="font-semibold">Yeni</p>
-            <ul className="mt-3 space-y-3 text-[0.95rem] text-paper/90">
+            <ul className="mt-3 space-y-3 text-body text-paper/90">
               {[
                 ["Video ve Reels analizi", "Video cihazından çıkmaz; tarayıcı birkaç kare alır. Kareler, dış ses metni ve format (9:16, süre, çözünürlük) incelenir."],
                 ["Açılış sayfası taraması", "Reklamdaki indirim, fiyat ve marka sayfada da aynı mı? Sayfa bir kez okunur, içeriği saklanmaz."],
@@ -188,19 +188,19 @@ export default async function HomePage() {
                 <li key={t} className="border-b border-paper/10 pb-3">
                   <span className="flex items-center justify-between gap-3">
                     <span className="font-semibold">{t}</span>
-                    <span className="rounded-full bg-coral-deep px-2 py-0.5 text-[0.7rem] font-bold uppercase tracking-wide text-paper">Yeni</span>
+                    <span className="rounded-full bg-coral-deep px-2 py-0.5 text-fine font-bold uppercase tracking-wide text-paper">Yeni</span>
                   </span>
-                  <span className="mt-1 block text-[0.85rem] leading-relaxed text-paper/75">{d}</span>
+                  <span className="mt-1 block text-small leading-relaxed text-paper/75">{d}</span>
                 </li>
               ))}
             </ul>
             <p className="mt-6 font-semibold">Yakında</p>
             <p className="mt-1 text-sm text-paper/75">Henüz çalışmıyor; şimdilik krediler demo olarak eklenir.</p>
-            <ul className="mt-4 space-y-2.5 text-[0.95rem] text-paper/90">
+            <ul className="mt-4 space-y-2.5 text-body text-paper/90">
               {["Shopier ile online kredi satın alma"].map((x) => (
                 <li key={x} className="flex items-center justify-between gap-3 border-b border-paper/10 pb-2.5">
                   <span>{x}</span>
-                  <span className="rounded-full bg-paper/10 px-2 py-0.5 text-[0.7rem] font-semibold uppercase tracking-wide">Yakında</span>
+                  <span className="rounded-full bg-paper/10 px-2 py-0.5 text-fine font-semibold uppercase tracking-wide">Yakında</span>
                 </li>
               ))}
             </ul>
@@ -212,8 +212,8 @@ export default async function HomePage() {
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <h2 className="font-display text-3xl font-semibold leading-tight sm:text-[2.6rem]">“Genel bir sohbet botuna sorsam olmaz mı?”</h2>
         <div className="mt-8 overflow-x-auto rounded-2xl border border-line bg-card" tabIndex={0} role="region" aria-label="AdScope ve genel sohbet botu karşılaştırması">
-          <table className="w-full min-w-[560px] text-left text-[0.95rem]">
-            <thead className="border-b border-line bg-paper-2/70 text-[0.8rem] uppercase tracking-wide text-muted">
+          <table className="w-full min-w-[560px] text-left text-body">
+            <thead className="border-b border-line bg-paper-2/70 text-meta uppercase tracking-wide text-muted">
               <tr>
                 <th scope="col" className="px-5 py-3 font-semibold">Konu</th>
                 <th scope="col" className="px-5 py-3 font-semibold">Genel sohbet botu</th>

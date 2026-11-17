@@ -53,24 +53,24 @@ function EventCard({ e, today, open, sector }: { e: SeasonEvent; today: Date; op
       <div className="grid gap-5 sm:grid-cols-[5.5rem_1fr]">
         <div className="flex items-baseline gap-2 sm:block sm:text-center" aria-hidden>
           <p className="font-display text-4xl font-semibold leading-none tabular sm:text-5xl">{fmt(e.start, { day: "numeric" })}</p>
-          <p className="mt-1 text-[0.8rem] font-semibold uppercase tracking-wide text-muted">{fmt(e.start, { month: "short" })}</p>
+          <p className="mt-1 text-meta font-semibold uppercase tracking-wide text-muted">{fmt(e.start, { month: "short" })}</p>
         </div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 id={`${e.key}-h`} className="text-[1.2rem] font-bold leading-snug">{e.name}</h3>
-            <span className={`rounded-full px-2.5 py-0.5 text-[0.75rem] font-bold ${PHASE[phase].cls}`}>{PHASE[phase].label}</span>
+            <span className={`rounded-full px-2.5 py-0.5 text-fine font-bold ${PHASE[phase].cls}`}>{PHASE[phase].label}</span>
           </div>
-          <p className="mt-1 text-[0.88rem] text-muted">
+          <p className="mt-1 text-small text-muted">
             <time dateTime={e.start}>{rangeLabel(e)}</time> · <span className="tabular">{countdown(days)}</span>
           </p>
           {!e.verified ? (
-            <p className="mt-2 flex items-start gap-1.5 text-[0.82rem] font-medium text-amber">
+            <p className="mt-2 flex items-start gap-1.5 text-meta font-medium text-amber">
               <IconInfo className="mt-0.5 size-3.5 shrink-0" /> {e.dateRule}
             </p>
           ) : (
-            <p className="mt-1 text-[0.8rem] text-muted">{e.dateRule}</p>
+            <p className="mt-1 text-meta text-muted">{e.dateRule}</p>
           )}
-          <p className="mt-3 text-[0.95rem] leading-relaxed text-ink-soft">{e.summary}</p>
+          <p className="mt-3 text-body leading-relaxed text-ink-soft">{e.summary}</p>
 
           <ol className="mt-4 grid gap-2 sm:grid-cols-3" aria-label="Hazırlık adımları">
             {steps.map((s, i) => {
@@ -80,32 +80,32 @@ function EventCard({ e, today, open, sector }: { e: SeasonEvent; today: Date; op
                 <li
                   key={s.key}
                   aria-current={current ? "step" : undefined}
-                  className={`rounded-xl border px-3 py-2 ${current ? "border-ink bg-white shadow-[0_0_0_1px_var(--ink)]" : "border-line"} ${done ? "text-muted" : ""}`}
+                  className={`rounded-xl border px-3 py-2 ${current ? "border-ink bg-field shadow-[0_0_0_1px_var(--ink)]" : "border-line"} ${done ? "text-muted" : ""}`}
                 >
-                  <span className="block text-[0.75rem] font-semibold text-muted">{i + 1}. {s.label}</span>
-                  <time dateTime={s.date} className="block text-[0.92rem] font-semibold tabular">{dayMonth(s.date)}</time>
+                  <span className="block text-fine font-semibold text-muted">{i + 1}. {s.label}</span>
+                  <time dateTime={s.date} className="block text-body font-semibold tabular">{dayMonth(s.date)}</time>
                 </li>
               );
             })}
           </ol>
 
           <details className="group mt-4 rounded-xl bg-paper/70 px-4 py-3" open={open}>
-            <summary className="cursor-pointer text-[0.92rem] font-semibold">Öneriler ve uyum hatırlatmaları</summary>
+            <summary className="cursor-pointer text-body font-semibold">Öneriler ve uyum hatırlatmaları</summary>
             <div className="mt-3 grid gap-5 md:grid-cols-2">
               <div>
-                <h4 className="text-[0.8rem] font-bold uppercase tracking-wide text-muted">Kreatif önerileri</h4>
-                <ul className="mt-2 grid gap-1.5 text-[0.9rem] leading-relaxed">
+                <h4 className="text-meta font-bold uppercase tracking-wide text-muted">Kreatif önerileri</h4>
+                <ul className="mt-2 grid gap-1.5 text-body leading-relaxed">
                   {e.tips.map((t) => <li key={t} className="flex gap-2"><span aria-hidden className="text-coral">•</span>{t}</li>)}
                 </ul>
               </div>
               <div>
-                <h4 className="text-[0.8rem] font-bold uppercase tracking-wide text-muted">Yayından önce kontrol et</h4>
-                <ul className="mt-2 grid gap-3 text-[0.9rem] leading-relaxed">
+                <h4 className="text-meta font-bold uppercase tracking-wide text-muted">Yayından önce kontrol et</h4>
+                <ul className="mt-2 grid gap-3 text-body leading-relaxed">
                   {e.reminders.map((r) => (
                     <li key={r.text}>
                       <p>{r.text}</p>
                       {r.ruleIds.length ? (
-                        <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.78rem]">
+                        <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta">
                           {r.ruleIds.map((id) => {
                             const rule = RULES.get(id);
                             return rule ? (
@@ -125,11 +125,11 @@ function EventCard({ e, today, open, sector }: { e: SeasonEvent; today: Date; op
           </details>
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
             {templates.map((t) => (
-              <Link key={t.id} href={`/panel/yeni?sablon=${t.id}`} className="inline-flex items-center gap-1.5 text-[0.9rem] font-semibold text-coral-deep">
+              <Link key={t.id} href={`/panel/yeni?sablon=${t.id}`} className="inline-flex items-center gap-1.5 text-body font-semibold text-coral-deep">
                 <IconPlus className="size-4" /> Şablonla başla: {t.title}
               </Link>
             ))}
-            <Link href="/panel/yeni" className={`inline-flex items-center gap-1.5 text-[0.9rem] font-semibold ${templates.length ? "text-ink-soft" : "text-coral-deep"}`}>
+            <Link href="/panel/yeni" className={`inline-flex items-center gap-1.5 text-body font-semibold ${templates.length ? "text-ink-soft" : "text-coral-deep"}`}>
               {templates.length ? null : <IconPlus className="size-4" />} {templates.length ? "Kendi metninle kontrol et" : "Bu dönemin reklamını kontrol et"}
             </Link>
           </div>
@@ -173,7 +173,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 
       <form action={setSeasonRemindersAction} className="mt-6 flex max-w-3xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-card px-5 py-4">
         <input type="hidden" name="on" value={profile?.seasonReminders ? "0" : "1"} />
-        <p className="min-w-0 flex-1 basis-64 text-[0.92rem]">
+        <p className="min-w-0 flex-1 basis-64 text-body">
           <span className="font-semibold">Sezon hatırlatma e-postaları {profile?.seasonReminders ? "açık" : "kapalı"}.</span>{" "}
           <span className="text-ink-soft">{profile?.seasonReminders ? "Hazırlık zamanı gelen her dönem için bir e-posta alırsın." : "Hazırlık zamanı geldiğinde e-postayla haber verelim mi?"}</span>
         </p>
@@ -188,20 +188,20 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
             key={f.href}
             href={f.href}
             aria-current={f.active ? "page" : undefined}
-            className={`rounded-full px-3.5 py-1.5 text-[0.88rem] font-semibold no-underline ${f.active ? "bg-ink text-paper" : "border border-line-strong text-ink-soft hover:bg-paper-2 hover:text-ink"}`}
+            className={`rounded-full px-3.5 py-1.5 text-small font-semibold no-underline ${f.active ? "bg-ink text-paper" : "border border-line-strong text-ink-soft hover:bg-paper-2 hover:text-ink"}`}
           >
             {f.label}
           </Link>
         ))}
       </nav>
       {!sector && suggested ? (
-        <p className="mt-3 text-[0.85rem] text-muted">
+        <p className="mt-3 text-small text-muted">
           Varsayılan sektörün {SECTOR_LABEL[suggested]}. <Link href={`/panel/takvim?sektor=${suggested}`} className="font-semibold text-ink">Yalnızca bu sektörü göster</Link>
         </p>
       ) : null}
 
       {unverified ? (
-        <p className="mt-6 flex max-w-3xl items-start gap-2 rounded-xl bg-amber-tint px-4 py-3 text-[0.88rem] text-amber">
+        <p className="mt-6 flex max-w-3xl items-start gap-2 rounded-xl bg-amber-tint px-4 py-3 text-small text-amber">
           <IconInfo className="mt-0.5 size-4 shrink-0" />
           <span>Bazı tarihler resmî takvimle doğrulanmadı: dini bayramlar ay takvimine göre değişir ve ikincil kaynaklardan alındı (Diyanet takvimiyle kontrol et); okulların açılış günü MEB çalışma takvimine göre değişir. Planlamadan önce kontrol et.</span>
         </p>
@@ -222,7 +222,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         )}
       </div>
 
-      <div className="mt-10 text-[0.82rem] text-muted">
+      <div className="mt-10 text-meta text-muted">
         <p className="mb-3">Hatırlatmalar bir kontrol listesidir, bulgu değildir. Bağlı kural kartlarının durumu yanında yazar; “Doğrulama bekliyor” ve “Taslak” kartlar ihlal olarak değerlendirilmez.</p>
         <Disclaimer />
       </div>

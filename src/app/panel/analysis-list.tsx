@@ -6,8 +6,8 @@ import type { AnalysisSummary } from "@/lib/data/types";
 import { deleteAnalysisAction } from "./actions";
 
 function StatusCell({ a }: { a: AnalysisSummary }) {
-  if (a.status === "failed") return <span className="rounded-full bg-paper-2 px-2.5 py-0.5 text-[0.78rem] font-semibold text-muted">Tamamlanamadı · kredi düşülmedi</span>;
-  if (a.status === "processing") return <span className="rounded-full bg-info-tint px-2.5 py-0.5 text-[0.78rem] font-semibold text-info">İşleniyor</span>;
+  if (a.status === "failed") return <span className="rounded-full bg-paper-2 px-2.5 py-0.5 text-meta font-semibold text-muted">Tamamlanamadı · kredi düşülmedi</span>;
+  if (a.status === "processing") return <span className="rounded-full bg-info-tint px-2.5 py-0.5 text-meta font-semibold text-info">İşleniyor</span>;
   return null;
 }
 
@@ -20,7 +20,7 @@ export function AnalysisList({ items, showDelete = false }: { items: AnalysisSum
             <Link href={`/panel/analiz/${a.id}`} className="block truncate font-semibold text-ink no-underline hover:underline">
               {a.headline || a.primaryText.slice(0, 80) || "Başlıksız reklam"}
             </Link>
-            <p className="mt-0.5 text-[0.82rem] text-muted">
+            <p className="mt-0.5 text-meta text-muted">
               {a.mediaType === "video" ? "Video · " : ""}{SECTOR_LABEL[a.sector]} · <time dateTime={a.createdAt}>{formatDateTimeTr(a.createdAt)}</time>
             </p>
           </div>
@@ -29,7 +29,7 @@ export function AnalysisList({ items, showDelete = false }: { items: AnalysisSum
               <>
                 <LevelPill level={a.metaRiskLevel} prefix="Meta" />
                 <LevelPill level={a.legalRiskLevel} prefix="Mevzuat" />
-                <span className="rounded-full bg-paper-2 px-2.5 py-0.5 text-[0.78rem] font-bold tabular text-ink">Kreatif {a.creativeScore}</span>
+                <span className="rounded-full bg-paper-2 px-2.5 py-0.5 text-meta font-bold tabular text-ink">Kreatif {a.creativeScore}</span>
               </>
             ) : (
               <StatusCell a={a} />

@@ -70,6 +70,8 @@
 
 Son çalıştırma (17.11.2026, ajans modu, platformlar, API, ilham panosu ve eklentiden sonra): tip denetimi ve lint temiz, birim + entegrasyon 118/118, uçtan uca 77 geçti + 1 bilerek atlandı (demo masaüstü, demo mobil, Supabase masaüstü). `next build` temiz, `supabase db advisors --level warn` sorun bulmadı. Bu turda entegrasyon testi gerçek bir açık buldu: Supabase'in varsayılan yetkileri yüzünden yeni tablolarda kullanıcı API anahtarının özetini ve inceleme bağlantısının sayacını değiştirebiliyordu; yetkiler tablo ve sütun bazında yeniden verildi ve test eklendi. E2E projeleri ayrı `X-Forwarded-For` adresleriyle kaydolur; böylece IP başına kayıt sınırı projeler arasında paylaşılmaz.
 
+Tasarım sistemi (P6.1, 17.11.2026): `DESIGN.md` eklendi. Renkler belirteçlere taşındı, işletim sistemi tercihine göre koyu tema geldi (yalnızca ekranda; yazdırma ve PDF açık kalır). 20 farklı sabit yazı boyutu 5 ölçeğe indirildi. Yeni bileşenler: `EmptyState`, `Skeleton`, `Stepper`, `DataTable`, `selectClass` (kullanımda) ve `Tabs`, `Dialog`, `ToastProvider` (hazır, sonraki fazlarda kullanılacak). Yeni `tests/e2e/theme.spec.ts` koyu temada 8 sayfayı axe ile denetler. Bu sırada bir hata yakalandı: panelin tamamına konan yükleme ekranı yanıtı akışla gönderdiği için başkasının analizine giden istek 404 yerine 200 dönüyordu; yükleme ekranı yalnızca `ilham` ve `gecmis` sayfalarına alındı. Demo e2e (masaüstü + mobil) ve 99 birim testi geçti, `next build` temiz. Supabase modunda e2e ve entegrasyon testleri bu turda yeniden çalıştırılmadı (veritabanı değişikliği yok).
+
 ## Varsayımlar (doğrulanmalı)
 
 1. Fiyatlar (Başlangıç 199 ₺ / 30, Profesyonel 499 ₺ / 100) konsept belgesinden alındı; KDV dahil tüketici fiyatı varsayıldı.

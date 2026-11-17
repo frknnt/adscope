@@ -2,7 +2,7 @@
 
 import { SECTOR_IDS, SECTOR_INFO } from "@/lib/sectors";
 import { useActionState, useRef, useState } from "react";
-import { Button, Field, inputClass } from "@/components/ui";
+import { Button, Field, inputClass, selectClass } from "@/components/ui";
 import type { Brand, Profile } from "@/lib/data/types";
 import {
   appealAction,
@@ -16,8 +16,8 @@ import {
 const initial: ActionState = { error: null };
 
 export function ActionMessage({ state }: { state: ActionState }) {
-  if (state.error) return <p role="alert" className="rounded-xl bg-coral-tint px-4 py-3 text-[0.92rem] font-medium text-coral-deep">{state.error}</p>;
-  if (state.ok) return <p role="status" className="rounded-xl bg-green-tint px-4 py-3 text-[0.92rem] font-medium text-green">{state.ok}</p>;
+  if (state.error) return <p role="alert" className="rounded-xl bg-coral-tint px-4 py-3 text-body font-medium text-coral-deep">{state.error}</p>;
+  if (state.ok) return <p role="status" className="rounded-xl bg-green-tint px-4 py-3 text-body font-medium text-green">{state.ok}</p>;
   return null;
 }
 
@@ -38,12 +38,12 @@ export function OnboardingForm({ profile }: { profile: Profile | null }) {
       </div>
       <fieldset>
         <legend className="text-sm font-semibold">Hangi sektörde reklam veriyorsun?</legend>
-        <p className="mt-1 text-[0.82rem] text-muted">Sektör paketi ilgili kural kartlarını ekler. Her analizde değiştirebilirsin.</p>
+        <p className="mt-1 text-meta text-muted">Sektör paketi ilgili kural kartlarını ekler. Her analizde değiştirebilirsin.</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
           {SECTOR_OPTIONS.map((s, i) => (
-            <label key={s.value} className="flex cursor-pointer items-center gap-3 rounded-xl border border-line-strong bg-white/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-white has-[:checked]:shadow-[0_0_0_1px_var(--ink)]">
+            <label key={s.value} className="flex cursor-pointer items-center gap-3 rounded-xl border border-line-strong bg-field/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-field has-[:checked]:shadow-[0_0_0_1px_var(--ink)]">
               <input type="radio" name="sector" value={s.value} defaultChecked={(profile?.defaultSector ?? "genel") === s.value || (!profile?.defaultSector && i === 0)} className="accent-ink" />
-              <span className="text-[0.93rem] font-semibold">{s.label}</span>
+              <span className="text-body font-semibold">{s.label}</span>
             </label>
           ))}
         </div>
@@ -53,7 +53,7 @@ export function OnboardingForm({ profile }: { profile: Profile | null }) {
           <input id="brandName" name="brandName" maxLength={80} className={inputClass} />
         </Field>
         <Field label="Marka tonu" htmlFor="tone">
-          <select id="tone" name="tone" className={inputClass} defaultValue="samimi">
+          <select id="tone" name="tone" className={selectClass} defaultValue="samimi">
             <option value="samimi">Samimi</option>
             <option value="kurumsal">Kurumsal</option>
             <option value="genc">Genç</option>
@@ -82,7 +82,7 @@ export function SettingsForm({ profile, retentionDefault, emailEnabled }: { prof
           <input id="companyName" name="companyName" maxLength={120} defaultValue={profile?.companyName ?? ""} className={inputClass} autoComplete="organization" />
         </Field>
         <Field label="Varsayılan sektör" htmlFor="sector">
-          <select id="sector" name="sector" defaultValue={profile?.defaultSector ?? "genel"} className={inputClass}>
+          <select id="sector" name="sector" defaultValue={profile?.defaultSector ?? "genel"} className={selectClass}>
             {SECTOR_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
         </Field>
@@ -90,11 +90,11 @@ export function SettingsForm({ profile, retentionDefault, emailEnabled }: { prof
           <input id="retentionDays" name="retentionDays" type="number" min={7} max={365} required defaultValue={profile?.retentionDays ?? retentionDefault} className={`${inputClass} tabular`} />
         </Field>
       </div>
-      <label className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-white/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-white">
+      <label className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-field/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-field">
         <input type="checkbox" name="seasonReminders" defaultChecked={profile?.seasonReminders ?? false} className="mt-1 accent-ink" />
         <span>
-          <span className="block text-[0.95rem] font-semibold">Sezon hatırlatma e-postaları</span>
-          <span className="block text-[0.85rem] text-ink-soft">
+          <span className="block text-body font-semibold">Sezon hatırlatma e-postaları</span>
+          <span className="block text-small text-ink-soft">
             Varsayılan sektörüne uyan özel günlerden önce, hazırlık zamanı geldiğinde bir e-posta: tarihler, incelemeye gönderme günü ve dönemin uyum hatırlatmaları. Her dönem için en fazla bir e-posta.
             {emailEnabled ? "" : " (Bu kurulumda e-posta gönderimi henüz yapılandırılmadı; tercihin kaydedilir.)"}
           </span>
@@ -151,7 +151,7 @@ export function AppealForm({ analyses, defaultId }: { analyses: { id: string; la
     <form action={action} className="grid gap-5">
       <ActionMessage state={state} />
       <Field label="Hangi reklam reddedildi?" htmlFor="analysisId" hint="Taslak, bu analizin bulgularına göre hazırlanır. Ek kredi düşmez.">
-        <select id="analysisId" name="analysisId" defaultValue={defaultId} className={inputClass} required>
+        <select id="analysisId" name="analysisId" defaultValue={defaultId} className={selectClass} required>
           {analyses.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
         </select>
       </Field>
@@ -180,7 +180,7 @@ export function CopyButton({ text, label = "Kopyala" }: { text: string; label?: 
           setDone(false);
         }
       }}
-      className="no-print inline-flex items-center gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-[0.82rem] font-semibold text-ink hover:bg-paper-2"
+      className="no-print inline-flex items-center gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-meta font-semibold text-ink hover:bg-paper-2"
     >
       <span aria-live="polite">{done ? "Kopyalandı" : label}</span>
     </button>
@@ -189,7 +189,7 @@ export function CopyButton({ text, label = "Kopyala" }: { text: string; label?: 
 
 export function PrintButton() {
   return (
-    <button type="button" onClick={() => window.print()} className="no-print inline-flex h-11 items-center gap-2 rounded-full bg-ink px-5 text-[0.95rem] font-semibold text-paper hover:bg-ink-2">
+    <button type="button" onClick={() => window.print()} className="no-print inline-flex h-11 items-center gap-2 rounded-full bg-ink px-5 text-body font-semibold text-paper hover:bg-ink-2">
       PDF olarak kaydet / yazdır
     </button>
   );
