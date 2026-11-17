@@ -62,6 +62,9 @@ interface StoredAnalysis {
   transcript?: string | null;
   landingUrl?: string | null;
   frames?: (StoredAsset & { index: number; timeMs: number })[];
+  creditCost?: number;
+  speechTranscript?: string | null;
+  landingScreenshot?: StoredAsset | null;
 }
 interface StoredAsset {
   id: string;
@@ -80,6 +83,7 @@ interface Store {
   purchases: (PurchaseRecord & { userId: string | null; eventKey: string })[];
   consents: { userId: string; type: string; version: string; granted: boolean; createdAt: string }[];
   aiRuns: (AiRunRecord & { userId: string; createdAt: string })[];
+  reminderLog?: { userId: string; eventKey: string; sentAt: string }[];
 }
 
 const COOKIE = "adscope_demo_session";
@@ -216,7 +220,7 @@ export class MemoryRepo implements DataRepo {
     const user: StoredUser = { id: randomUUID(), email, salt, passwordHash: hashPassword(input.password, salt), createdAt: new Date().toISOString() };
     s.users.push(user);
     // Mirrors the auth.users trigger: profile + one-time bonus (idempotency key prevents a second grant).
-    s.profiles[user.id] = { id: user.id, displayName: null, companyName: null, defaultSector: null, onboardingCompletedAt: null, retentionDays: retentionDefaultDays() };
+    s.profiles[user.id] = { id: user.id, displayName: null, companyName: null, defaultSector: null, onboardingCompletedAt: null, retentionDays: retentionDefaultDays(), seasonReminders: false };
     insertLedger({ userId: user.id, delta: 3, reason: "signup_bonus", note: "Kayıt hediyesi: 3 ücretsiz analiz", analysisId: null, idempotencyKey: `signup_bonus:${user.id}` });
     const now = new Date().toISOString();
     s.consents.push(
@@ -314,7 +318,7 @@ export class MemoryRepo implements DataRepo {
       const s = store();
       const existing = s.analyses.find((a) => a.userId === u.id && a.clientRequestId === p.clientRequestId);
       if (existing) return { ok: true as const, analysisId: existing.id, status: existing.status, created: false };
-      if (balanceOf(u.id) < 1) return { ok: false as const, code: "insufficient_credits" as const };
+      if (balanceOf(u.id) < p.creditCost) return { ok: false as const, code: "insufficient_credits" as const };
       const hourAgo = Date.now() - 3600_000;
       if (s.analyses.filter((a) => a.userId === u.id && Date.parse(a.createdAt) > hourAgo).length >= p.hourlyLimit)
         return { ok: false as const, code: "rate_limited" as const };
@@ -344,6 +348,7 @@ export class MemoryRepo implements DataRepo {
         transcript: p.transcript,
         landingUrl: p.landingUrl,
         frames: [],
+        creditCost: p.creditCost,
       };
       s.analyses.push(a);
       persist();
@@ -360,7 +365,10 @@ export class MemoryRepo implements DataRepo {
     const a = this.own(analysisId, u.id);
     if (!a) return false;
     const stored: StoredAsset = { id: randomUUID(), mime: meta.mime, width: meta.width, height: meta.height, sizeBytes: meta.sizeBytes, dataB64: Buffer.from(bytes).toString("base64") };
-    if (opts.kind === "video_frame") {
+    if (opts.kind === "landing_screenshot") {
+      if (a.landingScreenshot) return false;
+      a.landingScreenshot = stored;
+    } else if (opts.kind === "video_frame") {
       const index = opts.frameIndex ?? 0;
       a.frames = a.frames ?? [];
       if (a.frames.some((f) => f.index === index)) return false; // mirrors the unique index
@@ -381,7 +389,8 @@ export class MemoryRepo implements DataRepo {
       if (!a) return "error" as const;
       if (a.status === "completed") return "already_completed" as const;
       if (a.status === "failed") return "already_failed" as const;
-      if (balanceOf(u.id) < 1) {
+      const cost = a.creditCost ?? 1;
+      if (balanceOf(u.id) < cost) {
         a.status = "failed";
         a.failureCode = "insufficient_credits";
         a.completedAt = new Date().toISOString();
@@ -391,7 +400,7 @@ export class MemoryRepo implements DataRepo {
       a.appeal = result.appeal ? { ...result.appeal, createdAt: new Date().toISOString() } : null;
       a.status = "completed";
       a.completedAt = new Date().toISOString();
-      insertLedger({ userId: u.id, delta: -1, reason: "analysis", note: "Analiz tamamlandı", analysisId, idempotencyKey: `analysis:${analysisId}` });
+      insertLedger({ userId: u.id, delta: -cost, reason: "analysis", note: a.mediaType === "video" ? "Video analizi tamamlandı" : "Analiz tamamlandı", analysisId, idempotencyKey: `analysis:${analysisId}` });
       persist();
       return "completed" as const;
     });
@@ -483,17 +492,29 @@ export class MemoryRepo implements DataRepo {
       videoMeta: a.videoMeta ?? null,
       transcript: a.transcript ?? null,
       landingUrl: a.landingUrl ?? null,
+      speechTranscript: a.speechTranscript ?? null,
+      hasLandingScreenshot: Boolean(a.landingScreenshot),
+      creditCost: a.creditCost ?? 1,
     };
   }
 
-  async getAssetBytes(analysisId: string, frameIndex?: number) {
+  async getAssetBytes(analysisId: string, which?: number | "screenshot") {
     const u = await this.getUser();
     if (!u) return null;
     const a = this.own(analysisId, u.id);
     if (!a) return null;
-    const asset = frameIndex === undefined ? a.asset : (a.frames ?? []).find((f) => f.index === frameIndex);
+    const asset = which === undefined ? a.asset : which === "screenshot" ? a.landingScreenshot : (a.frames ?? []).find((f) => f.index === which);
     if (!asset) return null;
     return { bytes: new Uint8Array(Buffer.from(asset.dataB64, "base64")), mime: asset.mime };
+  }
+
+  async setSpeechTranscript(analysisId: string, text: string) {
+    const u = await this.requireUser();
+    const a = this.own(analysisId, u.id);
+    if (!a || a.status !== "processing") return false;
+    a.speechTranscript = text.slice(0, 6000);
+    persist();
+    return true;
   }
 
   async deleteAnalysis(id: string) {
@@ -582,6 +603,28 @@ export class MemoryAdminRepo implements AdminRepo {
     s.analyses = s.analyses.filter((a) => Date.parse(a.expiresAt) > now);
     persist();
     return before - s.analyses.length;
+  }
+
+  async listSeasonReminderRecipients() {
+    const s = store();
+    return s.users
+      .filter((u) => s.profiles[u.id]?.seasonReminders)
+      .map((u) => ({ userId: u.id, email: u.email, displayName: s.profiles[u.id].displayName, sector: s.profiles[u.id].defaultSector }));
+  }
+
+  async claimSeasonReminder(userId: string, eventKey: string) {
+    const s = store();
+    s.reminderLog ??= [];
+    if (s.reminderLog.some((r) => r.userId === userId && r.eventKey === eventKey)) return false;
+    s.reminderLog.push({ userId, eventKey, sentAt: new Date().toISOString() });
+    persist();
+    return true;
+  }
+
+  async releaseSeasonReminder(userId: string, eventKey: string) {
+    const s = store();
+    s.reminderLog = (s.reminderLog ?? []).filter((r) => !(r.userId === userId && r.eventKey === eventKey));
+    persist();
   }
 }
 

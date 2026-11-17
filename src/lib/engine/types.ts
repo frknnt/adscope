@@ -1,7 +1,7 @@
 import type { RuleCardDef, Sector } from "@/lib/rules/catalog";
 
 export type Severity = "red" | "yellow" | "info";
-export type Field = "headline" | "primary_text" | "description" | "image" | "general" | "transcript" | "landing_page" | "video";
+export type Field = "headline" | "primary_text" | "description" | "image" | "general" | "transcript" | "speech" | "landing_page" | "video";
 export type Level = "low" | "medium" | "high";
 
 /** A rule as loaded from the database (or the catalog in demo mode). */
@@ -29,6 +29,43 @@ export interface AdInput {
   transcript?: string | null;
   /** Landing page text and metadata, fetched server-side. */
   landing?: LandingSnapshot | null;
+  /** Speech-to-text of the video's audio (only when the user opted in and a provider is configured). */
+  speech?: SpeechTranscript | null;
+  /** Date the analysis runs (YYYY-MM-DD, Europe/Istanbul); used for season notes. */
+  today?: string;
+}
+
+/** Measured in the browser from the video's audio track. */
+export interface AudioInfo {
+  /** false when the browser could not decode the audio (no track or unsupported codec). */
+  analyzed: boolean;
+  present: boolean;
+  /** Seconds until the first audible sound, null when silent. */
+  firstSoundSec: number | null;
+  /** Share of 100 ms windows below the audibility threshold (0-1). */
+  silentRatio: number | null;
+  /** Mean level of the first 3 seconds in dBFS. */
+  meanDbFirst3s: number | null;
+}
+
+export interface SpeechTranscript {
+  text: string;
+  segments: { start: number; end: number; text: string }[];
+  provider: string;
+}
+
+export interface VideoReview {
+  reviewedByAi: boolean;
+  hookStrength: number | null; // 0-10
+  hookNote: string | null;
+  hasCaptions: boolean | null;
+  worksWithoutSound: boolean | null;
+  safeZoneIssue: boolean | null;
+  frameNotes: { frame: number; note: string }[];
+  audio: AudioInfo | null;
+  /** What is said in the first 3 seconds (speech-to-text), if available. */
+  speechFirst3s: string | null;
+  speechProvider: string | null;
 }
 
 export interface VideoMeta {
@@ -38,6 +75,7 @@ export interface VideoMeta {
   height: number;
   sizeBytes: number;
   frameCount: number;
+  audio?: AudioInfo | null;
 }
 
 export type LandingStatus = "ok" | "http_error" | "blocked" | "unreachable" | "not_html" | "too_large" | "timeout" | "invalid_url";
@@ -54,6 +92,12 @@ export interface LandingSnapshot {
   /** Visible text, collapsed and truncated. Never stored; used only for checks. */
   text: string;
   fetchedAt: string;
+  /** The HTML looks like a JavaScript app shell (content rendered in the browser, not in the HTML). */
+  jsShell?: boolean;
+  /** Where the text came from. */
+  source?: "fetch" | "screenshot" | "fetch+screenshot";
+  /** Landing page screenshot uploaded by the user: read by AI, not readable (AI off), or not a web page. */
+  screenshot?: "read" | "unread" | "not_page" | null;
 }
 
 export interface LandingCheck {
@@ -71,6 +115,8 @@ export interface LandingReport {
   title: string;
   fetchedAt: string;
   checks: LandingCheck[];
+  source?: LandingSnapshot["source"];
+  screenshot?: LandingSnapshot["screenshot"];
 }
 
 export interface ImageMeta {
@@ -109,6 +155,7 @@ export interface ScoreBreakdown {
   visualReviewedByAi: boolean;
   media?: "image" | "video";
   landing?: LandingReport | null;
+  video?: VideoReview | null;
 }
 
 export interface VariantOut {

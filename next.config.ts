@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   // session handling simple and avoid caching user data.
   cacheComponents: false,
   poweredByHeader: false,
+  // The analysis upload can carry still frames, a short 16 kHz audio clip and a landing screenshot.
+  experimental: { proxyClientMaxBodySize: "16mb" },
   // Lets the end-to-end suite run an isolated demo-mode server next to a dev server.
   distDir: process.env.NEXT_DIST_DIR || ".next",
   turbopack: {

@@ -23,6 +23,7 @@ const validData = {
   visual: { text_density: 7, product_visibility: 8, brand_consistency: 6, notes_tr: "Ürün net görünüyor." },
   safe_text: "Kış koleksiyonunda seçili ürünlerde bugüne özel fiyatlar. Ayrıntılar sitede.",
   variants: Array.from({ length: 5 }, (_, i) => ({ tone: `Ton ${i}`, headline: "Kış koleksiyonu", primary_text: "Seçili ürünlerde bugüne özel fiyatlar sitede.", description: "" })),
+  video: null,
 };
 
 describe("AI schema validation", () => {

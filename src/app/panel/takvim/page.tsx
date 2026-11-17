@@ -4,6 +4,8 @@ import { RuleStatusPill, SECTOR_LABEL } from "@/components/rule-status";
 import { buttonClass, Disclaimer } from "@/components/ui";
 import { requirePanelUser } from "@/app/panel/guard";
 import { daysUntil, istanbulToday, phaseOf, upcomingEvents, type Phase, type SeasonEvent } from "@/lib/calendar/season";
+import { setSeasonRemindersAction } from "@/app/panel/actions";
+import { templatesFor } from "@/lib/calendar/templates";
 import { getRepo } from "@/lib/data";
 import { RULE_CATALOG, type Sector } from "@/lib/rules/catalog";
 
@@ -34,7 +36,8 @@ function countdown(days: number) {
   return `${days} gün kaldı`;
 }
 
-function EventCard({ e, today, open }: { e: SeasonEvent; today: Date; open: boolean }) {
+function EventCard({ e, today, open, sector }: { e: SeasonEvent; today: Date; open: boolean; sector: Sector | null }) {
+  const templates = templatesFor(e.id, sector);
   const phase = phaseOf(e, today);
   const days = daysUntil(e.start, today);
   const steps = [
@@ -120,9 +123,16 @@ function EventCard({ e, today, open }: { e: SeasonEvent; today: Date; open: bool
               </div>
             </div>
           </details>
-          <Link href="/panel/yeni" className="mt-4 inline-flex items-center gap-1.5 text-[0.9rem] font-semibold text-coral-deep">
-            <IconPlus className="size-4" /> Bu dönemin reklamını kontrol et
-          </Link>
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+            {templates.map((t) => (
+              <Link key={t.id} href={`/panel/yeni?sablon=${t.id}`} className="inline-flex items-center gap-1.5 text-[0.9rem] font-semibold text-coral-deep">
+                <IconPlus className="size-4" /> Şablonla başla: {t.title}
+              </Link>
+            ))}
+            <Link href="/panel/yeni" className={`inline-flex items-center gap-1.5 text-[0.9rem] font-semibold ${templates.length ? "text-ink-soft" : "text-coral-deep"}`}>
+              {templates.length ? null : <IconPlus className="size-4" />} {templates.length ? "Kendi metninle kontrol et" : "Bu dönemin reklamını kontrol et"}
+            </Link>
+          </div>
         </div>
       </div>
     </article>
@@ -161,6 +171,17 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         </a>
       </div>
 
+      <form action={setSeasonRemindersAction} className="mt-6 flex max-w-3xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-card px-5 py-4">
+        <input type="hidden" name="on" value={profile?.seasonReminders ? "0" : "1"} />
+        <p className="min-w-0 flex-1 basis-64 text-[0.92rem]">
+          <span className="font-semibold">Sezon hatırlatma e-postaları {profile?.seasonReminders ? "açık" : "kapalı"}.</span>{" "}
+          <span className="text-ink-soft">{profile?.seasonReminders ? "Hazırlık zamanı gelen her dönem için bir e-posta alırsın." : "Hazırlık zamanı geldiğinde e-postayla haber verelim mi?"}</span>
+        </p>
+        <button type="submit" className={buttonClass(profile?.seasonReminders ? "ghost" : "primary", "h-10")}>
+          {profile?.seasonReminders ? "Hatırlatmaları kapat" : "Hatırlatmaları aç"}
+        </button>
+      </form>
+
       <nav aria-label="Sektöre göre süz" className="mt-6 flex flex-wrap gap-2">
         {filters.map((f) => (
           <Link
@@ -182,7 +203,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       {unverified ? (
         <p className="mt-6 flex max-w-3xl items-start gap-2 rounded-xl bg-amber-tint px-4 py-3 text-[0.88rem] text-amber">
           <IconInfo className="mt-0.5 size-4 shrink-0" />
-          <span>Dini bayram tarihleri ay takvimine göre değişir. Buradaki tarihler ikincil kaynaklardan alındı ve henüz Diyanet’in resmî takvimiyle doğrulanmadı; planlamadan önce kontrol et.</span>
+          <span>Bazı tarihler resmî takvimle doğrulanmadı: dini bayramlar ay takvimine göre değişir ve ikincil kaynaklardan alındı (Diyanet takvimiyle kontrol et); okulların açılış günü MEB çalışma takvimine göre değişir. Planlamadan önce kontrol et.</span>
         </p>
       ) : null}
 
@@ -194,7 +215,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
             <section key={month} aria-labelledby={`ay-${month}`}>
               <h2 id={`ay-${month}`} className="font-display text-2xl font-semibold capitalize">{fmt(`${month}-01`, { month: "long", year: "numeric" })}</h2>
               <div className="mt-4 grid gap-4">
-                {list.map((e) => <EventCard key={e.key} e={e} today={today} open={e === events[0]} />)}
+                {list.map((e) => <EventCard key={e.key} e={e} today={today} open={e === events[0]} sector={sector ?? profile?.defaultSector ?? null} />)}
               </div>
             </section>
           ))

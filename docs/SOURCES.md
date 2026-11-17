@@ -60,7 +60,26 @@ Takviye gıdalarda karşılaştırmalı reklam: Bakanlık duyurusu sağlık beya
 | TR-RY-SAGLIK-BEYANI | requires_review | Resmî Gazete | Ek liste md. 13 (ikincil kaynak) | 01.08.2026 |
 | TR-ESTETIK-ONCE-SONRA | requires_review | Sağlık Bakanlığı | — | — |
 | TR-ESTETIK-FIYAT-KAMPANYA | requires_review | Sağlık Bakanlığı | — | — |
+| META-FIN-HIZLI-KAZANC | requires_review | Meta (genel standartlar sayfası) | Deceptive content / financial claims | — |
+| META-KRIPTO | requires_review | Meta | Restricted: cryptocurrency | — |
+| META-KUMAR | requires_review | Meta | Restricted: online gambling and gaming | — |
+| META-TUTUN-VAPE | requires_review | Meta | Prohibited: tobacco and related products | — |
+| META-ETKILESIM-TUZAGI | requires_review | Meta | Engagement bait | — |
+| META-RECETELI-ILAC | requires_review | Meta | Restricted: prescription drugs | — |
+| META-ARKADASLIK | requires_review | Meta | Restricted: dating | — |
+| META-CINSEL-SAGLIK | requires_review | Meta | Adult products or services | — |
+| TR-ALKOL-REKLAM | requires_review | Mevzuat Bilgi Sistemi | 4250 s. Kanun ek madde | — |
+| TR-TUTUN-REKLAM | requires_review | Mevzuat Bilgi Sistemi | 4207 s. Kanun md. 3 | — |
+| TR-RY-COCUK-DOGRUDAN | requires_review | Resmî Gazete | Ticari Reklam Yönetmeliği, çocuklar | — |
+| TR-RY-KARSILASTIRMALI | requires_review | Resmî Gazete | Ticari Reklam Yönetmeliği, karşılaştırmalı reklam | — |
+| TR-RY-ACELE-BASKISI | requires_review | Resmî Gazete | Ek liste (yanıltıcı süre/stok) | — |
+| TR-RY-RESMI-ONAY | requires_review | Resmî Gazete | Ek liste (onay iddiası) | — |
+| TR-ORGANIK | requires_review | Mevzuat Bilgi Sistemi | 5262 s. Kanun | — |
+| TR-TAKVIYE-ILAC-IZLENIMI | requires_review | Resmî Gazete | Takviye gıda reklamları | — |
+| TR-ESTETIK-RISKSIZ | requires_review | Resmî Gazete | Sağlık hizmetleri tanıtımı | — |
 | TR-RY-UCRETSIZ | draft | Mevzuat Bilgi Sistemi | — | — |
+
+17.11.2026'da eklenen 17 kartın hiçbirinin resmî metni bu güncellemede okunmadı; madde numaraları "teyit edilmedi" olarak işaretli. Hepsi yalnızca bilgilendirme üretir, risk seviyesini değiştirmez.
 
 ## Sezon takvimi tarihleri (16.11.2026)
 
@@ -71,7 +90,7 @@ Takviye gıdalarda karşılaştırmalı reklam: Bakanlık duyurusu sağlık beya
 | Ramazan Bayramı 2026: 20–22 Mart; 2027: 9–11 Mart (arife 8 Mart) | İkincil kaynaklar (yayımlanmış takvim siteleri, birbiriyle tutarlı) | **Doğrulanmadı.** Diyanet ve mevzuat.gov.tr bu ortamdan okunamadı. Arayüzde ve .ics'te uyarı var. |
 | Kurban Bayramı 2026: 27–30 Mayıs; 2027: 16–19 Mayıs (arife 15 Mayıs) | İkincil kaynaklar | **Doğrulanmadı.** |
 
-Takvimdeki uyum hatırlatmaları bulgu değildir; bağlı kural kartının durumu yanında gösterilir. 23 Nisan için çocuklara yönelik reklamlarla ilgili aktif kural kartı yoktur; arayüz bunu açıkça söyler ve uzman görüşü önerir.
+Takvimdeki uyum hatırlatmaları bulgu değildir; bağlı kural kartının durumu yanında gösterilir. Çocuklara yönelik reklamlar için `TR-RY-COCUK-DOGRUDAN` kartı eklendi ama doğrulama bekliyor; aktif kart yoktur. "Okula dönüş" tarihi eylülün ikinci pazartesi varsayılır ve MEB çalışma takvimiyle doğrulanmadı.
 
 ## Ödeme sağlayıcıları (16.11.2026)
 

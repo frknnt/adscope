@@ -18,7 +18,7 @@ const { catalogRules } = await import("@/lib/data/memory-repo");
 
 const consents = { terms: "v1", kvkk: "v1", privacy: "v1", marketing: false };
 const as = (who: "a" | "b") => { current = who; return new MemoryRepo(); };
-const params = (id = randomUUID()) => ({ clientRequestId: id, brandId: null, sector: "genel" as const, headline: "", primaryText: "Merhaba", description: "", rejectionMessage: null, demo: true, hourlyLimit: 100, mediaType: "image" as const, videoMeta: null, transcript: null, landingUrl: null });
+const params = (id = randomUUID()) => ({ clientRequestId: id, brandId: null, sector: "genel" as const, headline: "", primaryText: "Merhaba", description: "", rejectionMessage: null, demo: true, hourlyLimit: 100, mediaType: "image" as const, videoMeta: null, transcript: null, landingUrl: null, creditCost: 1 });
 const result = async () => (await runPipeline({ input: { sector: "genel", headline: "", primaryText: "Merhaba", description: "", flags: { influencerPost: false, aiHumanCharacter: false, aiRealPersonCopy: false } }, rules: catalogRules(), ai: null })).result;
 
 describe("demo (memory) backend mirrors the database guarantees", () => {
@@ -110,5 +110,50 @@ describe("demo (memory) backend mirrors the database guarantees", () => {
     expect([...(await r.getAssetBytes(s.analysisId, 1))!.bytes]).toEqual([4, 5, 6]);
     expect(await r.getAssetBytes(s.analysisId)).toBeNull();
     expect(await as("b").getAssetBytes(s.analysisId, 0)).toBeNull();
+  });
+
+  it("charges a video analysis two credits and refuses it when only one is left", async () => {
+    const r = as("a");
+    const videoMeta = { mime: "video/mp4" as const, durationSec: 12, width: 1080, height: 1920, sizeBytes: 5_000_000, frameCount: 1 };
+    const v = await r.startAnalysis({ ...params(), mediaType: "video", videoMeta, creditCost: 2 });
+    if (!v.ok) throw new Error("start failed");
+    expect(await r.completeAnalysis(v.analysisId, await result())).toBe("completed");
+    expect(await r.completeAnalysis(v.analysisId, await result())).toBe("already_completed");
+    expect(await r.getBalance()).toBe(1);
+    expect((await r.getAnalysis(v.analysisId))?.creditCost).toBe(2);
+    const ledger = await r.listLedger();
+    expect(ledger.find((l) => l.analysisId === v.analysisId)).toMatchObject({ delta: -2, note: "Video analizi tamamlandı" });
+    const again = await r.startAnalysis({ ...params(), mediaType: "video", videoMeta, creditCost: 2 });
+    expect(again.ok ? "ok" : again.code).toBe("insufficient_credits");
+    expect((await r.startAnalysis(params())).ok).toBe(true); // an image (1 credit) still fits
+  });
+
+  it("stores one landing screenshot and the speech transcript only for the owner", async () => {
+    const r = as("a");
+    const s = await r.startAnalysis(params());
+    if (!s.ok) throw new Error("start failed");
+    const meta = { mime: "image/png" as const, width: 1280, height: 2000, sizeBytes: 2 };
+    expect(await r.uploadAsset(s.analysisId, new Uint8Array([9, 9]), meta, "png", "s", { kind: "landing_screenshot" })).toBe(true);
+    expect(await r.uploadAsset(s.analysisId, new Uint8Array([8]), meta, "png", "t", { kind: "landing_screenshot" })).toBe(false);
+    expect(await r.setSpeechTranscript(s.analysisId, "Merhaba dünya")).toBe(true);
+    expect(await as("b").setSpeechTranscript(s.analysisId, "x")).toBe(false);
+    const d = (await as("a").getAnalysis(s.analysisId))!;
+    expect(d.hasLandingScreenshot).toBe(true);
+    expect(d.speechTranscript).toBe("Merhaba dünya");
+    expect([...(await as("a").getAssetBytes(s.analysisId, "screenshot"))!.bytes]).toEqual([9, 9]);
+    expect(await as("b").getAssetBytes(s.analysisId, "screenshot")).toBeNull();
+  });
+
+  it("lists only opted-in users for season reminders and claims each event once", async () => {
+    const admin = new MemoryAdminRepo();
+    expect(await admin.listSeasonReminderRecipients()).toEqual([]);
+    expect(await as("a").updateProfile({ seasonReminders: true })).toBe(true);
+    const list = await admin.listSeasonReminderRecipients();
+    expect(list.map((u) => u.email)).toEqual(["a@example.com"]);
+    const id = list[0].userId;
+    expect(await admin.claimSeasonReminder(id, "efsane-cuma-2027")).toBe(true);
+    expect(await admin.claimSeasonReminder(id, "efsane-cuma-2027")).toBe(false);
+    await admin.releaseSeasonReminder(id, "efsane-cuma-2027");
+    expect(await admin.claimSeasonReminder(id, "efsane-cuma-2027")).toBe(true);
   });
 });

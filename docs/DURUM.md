@@ -14,9 +14,13 @@
 | Demo satın alma | **Demo.** Yalnızca `APP_MODE=demo` iken görünür, kayıtlarda "Demo (ödeme alınmadı)" yazar. |
 | Bellek içi veri katmanı | **Demo.** Supabase değişkenleri yokken kullanılır; aynı kredi ve sahiplik kurallarını taklit eder, süreç yeniden başlayınca silinir. |
 | PDF rapor | Tarayıcının "PDF olarak kaydet" yazdırma akışı (yazdırmaya özel stil). Sunucu tarafı PDF üretimi yok. |
-| Video / Reels analizi | **Gerçek.** Kareler tarayıcıda çıkarılır, sunucuda imzasından doğrulanır, özel depoda saklanır. Tarayıcının açamadığı formatlar (çoğu zaman MOV/HEVC) için MP4 (H.264) önerilir. Ses ve konuşma otomatik çözümlenmez; kullanıcı yazar. |
-| Açılış sayfası taraması | **Gerçek.** Sunucu tarafında tek istek; JavaScript çalıştırılmaz, giriş/çerez onayı arkasındaki içerik görülmez. |
-| Sezon takvimi | **Hesaplanan.** Sabit ve kurala bağlı günler koddan hesaplanır. Ramazan ve Kurban Bayramı 2026–2027 tarihleri ikincil kaynaklardan alındı, **Diyanet'le doğrulanmadı**; 2028 ve sonrası eklenmedi. |
+| Video / Reels analizi | **Gerçek.** 6 kare (3'ü ilk 3 saniyeden) tarayıcıda çıkarılır, sunucuda imzasından doğrulanır, özel depoda saklanır. Ses tarayıcıda ölçülür (başlangıç anı, sessiz oran). 2 kredi; maliyet her analizde `credit_cost` olarak saklanır ve `complete_analysis` tam o kadar düşer. Tarayıcının açamadığı formatlar (çoğu zaman MOV/HEVC) için MP4 (H.264) önerilir. |
+| Video kanca incelemesi (kanca puanı, altyazı, sessiz izleme, güvenli alan) | **Yapay zekâ gerekir.** Anthropic adaptöründen şemayla istenir; anahtar yokken raporda "Değerlendirilmedi" yazar. Gerçek API ile denenmedi. |
+| Konuşmayı yazıya dökme | **Adaptör hazır, anahtar yok.** OpenAI uyumlu `/v1/audio/transcriptions`; yerel sahte sunucuyla birim ve uçtan uca test edildi, gerçek hizmetle denenmedi. Kullanıcı onayı olmadan ses gönderilmez. |
+| Açılış sayfası taraması | **Gerçek.** Sunucu tarafında tek istek; JavaScript çalıştırılmaz. JavaScript ile çizilen sayfalar tespit edilir. Ekran görüntüsü yedeği saklanır; metnini okumak yapay zekâ gerektirir. |
+| Sezon hatırlatma e-postaları | **Adaptör hazır, hesap yok.** Resend adaptörü sahte sunucuyla test edildi; anahtar yokken demo modunda bellek kutusuna yazar, production'da göndermez. Zamanlayıcı kurulmadı. |
+| Kampanya şablonları ve analizde sezon notu | **Gerçek.** Her şablon testte kural motorundan kırmızı/sarı bayraksız geçer. Sezon notu yalnızca bilgilendirmedir, skoru değiştirmez. |
+| Sezon takvimi | **Hesaplanan.** Sabit ve kurala bağlı günler koddan hesaplanır. Ramazan ve Kurban Bayramı 2026–2027 tarihleri ikincil kaynaklardan alındı, **Diyanet'le doğrulanmadı**; 2028 ve sonrası eklenmedi. "Okula dönüş" eylülün ikinci pazartesi varsayılır, **MEB takvimiyle doğrulanmadı**. |
 | Saklama süresi temizliği | `/api/cron/retention` uç noktası hazır; zamanlayıcı (ör. Vercel Cron) kurulmadı. |
 
 ## Kabul kriterleri ve test karşılığı
@@ -40,6 +44,10 @@
 | Açılış sayfası: SSRF koruması, yönlendirme, zaman aşımı | `tests/unit/features.test.ts` (yerel fikstür sunucusu), e2e |
 | Açılış sayfası ve video notları ihlal sayılmaz (yalnızca kreatif kalite) | birim |
 | Sezon takvimi tarihleri, .ics biçimi, sektör süzgeci | birim + e2e |
+| Video 2 kredi, bakiye 1 iken video başlamaz, kullanıcı maliyeti değiştiremez | entegrasyon, bellek testi, e2e |
+| Ses yalnızca onayla gönderilir; konuşma metni kurallarla taranır | e2e (sahte konuşma sunucusu), birim (WAV doğrulama, adaptör) |
+| JavaScript sayfası tespiti, ekran görüntüsü yedeği ve sahipliği | birim, e2e (başka kullanıcıya 404) |
+| Şablonlar, sezon notu, hatırlatma e-postası ve tekrar göndermeme | birim, bellek testi, entegrasyon (`season_reminder_log` RLS), e2e |
 | Production build | `next build` temiz (uyarı yok) |
 | Veritabanı danışmanı | `supabase db advisors`: güvenlik/performans sorunu yok; yalnızca yeni veritabanında kullanılmamış indeks bilgileri |
 
@@ -53,7 +61,7 @@ Son çalıştırma (16.11.2026, video/açılış sayfası/takvim eklendikten son
 4. Yasal sayfalar (gizlilik, KVKK, koşullar) taslaktır; veri sorumlusu bilgisi yer tutucu.
 5. Saklama süresi varsayılanı 90 gün; kullanıcı 7–365 gün arası seçebilir.
 6. Görsel metni (OCR) yapay zekâ kapalıyken okunmaz; görseldeki ifadeler yalnızca yapay zekâ açıkken değerlendirilir. Aynısı video kareleri için de geçerli.
-7. Video için 5 kare, en uzun video 10 dakika ve yapay zekâya en fazla 4 kare gönderimi ürün kararıdır.
+7. Video için 6 kare (3'ü ilk 3 saniyeden), en uzun video 10 dakika, video analizi 2 kredi, konuşma çevirisi için ilk 90 saniye ürün kararıdır.
 8. Sezon takviminde hazırlık (yayından 14 gün önce), incelemeye gönderme (yayından 3 gün önce) ve dönem başına yayın süresi ürün varsayımıdır; Meta'nın inceleme süresi taahhüdü değildir.
 
 ## Üretime geçmeden önce
@@ -71,11 +79,16 @@ Son çalıştırma (16.11.2026, video/açılış sayfası/takvim eklendikten son
 11. Alan adı, KVKK VERBİS yükümlülüğü ve fatura süreci netleşsin.
 12. Ramazan ve Kurban Bayramı tarihleri Diyanet'in resmî takviminden teyit edilsin, sonraki yıllar eklensin (`src/lib/calendar/season.ts` → `RELIGIOUS_HOLIDAYS`).
 13. Açılış sayfası taraması sunucunun ağından çıkar; üretimde çıkış trafiği bir egress proxy veya ayrı ağ üzerinden sınırlandırılabilir.
+14. Konuşma tanıma sağlayıcısı seçilip `SPEECH_TO_TEXT_API_KEY` girilsin; Türkçe doğruluğu örnek videolarla ölçülsün, veri işleme sözleşmesi KVKK metnine eklensin.
+15. Resend hesabı açılıp alan adı doğrulansın, `RESEND_API_KEY`/`EMAIL_FROM` girilsin ve `/api/cron/season-reminders` günlük zamanlansın.
+16. 17.11.2026'da eklenen 17 kural kartının resmî metinleri okunup doğrulananlar `active` yapılsın.
 
 ## Bitti
+
+17.11.2026: video kanca analizi (6 kare, ses ölçümü, onaylı konuşma çevirisi, kanca/altyazı/güvenli alan incelemesi), video 2 kredi, açılış sayfası ekran görüntüsü yedeği ve JavaScript sayfası tespiti, sezon takviminde kampanya şablonları, okula dönüş, analizde sezon notu ve e-posta hatırlatmaları, kural kartları 23'ten 40'a.
 
 Video/Reels analizi, açılış sayfası taraması ve sezon takvimi (MVP sonrası). Pazarlama sitesi (ana sayfa, nasıl çalışır, fiyatlandırma, kural kartları), giriş/kayıt ve onaylar, başlangıç ayarı, pano, 7 adımlı analiz sihirbazı, sonuç sayfası (3 skor, bulgular, kaynak bağlantıları, skor dökümü, güvenli metin, 5 varyant), yazdırılabilir rapor, itiraz asistanı, geçmiş ve silme, krediler ve defter, ayarlar ve hesap silme, gizlilik/KVKK/koşullar taslakları, demo modu, ödeme adaptörleri, webhook ve saklama uç noktaları.
 
 ## Sonraya (backlog, arayüzde "Yakında")
 
-Meta Reklam Kütüphanesi panosu, ajans çalışma alanı ve ekipler, Meta hesabı bağlama, videoda otomatik konuşma çözümleme, gerçek kampanya verisi, Google Ads ve TikTok desteği, sunucu tarafı PDF, varyantları CSV olarak dışa aktarma, şifre sıfırlama ekranı.
+Meta Reklam Kütüphanesi panosu, ajans çalışma alanı ve ekipler, Meta hesabı bağlama, gerçek kampanya verisi, Google Ads ve TikTok desteği, sunucu tarafı PDF, varyantları CSV olarak dışa aktarma, şifre sıfırlama ekranı.

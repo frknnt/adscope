@@ -56,6 +56,7 @@ const settingsSchema = z.object({
   companyName: z.string().trim().max(120),
   sector,
   retentionDays: z.coerce.number().int().min(7).max(365),
+  seasonReminders: z.literal("on").optional(),
 });
 
 export async function saveSettingsAction(_prev: ActionState, form: FormData): Promise<ActionState> {
@@ -67,10 +68,20 @@ export async function saveSettingsAction(_prev: ActionState, form: FormData): Pr
     companyName: parsed.data.companyName || null,
     defaultSector: parsed.data.sector,
     retentionDays: parsed.data.retentionDays,
+    seasonReminders: parsed.data.seasonReminders === "on",
   });
   if (!ok) return { error: "Ayarlar kaydedilemedi. Lütfen tekrar deneyin." };
   revalidatePath("/panel/ayarlar");
   return { error: null, ok: "Ayarlar kaydedildi. Yeni saklama süresi bundan sonraki analizlere uygulanır." };
+}
+
+/** Turns season reminder e-mails on or off from the calendar page. */
+export async function setSeasonRemindersAction(form: FormData) {
+  await requireUser();
+  const on = form.get("on") === "1";
+  await getRepo().updateProfile({ seasonReminders: on });
+  revalidatePath("/panel/takvim");
+  revalidatePath("/panel/ayarlar");
 }
 
 export async function deleteAnalysisAction(form: FormData) {

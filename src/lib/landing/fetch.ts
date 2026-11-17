@@ -185,7 +185,7 @@ export async function fetchLanding(rawUrl: string): Promise<LandingSnapshot> {
     }
     if (r.status < 200 || r.status >= 300 || !r.body) return { ...snapBase, status: "http_error", ...empty };
     const html = decode(r.body, String(r.headers["content-type"] ?? ""));
-    return { ...snapBase, status: "ok", ...extractLanding(html) };
+    return { ...snapBase, status: "ok", source: "fetch", ...extractLanding(html) };
   }
   return { requestedUrl: start.toString(), finalUrl: url.toString(), status: "http_error", httpStatus: null, https: url.protocol === "https:", ...empty, fetchedAt };
 }

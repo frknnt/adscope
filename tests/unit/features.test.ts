@@ -44,7 +44,7 @@ describe("landing page extraction and checks", () => {
   });
 
   it("flags a discount that the page does not show, as a creative note (never legal/policy)", () => {
-    const s = snap("<title>Kış</title><h1>Kış koleksiyonu</h1><p>Yeni sezon ürünleri %10 indirimle.</p>");
+    const s = snap("<title>Kış</title><h1>Kış koleksiyonu</h1><p>Yeni sezon ürünleri %10 indirimle. Mont, kazak ve botlarda yeni renkler mağazada ve sitede.</p>");
     const { report, findings } = landingChecks(base, s);
     expect(report.checks.find((c) => c.key === "discount")?.ok).toBe(false);
     expect(findings.length).toBeGreaterThan(0);
@@ -199,7 +199,7 @@ describe("season calendar", () => {
     expect(ramazan.end).toBe("2027-03-11");
     expect(ramazan.verified).toBe(false);
     expect(list.find((e) => e.id === "kurban-bayrami")?.start).toBe("2027-05-16");
-    expect(list.filter((e) => e.kind !== "dini").every((e) => e.verified)).toBe(true);
+    expect(list.filter((e) => e.kind !== "dini" && e.id !== "okula-donus").every((e) => e.verified)).toBe(true);
     expect(list.some((e) => e.start < "2026-11-16")).toBe(false);
   });
 
@@ -234,7 +234,7 @@ describe("season calendar", () => {
 
 describe("landing checks with a video transcript", () => {
   it("compares offers spoken in the video with the page", () => {
-    const s = snap("<title>Ornek Giyim</title><p>Ornek Giyim kış ürünlerinde %20 indirim.</p>");
+    const s = snap("<title>Ornek Giyim</title><p>Ornek Giyim kış ürünlerinde %20 indirim. Mont, kazak ve botlarda yeni sezon renkleri sitede.</p>");
     const { report } = landingChecks({ ...base, primaryText: "Yeni sezon burada.", transcript: "Şimdi %50 indirim!" }, s);
     const c = report.checks.find((x) => x.key === "discount")!;
     expect(c.ok).toBe(false);

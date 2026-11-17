@@ -72,7 +72,7 @@ export function OnboardingForm({ profile }: { profile: Profile | null }) {
   );
 }
 
-export function SettingsForm({ profile, retentionDefault }: { profile: Profile | null; retentionDefault: number }) {
+export function SettingsForm({ profile, retentionDefault, emailEnabled }: { profile: Profile | null; retentionDefault: number; emailEnabled: boolean }) {
   const [state, action, pending] = useActionState(saveSettingsAction, initial);
   return (
     <form action={action} className="grid gap-5">
@@ -93,6 +93,16 @@ export function SettingsForm({ profile, retentionDefault }: { profile: Profile |
           <input id="retentionDays" name="retentionDays" type="number" min={7} max={365} required defaultValue={profile?.retentionDays ?? retentionDefault} className={`${inputClass} tabular`} />
         </Field>
       </div>
+      <label className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-white/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-white">
+        <input type="checkbox" name="seasonReminders" defaultChecked={profile?.seasonReminders ?? false} className="mt-1 accent-ink" />
+        <span>
+          <span className="block text-[0.95rem] font-semibold">Sezon hatırlatma e-postaları</span>
+          <span className="block text-[0.85rem] text-ink-soft">
+            Varsayılan sektörüne uyan özel günlerden önce, hazırlık zamanı geldiğinde bir e-posta: tarihler, incelemeye gönderme günü ve dönemin uyum hatırlatmaları. Her dönem için en fazla bir e-posta.
+            {emailEnabled ? "" : " (Bu kurulumda e-posta gönderimi henüz yapılandırılmadı; tercihin kaydedilir.)"}
+          </span>
+        </span>
+      </label>
       <div>
         <Button type="submit" disabled={pending}>{pending ? "Kaydediliyor…" : "Ayarları kaydet"}</Button>
       </div>

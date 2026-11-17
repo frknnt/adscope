@@ -46,3 +46,6 @@ supabase/.temp/
 supabase/.branches/
 test-results/
 playwright-report/
+
+# extra Next.js build dirs (dev, e2e, build, screenshots)
+/.next-*/

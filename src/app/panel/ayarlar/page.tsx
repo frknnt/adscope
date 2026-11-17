@@ -1,5 +1,6 @@
 import { getCurrentUser, getRepo } from "@/lib/data";
 import { requirePanelUser } from "@/app/panel/guard";
+import { emailConfigured } from "@/lib/email/provider";
 import { retentionDefaultDays } from "@/lib/env";
 import { DeleteAccountForm, SettingsForm } from "../forms";
 
@@ -15,7 +16,7 @@ export default async function SettingsPage() {
 
       <section aria-labelledby="profil" className="mt-8 rounded-2xl border border-line bg-card p-5 sm:p-7">
         <h2 id="profil" className="font-display text-2xl font-semibold">Profil ve saklama</h2>
-        <div className="mt-5"><SettingsForm profile={profile} retentionDefault={retentionDefaultDays()} /></div>
+        <div className="mt-5"><SettingsForm profile={profile} retentionDefault={retentionDefaultDays()} emailEnabled={emailConfigured()} /></div>
       </section>
 
       <section aria-labelledby="veri" className="mt-8 rounded-2xl border border-line bg-card p-5 sm:p-7">

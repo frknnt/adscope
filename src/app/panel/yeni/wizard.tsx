@@ -5,13 +5,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { IconAlert, IconImage, IconUpload, IconVideo } from "@/components/icons";
 import { Button, Field, inputClass } from "@/components/ui";
-import { extractVideoFrames, VIDEO_MIME, videoErrorMessage, type ExtractedVideo } from "@/lib/video/extract-frames";
+import { creditCostFor } from "@/lib/analysis/cost";
+import { analyzeAudio, extractVideoFrames, VIDEO_MIME, videoErrorMessage, type AudioInfo, type ExtractedVideo } from "@/lib/video/extract-frames";
 
 type Sector = "genel" | "takviye_gida" | "estetik_klinik";
 type BrandOpt = { id: string; name: string; sector: Sector };
 
 const STEPS = ["Kreatif", "Metin", "Sektör", "Beyanlar", "Ret mesajı", "Kontrol"] as const;
-const FRAME_COUNT = 5;
+const FRAME_COUNT = 6;
+/** Seconds of audio sent for speech-to-text (only with consent). */
+const SPEECH_SECONDS = 90;
 const MAX_VIDEO_SECONDS = 600;
 const MAX_BYTES = 5 * 1024 * 1024;
 const MIME = ["image/jpeg", "image/png", "image/webp"];
@@ -23,7 +26,9 @@ const SECTORS: { value: Sector; label: string; note: string }[] = [
 ];
 
 type ImageState = { file: File; url: string; width: number; height: number } | null;
-type VideoState = (ExtractedVideo & { name: string }) | null;
+type VideoState = (ExtractedVideo & { name: string; audio: AudioInfo; wav: Blob | null }) | null;
+type ShotState = { file: File; url: string } | null;
+export type WizardInitial = { headline?: string; primaryText?: string; description?: string; sector?: Sector; templateTitle?: string };
 type Media = "image" | "video";
 
 /** Accepts "ornek.com/kampanya" as well as full URLs; returns null when it cannot be a public web address. */
@@ -60,7 +65,19 @@ function readImageSize(url: string) {
   });
 }
 
-export function AnalysisWizard({ brands, defaultSector, balance }: { brands: BrandOpt[]; defaultSector: Sector; balance: number }) {
+export function AnalysisWizard({
+  brands,
+  defaultSector,
+  balance,
+  speechEnabled = false,
+  initial,
+}: {
+  brands: BrandOpt[];
+  defaultSector: Sector;
+  balance: number;
+  speechEnabled?: boolean;
+  initial?: WizardInitial;
+}) {
   const router = useRouter();
   const ids = useId();
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -77,11 +94,14 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
   const [landingError, setLandingError] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [headline, setHeadline] = useState("");
-  const [primaryText, setPrimaryText] = useState("");
-  const [description, setDescription] = useState("");
+  const [headline, setHeadline] = useState(initial?.headline ?? "");
+  const [primaryText, setPrimaryText] = useState(initial?.primaryText ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
   const [textError, setTextError] = useState<string | null>(null);
-  const [sector, setSector] = useState<Sector>(defaultSector);
+  const [sector, setSector] = useState<Sector>(initial?.sector ?? defaultSector);
+  const [speechOptIn, setSpeechOptIn] = useState(false);
+  const [shot, setShot] = useState<ShotState>(null);
+  const [shotError, setShotError] = useState<string | null>(null);
   const [brandId, setBrandId] = useState<string>("");
   const [flags, setFlags] = useState({ influencerPost: false, aiHumanCharacter: false, aiRealPersonCopy: false });
   const [rejection, setRejection] = useState("");
@@ -98,6 +118,15 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
 
   useEffect(() => () => { if (image) URL.revokeObjectURL(image.url); }, [image]);
   useEffect(() => () => { video?.frames.forEach((f) => URL.revokeObjectURL(f.url)); }, [video]);
+  useEffect(() => () => { if (shot) URL.revokeObjectURL(shot.url); }, [shot]);
+
+  function acceptShot(file: File | undefined) {
+    setShotError(null);
+    if (!file) return setShot(null);
+    if (!MIME.includes(file.type)) return setShotError("Ekran görüntüsü JPG, PNG veya WebP olmalı.");
+    if (file.size > MAX_BYTES) return setShotError("Ekran görüntüsü en fazla 5 MB olabilir.");
+    setShot({ file, url: URL.createObjectURL(file) });
+  }
 
   async function acceptVideo(file: File | undefined) {
     setImageError(null);
@@ -105,8 +134,12 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
     if (!(VIDEO_MIME as readonly string[]).includes(file.type)) return setImageError("Yalnızca MP4, MOV veya WebM videolar seçilebilir.");
     setVideoBusy(true);
     try {
-      const v = await extractVideoFrames(file, { count: FRAME_COUNT, maxSeconds: MAX_VIDEO_SECONDS });
-      setVideo({ ...v, name: file.name });
+      // Frames and audio are both read in the browser; the video file itself is never uploaded.
+      const [v, sound] = await Promise.all([
+        extractVideoFrames(file, { count: FRAME_COUNT, maxSeconds: MAX_VIDEO_SECONDS }),
+        analyzeAudio(file, { wavSeconds: speechEnabled ? SPEECH_SECONDS : 0 }),
+      ]);
+      setVideo({ ...v, name: file.name, audio: sound.info, wav: sound.wav });
     } catch (e) {
       setImageError(videoErrorMessage(e));
     } finally {
@@ -177,6 +210,9 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
     const fd = new FormData();
     if (media === "image" && image) fd.set("image", image.file);
     if (media === "video" && video) video.frames.forEach((f, i) => fd.append("frames", f.blob, `kare-${i + 1}.jpg`));
+    const sendSpeech = media === "video" && speechEnabled && speechOptIn && !!video?.wav;
+    if (sendSpeech && video?.wav) fd.set("audio", video.wav, "ses.wav");
+    if (shot) fd.set("landingScreenshot", shot.file);
     fd.set(
       "payload",
       JSON.stringify({
@@ -191,10 +227,11 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
         mediaType: media,
         video:
           media === "video" && video
-            ? { mime: video.mime, durationSec: video.durationSec, width: video.width, height: video.height, sizeBytes: video.sizeBytes, frameTimesMs: video.frames.map((f) => f.timeMs) }
+            ? { mime: video.mime, durationSec: video.durationSec, width: video.width, height: video.height, sizeBytes: video.sizeBytes, frameTimesMs: video.frames.map((f) => f.timeMs), audio: video.audio }
             : null,
         transcript: media === "video" ? transcript.trim() || null : null,
         landingUrl: normalizeLandingUrl(landingUrl),
+        speechToText: sendSpeech,
       }),
     );
     try {
@@ -226,7 +263,8 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
         <p className="mt-6 font-display text-2xl font-semibold">Reklamın inceleniyor…</p>
         <p className="mx-auto mt-2 max-w-md text-ink-soft">
           {media === "video" ? "Video kareleri doğrulanıyor" : "Görsel doğrulanıyor"}
-          {normalizeLandingUrl(landingUrl) ? ", açılış sayfası taranıyor" : ""}, kural kartları uygulanıyor, güvenli metin ve varyantlar hazırlanıyor. Genellikle 10–60 saniye sürer; bu sayfadan ayrılma.
+          {media === "video" && speechEnabled && speechOptIn && video?.wav ? ", konuşma yazıya dökülüyor" : ""}
+          {normalizeLandingUrl(landingUrl) || shot ? ", açılış sayfası taranıyor" : ""}, kural kartları uygulanıyor, güvenli metin ve varyantlar hazırlanıyor. Genellikle 10–60 saniye sürer; bu sayfadan ayrılma.
         </p>
       </div>
     );
@@ -346,7 +384,7 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
               </p>
             ) : null}
             {media === "video" ? (
-              <p className="mt-3 max-w-2xl text-[0.85rem] text-muted">Video dosyası yüklenmez. Tarayıcın videodan birkaç kare alır; yalnızca bu kareler ve süre, çözünürlük bilgisi gönderilir. Ses analiz edilmez, konuşmayı bir sonraki adımda yazabilirsin.</p>
+              <p className="mt-3 max-w-2xl text-[0.85rem] text-muted">Video dosyası yüklenmez. Tarayıcın videodan altı kare alır (üçü ilk saniyelerden) ve sesin ne zaman başladığını ölçer; yalnızca bu kareler ve ölçümler gönderilir.{speechEnabled ? " Konuşmanın otomatik yazıya dökülmesini bir sonraki adımda açabilirsin." : " Konuşmayı bir sonraki adımda yazabilirsin."}</p>
             ) : null}
             {imageError ? <p id={`${ids}-file-err`} role="alert" className="mt-3 text-[0.9rem] font-medium text-coral-deep">{imageError}</p> : null}
           </div>
@@ -372,6 +410,19 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
                 <textarea id="transcript" rows={5} maxLength={3000} value={transcript} onChange={(e) => setTranscript(e.target.value)} className={inputClass} placeholder="Örn. “İlk 100 kişiye yüzde 50 indirim, hemen kaydır!”" />
               </Field>
             ) : null}
+            {media === "video" && speechEnabled ? (
+              <label className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-white/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-white">
+                <input type="checkbox" checked={speechOptIn} onChange={(e) => setSpeechOptIn(e.target.checked)} disabled={!video?.wav} className="mt-1 accent-ink" />
+                <span>
+                  <span className="block text-[0.95rem] font-semibold">Konuşmayı otomatik yazıya dök</span>
+                  <span className="block text-[0.85rem] text-ink-soft">
+                    {video?.wav
+                      ? `Videonun ilk ${Math.min(SPEECH_SECONDS, Math.round(video.durationSec))} saniyelik sesi bir kez konuşma tanıma hizmetine gönderilir. Ses saklanmaz; çıkan metin raporda gösterilir ve kurallarla taranır.`
+                      : "Bu videoda okunabilir bir ses bulunamadı."}
+                  </span>
+                </span>
+              </label>
+            ) : null}
             <Field
               label="Açılış sayfası bağlantısı (isteğe bağlı)"
               htmlFor="landingUrl"
@@ -379,6 +430,21 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
               hint="Reklamın yönlendirdiği sayfa. Bir kez okunur; fiyat, indirim ve marka tutarlılığı kontrol edilir. Sayfa içeriği saklanmaz."
             >
               <input id="landingUrl" type="url" inputMode="url" autoComplete="url" maxLength={2048} value={landingUrl} onChange={(e) => setLandingUrl(e.target.value)} aria-invalid={landingError ? true : undefined} className={inputClass} placeholder="https://ornek.com/kampanya" />
+            </Field>
+            <Field
+              label="Açılış sayfası ekran görüntüsü (isteğe bağlı)"
+              htmlFor="landingScreenshot"
+              error={shotError}
+              hint="Sayfa giriş istiyorsa, bot korumasındaysa ya da içeriği JavaScript ile yükleniyorsa ekran görüntüsünü ekle. Görüntü raporla birlikte saklanır."
+            >
+              <input
+                id="landingScreenshot"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => acceptShot(e.target.files?.[0])}
+                aria-invalid={shotError ? true : undefined}
+                className="block w-full text-[0.9rem] text-ink-soft file:mr-4 file:rounded-full file:border-0 file:bg-ink file:px-4 file:py-2 file:text-[0.85rem] file:font-semibold file:text-paper hover:file:bg-ink-soft"
+              />
             </Field>
           </div>
         ) : null}
@@ -465,11 +531,22 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
               <dt className="text-muted">Beyanlar</dt>
               <dd>{[flags.influencerPost && "Etkileyici", flags.aiHumanCharacter && "YZ karakter", flags.aiRealPersonCopy && "Dijital kopya"].filter(Boolean).join(", ") || "Yok"}</dd>
               {media === "video" ? (<><dt className="text-muted">Video metni</dt><dd>{transcript.trim() ? "Var, taranacak" : "Yok"}</dd></>) : null}
-              <dt className="text-muted">Açılış sayfası</dt><dd className="break-all">{normalizeLandingUrl(landingUrl) ?? "Yok"}</dd>
+              {media === "video" ? (
+                <>
+                  <dt className="text-muted">Ses</dt>
+                  <dd>
+                    {!video?.audio.analyzed ? "Ölçülemedi" : video.audio.present ? `Var, ${(video.audio.firstSoundSec ?? 0).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} sn'de başlıyor` : "Ses yok"}
+                    {speechEnabled && speechOptIn && video?.wav ? " · yazıya dökülecek" : ""}
+                  </dd>
+                </>
+              ) : null}
+              <dt className="text-muted">Açılış sayfası</dt>
+              <dd className="break-all">{normalizeLandingUrl(landingUrl) ?? "Yok"}{shot ? " · ekran görüntüsü eklendi" : ""}</dd>
               <dt className="text-muted">Ret mesajı</dt><dd>{rejection.trim() ? "Var, itiraz taslağı hazırlanacak" : "Yok"}</dd>
             </dl>
             <p className="text-[0.88rem] text-ink-soft sm:col-span-2">
-              Bu analiz <strong className="text-ink">1 kredi</strong> kullanır (bakiye: <span className="tabular">{balance}</span>). Kredi yalnızca rapor tamamlanınca düşer.
+              Bu analiz <strong className="text-ink">{creditCostFor(media)} kredi</strong> kullanır{media === "video" ? " (video analizi 2 kredidir)" : ""} (bakiye: <span className="tabular">{balance}</span>). Kredi yalnızca rapor tamamlanınca düşer.
+              {balance < creditCostFor(media) ? <span className="mt-1 block font-semibold text-coral-deep">Bakiyen bu analiz için yetmiyor. <Link href="/panel/krediler" className="text-coral-deep">Kredi yükle</Link></span> : null}
             </p>
           </div>
         ) : null}
@@ -483,7 +560,7 @@ export function AnalysisWizard({ brands, defaultSector, balance }: { brands: Bra
               {step === 4 && !rejection.trim() ? "Atla" : "Devam"}
             </Button>
           ) : (
-            <Button type="button" variant="accent" onClick={submit} disabled={balance < 1} className="h-12 px-6">
+            <Button type="button" variant="accent" onClick={submit} disabled={balance < creditCostFor(media)} className="h-12 px-6">
               {phase.kind === "error" && phase.retryable ? "Tekrar dene" : "Analizi başlat"}
             </Button>
           )}

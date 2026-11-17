@@ -20,7 +20,7 @@ export default function PricingPage() {
     <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
       <h1 className="max-w-3xl font-display text-4xl font-semibold leading-tight sm:text-[3.4rem]">Analiz başına öde. Abonelik yok.</h1>
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-ink-soft">
-        Bir analiz bir kredidir. Kredi yalnızca rapor başarıyla tamamlandığında düşer; analiz yarıda kalırsa krediniz yerinde kalır.
+        Görsel analizi 1 kredi, video/Reels analizi 2 kredidir. Kredi yalnızca rapor başarıyla tamamlandığında düşer; analiz yarıda kalırsa krediniz yerinde kalır.
       </p>
 
       <div className="mt-12 grid gap-5 md:grid-cols-3">

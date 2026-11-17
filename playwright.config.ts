@@ -8,6 +8,10 @@ import { defineConfig, devices } from "@playwright/test";
  */
 const launchOptions = process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {};
 const supabaseBase = process.env.E2E_SUPABASE_BASE_URL;
+// Each project (and each run) signs up from its own documentation-range client address, so the per-IP
+// sign-up limit (20 per 10 minutes) is not shared between projects or with a long-running dev server.
+const run = Math.floor(Math.random() * 200) + 20;
+const ip = (n: number) => ({ "X-Forwarded-For": `198.51.100.${run + n}` });
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -18,9 +22,9 @@ export default defineConfig({
   reporter: [["list"]],
   use: { trace: "off", launchOptions, locale: "tr-TR", timezoneId: "Europe/Istanbul", reducedMotion: "reduce" },
   projects: [
-    { name: "demo-desktop", use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:3100", viewport: { width: 1360, height: 900 } } },
-    { name: "demo-mobile", use: { ...devices["Pixel 7"], baseURL: "http://localhost:3100" } },
-    ...(supabaseBase ? [{ name: "supabase-desktop", use: { ...devices["Desktop Chrome"], baseURL: supabaseBase } }] : []),
+    { name: "demo-desktop", use: { extraHTTPHeaders: ip(0), ...devices["Desktop Chrome"], baseURL: "http://localhost:3100", viewport: { width: 1360, height: 900 } } },
+    { name: "demo-mobile", use: { extraHTTPHeaders: ip(1), ...devices["Pixel 7"], baseURL: "http://localhost:3100" } },
+    ...(supabaseBase ? [{ name: "supabase-desktop", use: { extraHTTPHeaders: ip(2), ...devices["Desktop Chrome"], baseURL: supabaseBase } }] : []),
   ],
   webServer: {
     command: "npx next dev -p 3100",
@@ -37,6 +41,12 @@ export default defineConfig({
       DEMO_SESSION_SECRET: "e2e-only-secret-not-for-production-0123456789",
       // Lets the landing page scan reach the fixture server on 127.0.0.1. Ignored in production.
       LANDING_SCAN_ALLOW_PRIVATE: "true",
+      // Speech-to-text goes to a mock started by the video spec on this port; no real provider is called.
+      SPEECH_TO_TEXT_API_KEY: "e2e-fake-key",
+      SPEECH_TO_TEXT_BASE_URL: "http://127.0.0.1:3199",
+      // E-mail stays in the demo outbox.
+      RESEND_API_KEY: "",
+      CRON_SECRET: "e2e-cron-secret-0123456789",
     },
   },
 });

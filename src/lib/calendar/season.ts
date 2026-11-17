@@ -282,6 +282,34 @@ const EVENTS: EventDef[] = [
     },
   },
   {
+    id: "okula-donus",
+    name: "Okula dönüş",
+    kind: "sezon",
+    leadDays: 21,
+    sectors: ["genel", "takviye_gida"],
+    summary: "Kırtasiye, çanta, giyim, elektronik ve kurs kayıtları için ağustos sonundan eylül ortasına uzanan dönem. Velilere yönelik kampanyalar artar.",
+    tips: [
+      "Liste odaklı kreatifler (sınıfa göre ihtiyaç listesi) ve paket fiyatlar iyi çalışır; paketin içeriğini açıkça yaz.",
+      "Çocuklara doğrudan “hemen al” çağrısı yapma; mesajı veliye yönelt.",
+      "Takviye gıdada “okul başarısı”, “zekâ” veya “hastalıktan korur” gibi vaatlerden kaçın.",
+    ],
+    reminders: [
+      DISCOUNT,
+      CONDITIONS,
+      { text: "Çocuklara yönelik reklamlarda onların deneyimsizliğinden yararlanan veya doğrudan satın almaya yönelten ifadeler kullanma.", ruleIds: ["TR-RY-COCUK-DOGRUDAN"] },
+      SUPPLEMENT,
+    ],
+    dates: (y) => {
+      const d = nthWeekday(y, 9, 1, 2);
+      return {
+        start: d,
+        end: d,
+        rule: "Okulların açılış günü MEB çalışma takvimine göre her yıl değişir; burada eylülün ikinci pazartesi varsayıldı. MEB takvimiyle doğrula.",
+        verified: false,
+      };
+    },
+  },
+  {
     id: "11-11",
     name: "11.11 indirim günü",
     kind: "sabit",
@@ -398,7 +426,7 @@ export function daysUntil(isoDate: string, today: Date = istanbulToday()) {
 // --- iCalendar export -------------------------------------------------------------------------
 
 function icsEscape(s: string) {
-  return s.replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+  return s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 }
 
 /** Folds lines to 75 octets as RFC 5545 requires (UTF-8 aware). */
@@ -455,3 +483,6 @@ export function toIcs(events: SeasonEvent[], now = new Date()): string {
   lines.push("END:VCALENDAR");
   return lines.map(fold).join("\r\n") + "\r\n";
 }
+
+/** Today's date in Turkey as YYYY-MM-DD (used for season notes in the analysis). */
+export const seasonToday = (now = new Date()) => iso(istanbulToday(now));

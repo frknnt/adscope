@@ -7,7 +7,7 @@ import { z } from "zod";
  */
 export const AiFindingSchema = z.object({
   rule_id: z.string().min(3).max(64),
-  field: z.enum(["headline", "primary_text", "description", "image", "transcript"]),
+  field: z.enum(["headline", "primary_text", "description", "image", "transcript", "speech"]),
   matched_text: z.string().max(300).nullable(),
   explanation_tr: z.string().min(10).max(600),
   suggestion_tr: z.string().min(5).max(400),
@@ -30,6 +30,26 @@ export const AiAnalysisSchema = z.object({
   }),
   safe_text: z.string().min(10).max(600),
   variants: z.array(AiVariantSchema).length(5),
+  /** Only for video ads (null for images). */
+  video: z
+    .object({
+      hook_strength: z.number().int().min(0).max(10),
+      hook_note_tr: z.string().min(5).max(300),
+      has_captions: z.boolean(),
+      works_without_sound: z.boolean(),
+      safe_zone_issue: z.boolean(),
+      frame_notes: z.array(z.object({ frame: z.number().int().min(1).max(6), note_tr: z.string().min(3).max(200) })).max(6),
+    })
+    .nullable(),
 });
 
 export type AiAnalysis = z.infer<typeof AiAnalysisSchema>;
+
+/** Text read from a landing page screenshot (used when the page cannot be fetched or renders with JavaScript). */
+export const AiScreenshotSchema = z.object({
+  is_web_page: z.boolean(),
+  title: z.string().max(200),
+  visible_text: z.string().max(4000),
+});
+
+export type AiScreenshot = z.infer<typeof AiScreenshotSchema>;

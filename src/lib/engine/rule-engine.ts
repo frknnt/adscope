@@ -1,7 +1,7 @@
 import { findMatches, fold } from "./text";
 import type { AdInput, EngineFinding, Field, RuleRecord, Severity } from "./types";
 
-type EngineInput = Pick<AdInput, "headline" | "primaryText" | "description" | "flags" | "transcript" | "landing">;
+type EngineInput = Pick<AdInput, "headline" | "primaryText" | "description" | "flags" | "transcript" | "landing" | "speech">;
 
 // Order matters: a rule reports its first match, so the ad's own fields come before the
 // video transcript and the landing page.
@@ -10,6 +10,7 @@ const TEXT_FIELDS: { key: Field; get: (i: EngineInput) => string }[] = [
   { key: "primary_text", get: (i) => i.primaryText },
   { key: "description", get: (i) => i.description },
   { key: "transcript", get: (i) => i.transcript ?? "" },
+  { key: "speech", get: (i) => i.speech?.text ?? "" },
   { key: "landing_page", get: (i) => (i.landing?.status === "ok" ? `${i.landing.title} . ${i.landing.h1.join(" . ")} . ${i.landing.text}` : "") },
 ];
 
@@ -21,7 +22,7 @@ export function severityFor(rule: Pick<RuleRecord, "status" | "riskLevel">): Sev
 }
 
 function hasAdLabel(input: EngineInput) {
-  const all = fold(`${input.headline} ${input.primaryText} ${input.description} ${input.transcript ?? ""}`);
+  const all = fold(`${input.headline} ${input.primaryText} ${input.description} ${input.transcript ?? ""} ${input.speech?.text ?? ""}`);
   return /(^|[^a-z])(reklam|tanitim)([^a-z]|$)/.test(all);
 }
 
@@ -61,7 +62,7 @@ export function runRuleEngine(
     // Flag-driven rules (wizard checkboxes)
     if (rule.flagTrigger === "ai_human_character" && input.flags.aiHumanCharacter) {
       const disclosed = /yapay zeka ile (olusturul|uretil)/.test(
-        fold(`${input.headline} ${input.primaryText} ${input.description} ${input.transcript ?? ""}`),
+        fold(`${input.headline} ${input.primaryText} ${input.description} ${input.transcript ?? ""} ${input.speech?.text ?? ""}`),
       );
       if (!disclosed) findings.push(toFinding(rule, "image", null));
       continue;

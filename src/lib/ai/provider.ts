@@ -1,5 +1,5 @@
 import type { AdInput, ImageMeta, RuleRecord } from "@/lib/engine/types";
-import type { AiAnalysis } from "./schema";
+import type { AiAnalysis, AiScreenshot } from "./schema";
 
 export interface AiRequest {
   input: AdInput;
@@ -26,4 +26,6 @@ export interface AiProvider {
   readonly name: string;
   readonly enabled: boolean;
   analyze(req: AiRequest): Promise<AiResult>;
+  /** Reads the visible text of a landing page screenshot. Optional: providers without vision may omit it. */
+  readScreenshot?(image: { base64: string; mime: ImageMeta["mime"] }): Promise<{ ok: true; data: AiScreenshot; meta: AiRunMeta } | { ok: false; reason: string; meta: AiRunMeta }>;
 }

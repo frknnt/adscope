@@ -44,7 +44,42 @@ export function extractLanding(html: string) {
   const description = (metaContent(html, ["description", "og:description"]) || "").slice(0, 400);
   const h1 = [...body.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi)].map((m) => clean(m[1])).filter(Boolean).slice(0, 5).map((x) => x.slice(0, 200));
   const text = clean(body.replace(/<(br|p|div|li|h[1-6]|tr|section|article)\b[^>]*>/gi, " . ")).replace(/(\s\.)+/g, " .").slice(0, MAX_TEXT);
-  return { title, description, h1, text };
+  // Single-page apps ship an almost empty HTML shell and render the content with JavaScript.
+  const appRoot = /<div\b[^>]*\bid\s*=\s*["'](root|__next|app|__nuxt)["']|\bng-version=|data-reactroot|<noscript\b[^>]*>[^<]*javascript/i.test(html);
+  const visible = text.replace(/[\s.]/g, "").length;
+  // A short page with a heading and no app root is just a short page; an almost empty page that loads scripts is a shell.
+  const scripts = /<script\b/i.test(html);
+  const jsShell = (appRoot && visible < 600) || visible < 20 || (scripts && visible < 80 && h1.length === 0);
+  return { title, description, h1, text, jsShell };
+}
+
+/**
+ * Combines the fetched page with text the AI read from a user-provided screenshot. The screenshot is the fallback
+ * when the page cannot be fetched or renders with JavaScript.
+ */
+export function mergeScreenshot(
+  snap: LandingSnapshot | null,
+  shot: { title: string; text: string; isPage: boolean } | "unread" | null,
+  fetchedAt = new Date().toISOString(),
+): LandingSnapshot | null {
+  if (!shot) return snap;
+  const base: LandingSnapshot =
+    snap ?? { requestedUrl: "", finalUrl: null, status: "invalid_url", httpStatus: null, https: false, title: "", description: "", h1: [], text: "", fetchedAt };
+  if (shot === "unread") return { ...base, screenshot: "unread", source: base.status === "ok" ? "fetch" : base.source };
+  if (!shot.isPage || !shot.text.trim()) return { ...base, screenshot: "not_page", source: base.status === "ok" ? "fetch" : base.source };
+  const usable = base.status === "ok" && !base.jsShell;
+  const text = `${usable ? `${base.text} . ` : ""}${shot.text}`.slice(0, MAX_TEXT);
+  return {
+    ...base,
+    status: "ok",
+    title: base.title || shot.title.slice(0, 200),
+    text,
+    jsShell: false,
+    source: usable ? "fetch+screenshot" : "screenshot",
+    screenshot: "read",
+    // An unreadable fetch keeps its HTTPS flag from the URL.
+    https: base.requestedUrl ? base.requestedUrl.startsWith("https:") : false,
+  };
 }
 
 const PERCENT = /%\s?(\d{1,2})(?!\d)|(?<!\d)(\d{1,2})\s?%/g;
@@ -78,10 +113,25 @@ function heuristic(field: EngineFinding["field"], severity: EngineFinding["sever
 export function landingChecks(input: AdInput, snap: LandingSnapshot): { report: LandingReport; findings: EngineFinding[] } {
   const checks: LandingCheck[] = [];
   const findings: EngineFinding[] = [];
-  const base = { requestedUrl: snap.requestedUrl, finalUrl: snap.finalUrl, status: snap.status, httpStatus: snap.httpStatus, title: snap.title, fetchedAt: snap.fetchedAt };
+  const base = { requestedUrl: snap.requestedUrl, finalUrl: snap.finalUrl, status: snap.status, httpStatus: snap.httpStatus, title: snap.title, fetchedAt: snap.fetchedAt, source: snap.source ?? "fetch", screenshot: snap.screenshot ?? null };
+
+  if (snap.screenshot === "unread") {
+    checks.push({ key: "screenshot", label: "Ekran görüntüsü okundu", ok: null, detail: "Ekran görüntüsündeki metin yapay zekâ açıkken okunur; bu analizde yapay zekâ kapalıydı." });
+  } else if (snap.screenshot === "not_page") {
+    checks.push({ key: "screenshot", label: "Ekran görüntüsü okundu", ok: false, detail: "Yüklenen görüntüde okunabilir bir web sayfası bulunamadı." });
+  }
+
+  if (snap.source === "screenshot") {
+    checks.push({
+      key: "reachable",
+      label: "Sayfa açılıyor",
+      ok: null,
+      detail: snap.requestedUrl ? "Sayfa sunucudan okunamadı; kontroller ekran görüntüsündeki metinle yapıldı. Sayfayı mobilde de açıp kontrol edin." : "Bağlantı verilmedi; kontroller ekran görüntüsündeki metinle yapıldı.",
+    });
+  }
 
   const reachable = snap.status === "ok";
-  checks.push({
+  if (snap.source !== "screenshot") checks.push({
     key: "reachable",
     label: "Sayfa açılıyor",
     ok: reachable,
@@ -97,13 +147,24 @@ export function landingChecks(input: AdInput, snap: LandingSnapshot): { report: 
   }
 
   const https = snap.https;
-  checks.push({ key: "https", label: "Güvenli bağlantı (HTTPS)", ok: https, detail: https ? "Sayfa HTTPS üzerinden açılıyor." : "Sayfa HTTPS kullanmıyor." });
-  if (!https) findings.push(heuristic("landing_page", "yellow", "Açılış sayfası HTTPS değil", "Şifrelenmemiş sayfalar tarayıcıda 'güvenli değil' uyarısı gösterir; ödeme ve form içeren sayfalarda güven kaybına yol açar.", "Sitenizi HTTPS'e taşıyın ve reklamda https:// ile başlayan adresi kullanın."));
+  if (snap.requestedUrl) checks.push({ key: "https", label: "Güvenli bağlantı (HTTPS)", ok: https, detail: https ? "Sayfa HTTPS üzerinden açılıyor." : "Sayfa HTTPS kullanmıyor." });
+  if (snap.requestedUrl && !https) findings.push(heuristic("landing_page", "yellow", "Açılış sayfası HTTPS değil", "Şifrelenmemiş sayfalar tarayıcıda 'güvenli değil' uyarısı gösterir; ödeme ve form içeren sayfalarda güven kaybına yol açar.", "Sitenizi HTTPS'e taşıyın ve reklamda https:// ile başlayan adresi kullanın."));
 
   const page = `${snap.title} ${snap.description} ${snap.h1.join(" ")} ${snap.text}`;
   const pageFolded = fold(page);
   // A video's spoken and on-screen text makes offers too, so it is compared with the page as well.
   const adText = `${input.headline} ${input.primaryText} ${input.description} ${input.transcript ?? ""}`;
+
+  // A JavaScript shell has (almost) no text: comparing offers against it would only produce false mismatches.
+  if (snap.jsShell) {
+    checks.push({ key: "content", label: "Sayfa içeriği okunabildi", ok: false, detail: "Sayfanın içeriği tarayıcıda JavaScript ile yükleniyor veya çok az metin var; fiyat ve indirim karşılaştırması yapılamadı." });
+    findings.push(heuristic("landing_page", "info", "Açılış sayfasının içeriği okunamadı", "Sayfa içeriği JavaScript ile yükleniyor ya da çok az metin içeriyor (pazaryeri ve mağaza sayfalarında sık görülür). Reklam ile sayfa tutarlılığı bu yüzden kontrol edilemedi.", "Sihirbazda sayfanın ekran görüntüsünü de ekleyin; fiyat, indirim ve koşullar görüntüden okunarak karşılaştırılır."));
+    checks.push({ key: "title", label: "Sayfa başlığı var", ok: Boolean(snap.title), detail: snap.title ? `“${snap.title}”` : "Sayfanın <title> etiketi boş." });
+    return { report: { ...base, checks }, findings };
+  }
+  if (snap.source === "screenshot" || snap.source === "fetch+screenshot") {
+    checks.push({ key: "content", label: "Sayfa içeriği okunabildi", ok: true, detail: snap.source === "screenshot" ? "Ekran görüntüsünden okundu." : "Sayfadan ve ekran görüntüsünden okundu." });
+  }
 
   const adPercents = percents(adText);
   if (adPercents.length) {

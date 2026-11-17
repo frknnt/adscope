@@ -13,6 +13,8 @@ export interface Profile {
   defaultSector: Sector | null;
   onboardingCompletedAt: string | null;
   retentionDays: number;
+  /** Opt-in: e-mail before season events (Sezon takvimi). */
+  seasonReminders: boolean;
 }
 
 export interface Brand {
@@ -113,6 +115,10 @@ export interface AnalysisDetail extends AnalysisSummary {
   videoMeta: VideoMeta | null;
   transcript: string | null;
   landingUrl: string | null;
+  /** Speech-to-text of the video's audio, when the user opted in. */
+  speechTranscript: string | null;
+  hasLandingScreenshot: boolean;
+  creditCost: number;
 }
 
 export interface FrameView {
@@ -123,7 +129,7 @@ export interface FrameView {
 }
 
 export interface AssetUploadOptions {
-  kind: "creative" | "video_frame";
+  kind: "creative" | "video_frame" | "landing_screenshot";
   frameIndex?: number;
   frameTimeMs?: number;
 }
@@ -142,6 +148,8 @@ export interface StartAnalysisParams {
   videoMeta: VideoMeta | null;
   transcript: string | null;
   landingUrl: string | null;
+  /** Credits this analysis consumes on completion (video = 2). */
+  creditCost: number;
 }
 
 export type StartAnalysisResult =
@@ -177,7 +185,7 @@ export interface DataRepo {
   signOut(): Promise<void>;
 
   getProfile(): Promise<Profile | null>;
-  updateProfile(patch: Partial<Pick<Profile, "displayName" | "companyName" | "defaultSector" | "onboardingCompletedAt" | "retentionDays">>): Promise<boolean>;
+  updateProfile(patch: Partial<Pick<Profile, "displayName" | "companyName" | "defaultSector" | "onboardingCompletedAt" | "retentionDays" | "seasonReminders">>): Promise<boolean>;
   listBrands(): Promise<Brand[]>;
   createBrand(input: Omit<Brand, "id">): Promise<Brand | null>;
 
@@ -196,8 +204,10 @@ export interface DataRepo {
 
   listAnalyses(limit?: number): Promise<AnalysisSummary[]>;
   getAnalysis(id: string): Promise<AnalysisDetail | null>;
-  /** The creative image, or one video frame when frameIndex is given. */
-  getAssetBytes(analysisId: string, frameIndex?: number): Promise<{ bytes: Uint8Array; mime: string } | null>;
+  /** The creative image, one video frame (frame index) or the landing page screenshot. */
+  getAssetBytes(analysisId: string, which?: number | "screenshot"): Promise<{ bytes: Uint8Array; mime: string } | null>;
+  /** Stores the speech-to-text result of a video (server sets it; users have no update grant). */
+  setSpeechTranscript(analysisId: string, text: string): Promise<boolean>;
   deleteAnalysis(id: string): Promise<boolean>;
   saveAppeal(analysisId: string, appeal: AppealOut): Promise<boolean>;
 
@@ -219,4 +229,10 @@ export interface AdminRepo {
     isDemo: boolean;
   }): Promise<{ applied: boolean }>;
   purgeExpired(): Promise<number>;
+  /** Users who opted in to season reminder e-mails (confirmed e-mail addresses only). */
+  listSeasonReminderRecipients(): Promise<{ userId: string; email: string; displayName: string | null; sector: Sector | null }[]>;
+  /** Claims a (user, event) reminder. Returns false if it was already sent (idempotent cron). */
+  claimSeasonReminder(userId: string, eventKey: string): Promise<boolean>;
+  /** Releases a claim after a failed send so the next run retries. */
+  releaseSeasonReminder(userId: string, eventKey: string): Promise<void>;
 }

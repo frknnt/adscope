@@ -5,7 +5,7 @@ import { LevelPill, SEVERITY_LABEL, ScaleBar } from "@/components/risk";
 import { DOMAIN_LABEL, RULE_STATUS_LABEL, SECTOR_LABEL, formatDateTimeTr, formatDateTr } from "@/components/rule-status";
 import { Disclaimer } from "@/components/ui";
 import type { AnalysisDetail, FindingView } from "@/lib/data/types";
-import type { LandingReport } from "@/lib/engine/types";
+import type { LandingReport, VideoReview } from "@/lib/engine/types";
 import { aspectLabel } from "@/lib/engine/video";
 import { CopyButton } from "../forms";
 
@@ -16,6 +16,7 @@ const FIELD_LABEL: Record<string, string> = {
   image: "Görsel",
   general: "Genel",
   transcript: "Video metni",
+  speech: "Konuşma (otomatik)",
   video: "Video",
   landing_page: "Açılış sayfası",
 };
@@ -31,7 +32,7 @@ function CreativeMedia({ a }: { a: AnalysisDetail }) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={`/api/analyses/${a.id}/asset?frame=${first.index}`} alt={`Videonun ${sec(first.timeMs / 1000)}. saniyesindeki kare`} className="w-full rounded-xl border border-line bg-ink object-contain" width={first.width ?? undefined} height={first.height ?? undefined} />
         {rest.length ? (
-          <ul className="grid grid-cols-4 gap-1.5" aria-label="Diğer video kareleri">
+          <ul className={`grid gap-1.5 ${rest.length === 5 ? "grid-cols-5" : "grid-cols-4"}`} aria-label="Diğer video kareleri">
             {rest.map((f) => (
               <li key={f.index} className="flex flex-col items-center gap-0.5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -63,21 +64,40 @@ const LANDING_STATUS: Record<LandingReport["status"], string> = {
   invalid_url: "Bağlantı geçersiz",
 };
 
-function LandingSection({ report }: { report: LandingReport }) {
+const LANDING_SOURCE: Record<NonNullable<LandingReport["source"]>, string> = {
+  fetch: "Sayfa sunucudan okundu",
+  screenshot: "Ekran görüntüsünden okundu",
+  "fetch+screenshot": "Sayfa ve ekran görüntüsü birlikte okundu",
+};
+
+function LandingSection({ report, analysisId, hasScreenshot }: { report: LandingReport; analysisId: string; hasScreenshot: boolean }) {
   const applicable = report.checks.filter((c) => c.ok !== null);
   const passed = applicable.filter((c) => c.ok).length;
+  const fromShot = report.source === "screenshot" || report.source === "fetch+screenshot";
   return (
     <section aria-labelledby="acilis" className="rounded-2xl border border-line bg-card p-5 break-inside-avoid">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 id="acilis" className="flex items-center gap-2 font-display text-xl font-semibold"><IconLink className="size-5" /> Açılış sayfası taraması</h2>
         <p className="text-[0.85rem] text-muted">
-          {LANDING_STATUS[report.status]} · <span className="tabular">{passed}/{applicable.length}</span> kontrol geçti · {formatDateTimeTr(report.fetchedAt)}
+          {report.source === "screenshot" ? LANDING_SOURCE.screenshot : LANDING_STATUS[report.status]}
+          {report.source === "fetch+screenshot" ? " · ekran görüntüsü de okundu" : ""} · <span className="tabular">{passed}/{applicable.length}</span> kontrol geçti · {formatDateTimeTr(report.fetchedAt)}
         </p>
       </div>
-      <p className="mt-2 break-all text-[0.85rem] text-ink-soft">
-        {report.finalUrl ?? report.requestedUrl}
-        {report.title ? <span className="block break-normal font-semibold text-ink">{report.title}</span> : null}
-      </p>
+      <div className={hasScreenshot ? "mt-3 grid gap-4 sm:grid-cols-[9rem_1fr]" : ""}>
+        {hasScreenshot ? (
+          <a href={`/api/analyses/${analysisId}/asset?screenshot=1`} target="_blank" rel="noopener noreferrer" className="block self-start">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`/api/analyses/${analysisId}/asset?screenshot=1`} alt="Yüklenen açılış sayfası ekran görüntüsü" loading="lazy" className="max-h-56 w-full rounded-lg border border-line bg-white object-cover object-top" />
+            <span className="sr-only">(yeni sekmede açılır)</span>
+          </a>
+        ) : null}
+        <p className={`${hasScreenshot ? "" : "mt-2 "}break-all text-[0.85rem] text-ink-soft`}>
+          {report.finalUrl ?? (report.requestedUrl || "Bağlantı verilmedi")}
+          {report.title ? <span className="block break-normal font-semibold text-ink">{report.title}</span> : null}
+          {report.screenshot === "unread" ? <span className="mt-1 block break-normal text-amber">Ekran görüntüsü saklandı ama metni otomatik okunamadı (yapay zekâ kapalı veya yanıt kullanılamadı); aşağıdaki kontroller sınırlı.</span> : null}
+          {report.screenshot === "not_page" ? <span className="mt-1 block break-normal text-amber">Yüklenen görsel bir web sayfası ekran görüntüsüne benzemiyor; metni kullanılmadı.</span> : null}
+        </p>
+      </div>
       <ul className="mt-4 divide-y divide-line">
         {report.checks.map((c) => (
           <li key={c.key} className="flex gap-3 py-2.5">
@@ -95,7 +115,79 @@ function LandingSection({ report }: { report: LandingReport }) {
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-[0.8rem] text-muted">Sayfa bir kez, sunucudan okundu; içeriği saklanmadı. Giriş, çerez onayı veya JavaScript ile yüklenen bölümler görülmemiş olabilir.</p>
+      <p className="mt-3 text-[0.8rem] text-muted">
+        {fromShot
+          ? "Ekran görüntüsündeki metin yapay zekâ ile okundu ve yalnızca metin olarak karşılaştırıldı; görüntü raporla birlikte saklanır, sayfanın görünmeyen bölümleri değerlendirilemez."
+          : "Sayfa bir kez, sunucudan okundu; içeriği saklanmadı. Giriş, çerez onayı veya JavaScript ile yüklenen bölümler görülmemiş olabilir; böyle sayfalar için ekran görüntüsü ekleyebilirsin."}
+      </p>
+    </section>
+  );
+}
+
+function yesNo(v: boolean | null, yes: string, no: string) {
+  return v === null ? "Değerlendirilmedi" : v ? yes : no;
+}
+
+function VideoReviewSection({ review, analysisId }: { review: VideoReview; analysisId: string }) {
+  const a = review.audio;
+  const visual: { label: string; value: string; warn?: boolean }[] = review.reviewedByAi
+    ? [
+        {
+          label: "İlk 3 saniye (kanca)",
+          value: review.hookStrength === null ? "Değerlendirilmedi" : `${review.hookStrength} / 10${review.hookNote ? ` · ${review.hookNote}` : ""}`,
+          warn: review.hookStrength !== null && review.hookStrength <= 4,
+        },
+        { label: "Ekran yazısı / altyazı", value: yesNo(review.hasCaptions, "Var", "Görülmedi"), warn: review.hasCaptions === false },
+        { label: "Sessiz izlemede anlaşılıyor mu?", value: yesNo(review.worksWithoutSound, "Evet", "Zor anlaşılıyor"), warn: review.worksWithoutSound === false },
+        { label: "Güvenli alan", value: yesNo(review.safeZoneIssue === null ? null : !review.safeZoneIssue, "Önemli öğeler güvenli alanda", "Yazı veya logo kenara çok yakın"), warn: review.safeZoneIssue === true },
+      ]
+    : [{ label: "Kanca, altyazı, güvenli alan", value: "Değerlendirilmedi (yapay zekâ kapalı). Bu kontroller kareler üzerinden yapay zekâ ile yapılır." }];
+  const rows: { label: string; value: string; warn?: boolean }[] = [
+    ...visual,
+    {
+      label: "Ses",
+      value: !a?.analyzed
+        ? "Ölçülemedi"
+        : !a.present
+          ? "Videoda ses yok"
+          : `${sec(a.firstSoundSec ?? 0)} sn'de başlıyor${a.silentRatio === null ? "" : a.silentRatio < 0.05 ? " · sessiz bölüm yok" : ` · sürenin yaklaşık %${Math.round(a.silentRatio * 100)} kadarı sessiz`}`,
+      warn: Boolean(a?.analyzed && (!a.present || (a.firstSoundSec ?? 0) > 1.5)),
+    },
+    {
+      label: "İlk 3 saniyede söylenen",
+      value: review.speechFirst3s ? `“${review.speechFirst3s}”` : review.speechProvider ? "İlk 3 saniyede konuşma yok" : "Konuşma yazıya dökülmedi",
+      warn: Boolean(review.speechProvider && !review.speechFirst3s),
+    },
+  ];
+  return (
+    <section aria-labelledby="video-inceleme" className="rounded-2xl border border-line bg-card p-5 break-inside-avoid">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 id="video-inceleme" className="font-display text-xl font-semibold">Video kanca incelemesi</h2>
+        <p className="text-[0.85rem] text-muted">{review.reviewedByAi ? "Kareler yapay zekâ ile incelendi" : "Yalnızca ölçümler (yapay zekâ kapalı)"}</p>
+      </div>
+      <dl className="mt-4 divide-y divide-line">
+        {rows.map((r) => (
+          <div key={r.label} className="grid gap-1 py-2.5 sm:grid-cols-[14rem_1fr] sm:gap-4">
+            <dt className="text-[0.88rem] font-semibold">{r.label}</dt>
+            <dd className={`text-[0.9rem] ${r.warn ? "font-medium text-amber" : "text-ink-soft"}`}>{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {review.frameNotes.length ? (
+        <>
+          <h3 className="mt-5 text-sm font-bold">Kare notları</h3>
+          <ol className="mt-2 grid gap-2 sm:grid-cols-2">
+            {review.frameNotes.map((n) => (
+              <li key={n.frame} className="flex gap-3 rounded-xl bg-paper/70 p-2.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`/api/analyses/${analysisId}/asset?frame=${n.frame - 1}`} alt="" loading="lazy" className="aspect-[9/16] w-10 shrink-0 rounded border border-line bg-ink object-cover" />
+                <span className="text-[0.86rem]"><span className="font-semibold">Kare {n.frame}.</span> {n.note}</span>
+              </li>
+            ))}
+          </ol>
+        </>
+      ) : null}
+      <p className="mt-3 text-[0.8rem] text-muted">Kanca, altyazı ve güvenli alan notları kreatif önerisidir; politika veya mevzuat ihlali değildir.</p>
     </section>
   );
 }
@@ -187,6 +279,12 @@ export function ReportView({ a, print = false }: { a: AnalysisDetail; print?: bo
               <p className="mt-1 whitespace-pre-line text-[0.94rem] leading-relaxed"><HighlightedText text={a.transcript} marks={marks} /></p>
             </div>
           ) : null}
+          {a.speechTranscript ? (
+            <div className="mt-4 border-t border-dashed border-line pt-3">
+              <p className="text-[0.78rem] font-semibold text-muted">Videodaki konuşma (otomatik yazıya döküldü, hatalı olabilir)</p>
+              <p className="mt-1 whitespace-pre-line text-[0.94rem] leading-relaxed"><HighlightedText text={a.speechTranscript} marks={marks} /></p>
+            </div>
+          ) : null}
           <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-dashed border-line pt-3 text-[0.8rem] text-muted">
             <span>{SECTOR_LABEL[a.sector]}</span>
             {a.mediaType === "video" && a.videoMeta ? (
@@ -195,6 +293,7 @@ export function ReportView({ a, print = false }: { a: AnalysisDetail; print?: bo
               </span>
             ) : a.asset?.width ? <span className="tabular">{a.asset.width}×{a.asset.height} px</span> : null}
             {a.landingUrl ? <span className="break-all">Açılış sayfası: {a.landingUrl}</span> : null}
+            <span className="tabular">{a.creditCost} kredi</span>
             <span>{a.aiProvider && !a.aiProvider.startsWith("deterministic") ? "Kural motoru + yapay zekâ" : a.aiProvider?.includes("kullanılamadı") ? "Kural motoru (yapay zekâ yanıtı kullanılamadı)" : "Kural motoru (yapay zekâ kapalı)"}</span>
           </p>
         </div>
@@ -218,7 +317,8 @@ export function ReportView({ a, print = false }: { a: AnalysisDetail; print?: bo
         )}
       </section>
 
-      {bd?.landing ? <LandingSection report={bd.landing} /> : null}
+      {bd?.video ? <VideoReviewSection review={bd.video} analysisId={a.id} /> : null}
+      {bd?.landing ? <LandingSection report={bd.landing} analysisId={a.id} hasScreenshot={a.hasLandingScreenshot} /> : null}
 
       {/* Score breakdown */}
       {bd ? (

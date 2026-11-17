@@ -83,6 +83,8 @@ export interface VisualAssessment {
   productVisibility: number; // 0-10
   brandConsistency: number; // 0-10
   notes: string;
+  /** Video only: strength of the first 3 seconds (0-10). */
+  hookStrength?: number;
 }
 
 /**
@@ -198,7 +200,8 @@ export function creativeScore(input: AdInput, visual?: VisualAssessment | null):
 
   // Visual content (15): AI or neutral placeholder
   if (visual) {
-    const v = Math.round(((visual.textDensity + visual.productVisibility + visual.brandConsistency) / 30) * 15);
+    const parts10 = [visual.textDensity, visual.productVisibility, visual.brandConsistency, ...(visual.hookStrength !== undefined ? [visual.hookStrength] : [])];
+    const v = Math.round((parts10.reduce((s, x) => s + x, 0) / (parts10.length * 10)) * 15);
     parts.push({ key: "visual", label: input.video ? "Video içeriği (YZ incelemesi)" : "Görsel içerik (YZ incelemesi)", score: clamp(v, 0, 15), max: 15, reason: visual.notes });
   } else {
     parts.push({

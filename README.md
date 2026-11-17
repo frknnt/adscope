@@ -10,9 +10,10 @@ Ayrıca her bulgu için kaynağı olan kural kartı ve düzeltme önerisi, güve
 
 MVP sonrası eklenenler:
 
-- **Video / Reels analizi.** Video dosyası sunucuya gönderilmez. Tarayıcı videodan 5 kare (JPEG, en uzun kenar 1080 px) alır, süreyi ve çözünürlüğü ölçer; yalnızca bunlar yüklenir. Kareler yapay zekâ açıksa görsel olarak değerlendirilir, kullanıcının yazdığı dış ses ve ekran yazıları aynı kural kartlarıyla taranır, format (9:16, süre, çözünürlük) kreatif skoruna yansır. Ses analiz edilmez.
-- **Açılış sayfası taraması.** Reklamın bağlantısı sunucudan bir kez, SSRF korumasıyla okunur (yalnızca herkese açık http/https; özel/yerel ağ adresleri, kimlik bilgili ve standart dışı portlu adresler reddedilir; her yönlendirme ve DNS çözümlemesi bağlantı anında yeniden denetlenir; 8 sn, 1,5 MB, yalnızca HTML). Reklamdaki indirim oranı, fiyat, marka, konu ve kampanya koşulları sayfayla karşılaştırılır; sayfa metni kural kartlarıyla da taranır. Sayfa içeriği saklanmaz, raporda yalnızca kontrol sonuçları tutulur.
-- **Türk sezon takvimi** (`/panel/takvim`). Önümüzdeki 12 ayın özel günleri; her biri için hazırlığa başlama, incelemeye gönderme ve yayın tarihleri, kreatif önerileri ve kural kartlarına bağlı uyum hatırlatmaları. Sektöre göre süzülür, `.ics` olarak takvime eklenir. Dini bayram tarihleri ikincil kaynaklardan alındı ve Diyanet takvimiyle doğrulanmadı; arayüzde bu açıkça yazar.
+- **Video / Reels analizi (2 kredi).** Video dosyası sunucuya gönderilmez. Tarayıcı videodan 6 kare alır (üçü ilk 3 saniyeden: kanca), süreyi ve çözünürlüğü ölçer, sesi çözüp sesin ne zaman başladığını ve ne kadarının sessiz olduğunu hesaplar; yalnızca kareler ve ölçümler yüklenir. Yapay zekâ açıksa kareler kanca gücü (0–10), ekran yazısı/altyazı, sessiz izlemede anlaşılırlık ve güvenli alan için incelenir. `SPEECH_TO_TEXT_API_KEY` tanımlıysa ve kullanıcı onay verirse ilk 90 saniyelik ses (16 kHz mono WAV) bir kez konuşma tanıma hizmetine gönderilir; çıkan metin kural kartlarıyla taranır, ilk 3 saniyede ne söylendiği raporda gösterilir. Ses saklanmaz.
+- **Açılış sayfası taraması.** Reklamın bağlantısı sunucudan bir kez, SSRF korumasıyla okunur (yalnızca herkese açık http/https; özel/yerel ağ adresleri, kimlik bilgili ve standart dışı portlu adresler reddedilir; her yönlendirme ve DNS çözümlemesi bağlantı anında yeniden denetlenir; 8 sn, 1,5 MB, yalnızca HTML). Reklamdaki indirim oranı, fiyat, marka, konu ve kampanya koşulları sayfayla karşılaştırılır; sayfa metni kural kartlarıyla da taranır. Sayfa içeriği saklanmaz, raporda yalnızca kontrol sonuçları tutulur. İçeriği JavaScript ile yüklenen (neredeyse boş HTML dönen) sayfalar tespit edilir ve karşılaştırma yapılmadığı açıkça yazılır. Sayfa okunamıyorsa kullanıcı bir ekran görüntüsü ekleyebilir: görüntü saklanır, yapay zekâ açıksa metni okunup aynı kontrollere girer.
+- **Türk sezon takvimi** (`/panel/takvim`). Önümüzdeki 12 ayın özel günleri; her biri için hazırlığa başlama, incelemeye gönderme ve yayın tarihleri, kreatif önerileri ve kural kartlarına bağlı uyum hatırlatmaları. Sektöre göre süzülür, `.ics` olarak takvime eklenir. Her dönem için kural motorundan geçen kampanya metni şablonları (`/panel/yeni?sablon=...`), "Okula dönüş" dönemi, analiz sırasında döneme denk gelen reklamlar için bilgi notu ve isteğe bağlı e-posta hatırlatması (`/api/cron/season-reminders`, Resend) vardır. Dini bayram tarihleri ve okulların açılış günü resmî takvimle doğrulanmadı; arayüzde bu açıkça yazar.
+- **Kural kartları 40.** 16 aktif, 23 doğrulama bekleyen (yalnızca bilgilendirme), 1 taslak. 17.11.2026'da eklenen 17 kartın resmî metni okunmadığı için hepsi `requires_review`.
 
 > Risk değerlendirmesidir, hukuki görüş değildir. Ürün hiçbir çıktısında onay, hukuki uygunluk veya reddedilmeme garantisi vermez.
 
@@ -104,6 +105,7 @@ Demo e2e sunucusu `LANDING_SCAN_ALLOW_PRIVATE=true` ile açılır; böylece aç�
 2. Vercel'de projeyi içe aktarın, `.env.example`'daki değişkenleri girin (`APP_MODE=production` veya önizleme için `demo`).
 3. Önizlemeyi **gizli** tutun: Vercel → Settings → Deployment Protection → Vercel Authentication (veya parola koruması) açık olsun. Uygulama ayrıca `noindex` gönderir.
 4. Günlük saklama temizliği: Vercel Cron ile `/api/cron/retention` uç noktasını `Authorization: Bearer $CRON_SECRET` başlığıyla çağırın.
+5. Sezon hatırlatmaları: `RESEND_API_KEY` ve `EMAIL_FROM` girin, `/api/cron/season-reminders` uç noktasını günde bir kez aynı başlıkla çağırın. Her kullanıcıya her dönem için en fazla bir e-posta gider (`season_reminder_log`).
 
 ## Proje yapısı
 
@@ -114,8 +116,10 @@ src/app/panel         panel, sihirbaz, rapor, itiraz, geçmiş, krediler, ayarla
 src/app/api           analiz, görsel, webhook, cron uç noktaları
 src/lib/engine        kural motoru, skorlama, güvenli metin, varyantlar, itiraz, video ve açılış sayfası kontrolleri
 src/lib/landing       açılış sayfasını SSRF korumalı okuyan sunucu modülü
-src/lib/video         tarayıcıda videodan kare çıkarma
-src/lib/calendar      sezon takvimi tarihleri ve .ics üretimi
+src/lib/video         tarayıcıda videodan kare çıkarma, ses ölçümü ve WAV üretimi
+src/lib/speech        konuşmayı yazıya dökme adaptörü (OpenAI uyumlu)
+src/lib/email         e-posta adaptörü (Resend) ve demo kutusu
+src/lib/calendar      sezon takvimi tarihleri, .ics, kampanya şablonları, hatırlatma e-postası
 src/lib/rules         kural kartı kataloğu (tek doğru kaynak)
 src/lib/ai            sağlayıcıdan bağımsız yapay zekâ katmanı + Anthropic adaptörü
 src/lib/data          DataRepo arayüzü: Supabase ve bellek içi uygulamaları

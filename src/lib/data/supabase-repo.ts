@@ -148,6 +148,7 @@ export class SupabaseRepo implements DataRepo {
       defaultSector: data.default_sector,
       onboardingCompletedAt: data.onboarding_completed_at,
       retentionDays: data.retention_days,
+      seasonReminders: Boolean(data.season_reminders),
     };
   }
 
@@ -159,6 +160,7 @@ export class SupabaseRepo implements DataRepo {
     if (patch.defaultSector !== undefined) row.default_sector = patch.defaultSector;
     if (patch.onboardingCompletedAt !== undefined) row.onboarding_completed_at = patch.onboardingCompletedAt;
     if (patch.retentionDays !== undefined) row.retention_days = patch.retentionDays;
+    if (patch.seasonReminders !== undefined) row.season_reminders = patch.seasonReminders;
     const { error } = await (await this.db()).from("profiles").update(row).eq("id", u.id);
     return !error;
   }
@@ -243,6 +245,7 @@ export class SupabaseRepo implements DataRepo {
       p_rejection_message: p.rejectionMessage,
       p_demo: p.demo,
       p_hourly_limit: p.hourlyLimit,
+      p_credit_cost: p.creditCost,
     });
     if (error) {
       const m = error.message ?? "";
@@ -441,19 +444,34 @@ export class SupabaseRepo implements DataRepo {
       videoMeta: (a.video_meta as VideoMeta | null) ?? null,
       transcript: a.transcript ?? null,
       landingUrl: a.landing_url ?? null,
+      speechTranscript: a.speech_transcript ?? null,
+      hasLandingScreenshot: assets.some((x) => x.kind === "landing_screenshot"),
+      creditCost: (a.credit_cost as number) ?? 1,
     };
   }
 
-  async getAssetBytes(analysisId: string, frameIndex?: number) {
+  async getAssetBytes(analysisId: string, which?: number | "screenshot") {
     const db = await this.db();
     let q = db.from("analysis_assets").select("storage_path,mime_type").eq("analysis_id", analysisId);
-    q = frameIndex === undefined ? q.eq("kind", "creative") : q.eq("kind", "video_frame").eq("frame_index", frameIndex);
+    q =
+      which === undefined ? q.eq("kind", "creative") : which === "screenshot" ? q.eq("kind", "landing_screenshot") : q.eq("kind", "video_frame").eq("frame_index", which);
     const { data: asset } = await q.maybeSingle();
     if (!asset) return null;
     // Download with the user client: storage policies decide.
     const { data, error } = await db.storage.from(BUCKET).download(asset.storage_path);
     if (error || !data) return null;
     return { bytes: new Uint8Array(await data.arrayBuffer()), mime: asset.mime_type as string };
+  }
+
+  async setSpeechTranscript(analysisId: string, text: string) {
+    const u = await this.requireUser();
+    const { error } = await this.admin()
+      .from("analyses")
+      .update({ speech_transcript: text.slice(0, 6000) })
+      .eq("id", analysisId)
+      .eq("user_id", u.id)
+      .eq("status", "processing");
+    return !error;
   }
 
   async deleteAnalysis(id: string) {
@@ -531,5 +549,34 @@ export class SupabaseAdminRepo implements AdminRepo {
     if (paths.length) await this.admin.storage.from(BUCKET).remove(paths);
     await this.admin.from("analyses").delete().in("id", expired.map((a) => a.id));
     return expired.length;
+  }
+
+  async listSeasonReminderRecipients() {
+    const { data: profiles } = await this.admin
+      .from("profiles")
+      .select("id, display_name, default_sector")
+      .eq("season_reminders", true)
+      .limit(1000);
+    const out: Awaited<ReturnType<AdminRepo["listSeasonReminderRecipients"]>> = [];
+    for (const p of profiles ?? []) {
+      const { data } = await this.admin.auth.admin.getUserById(p.id);
+      const u = data?.user;
+      if (!u?.email || !u.email_confirmed_at) continue;
+      out.push({ userId: p.id, email: u.email, displayName: p.display_name, sector: p.default_sector });
+    }
+    return out;
+  }
+
+  async claimSeasonReminder(userId: string, eventKey: string) {
+    const { data, error } = await this.admin
+      .from("season_reminder_log")
+      .upsert({ user_id: userId, event_key: eventKey }, { onConflict: "user_id,event_key", ignoreDuplicates: true })
+      .select("user_id");
+    if (error) return false;
+    return (data ?? []).length > 0;
+  }
+
+  async releaseSeasonReminder(userId: string, eventKey: string) {
+    await this.admin.from("season_reminder_log").delete().eq("user_id", userId).eq("event_key", eventKey);
   }
 }

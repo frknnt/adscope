@@ -1,7 +1,8 @@
 import type { AiProvider, AiResult } from "@/lib/ai/provider";
 import { buildAppeal } from "./appeal";
 import { landingChecks } from "./landing";
-import { videoFindings } from "./video";
+import { seasonFindings } from "./season-notes";
+import { buildVideoReview, videoFindings } from "./video";
 import { buildSafeText, buildVariants } from "./rewrite";
 import { runRuleEngine, severityFor } from "./rule-engine";
 import { buildBreakdown, type VisualAssessment } from "./scoring";
@@ -20,6 +21,7 @@ function fieldValue(input: AdInput, field: string) {
   if (field === "primary_text") return input.primaryText;
   if (field === "description") return input.description;
   if (field === "transcript") return input.transcript ?? "";
+  if (field === "speech") return input.speech?.text ?? "";
   return "";
 }
 
@@ -90,13 +92,15 @@ export async function runPipeline(params: {
   }
 
   // Video and landing page notes (creative_quality heuristics, never policy/legal violations).
-  findings = [...findings, ...videoFindings(input)];
+  const videoReview = buildVideoReview(input, ai?.ok ? ai.data.video : null);
+  findings = [...findings, ...videoFindings(input, videoReview)];
   let landingReport: LandingReport | null = null;
   if (input.landing) {
     const lc = landingChecks(input, input.landing);
     landingReport = lc.report;
     findings = [...findings, ...lc.findings];
   }
+  findings = [...findings, ...seasonFindings(input)];
 
   const order = { red: 0, yellow: 1, info: 2 } as const;
   findings.sort((a, b) => order[a.severity] - order[b.severity]);
@@ -108,10 +112,12 @@ export async function runPipeline(params: {
           productVisibility: ai.data.visual.product_visibility,
           brandConsistency: ai.data.visual.brand_consistency,
           notes: ai.data.visual.notes_tr,
+          hookStrength: input.video && ai.data.video ? ai.data.video.hook_strength : undefined,
         }
       : null;
 
   const { breakdown, meta, legal, creative } = buildBreakdown(input, findings, visual, landingReport);
+  breakdown.video = videoReview;
 
   // Safe text: deterministic by default; AI text accepted only if it passes the rule re-check.
   const activeRules = rules.filter((r) => r.status === "active");

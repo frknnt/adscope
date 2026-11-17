@@ -39,10 +39,11 @@ async function newUser(): Promise<{ id: string; email: string; client: SupabaseC
   return { id: data.user.id, email, client };
 }
 
-async function startAnalysis(userId: string, requestId = randomUUID()) {
+async function startAnalysis(userId: string, requestId = randomUUID(), cost?: number) {
   const { data, error } = await admin().rpc("start_analysis", {
     p_user_id: userId, p_client_request_id: requestId, p_brand_id: null, p_sector: "takviye_gida",
     p_headline: "Test", p_primary_text: "7 günde 5 kilo ver! Garantili sonuç.", p_description: "", p_rejection_message: null, p_demo: true, p_hourly_limit: 100,
+    ...(cost === undefined ? {} : { p_credit_cost: cost }),
   });
   if (error) throw new Error(error.message);
   return (data as { analysis_id: string; status: string; created: boolean }[])[0];
@@ -223,5 +224,56 @@ describe.skipIf(!reachable)("Supabase: auth, RLS, storage, credits", () => {
     expect((await admin().rpc("complete_analysis", { p_analysis_id: id, p_result: result })).data).toBe("completed");
     const fields = await a.client.from("findings").select("field").eq("analysis_id", id);
     expect(fields.data?.some((f) => f.field === "landing_page")).toBe(true);
+  });
+
+  it("a video analysis records and consumes its own cost of two credits", async () => {
+    const c = await newUser();
+    const bad = await admin().rpc("start_analysis", {
+      p_user_id: c.id, p_client_request_id: randomUUID(), p_brand_id: null, p_sector: "genel", p_headline: "", p_primary_text: "x",
+      p_description: "", p_rejection_message: null, p_demo: true, p_hourly_limit: 100, p_credit_cost: 9,
+    });
+    expect(bad.error?.message).toContain("invalid_cost");
+    const run = await startAnalysis(c.id, randomUUID(), 2);
+    const meta = { mime: "video/mp4", durationSec: 12, width: 1080, height: 1920, sizeBytes: 1000, frameCount: 1 };
+    expect((await admin().from("analyses").update({ media_type: "video", video_meta: meta }).eq("id", run.analysis_id)).error).toBeNull();
+    const result = await engineResult();
+    result.findings.push({ ...result.findings[0], rule_version_id: null, domain: "creative_quality", severity: "info", origin: "heuristic", field: "speech", matched_text: "7 günde 5 kilo" });
+    const done = await admin().rpc("complete_analysis", { p_analysis_id: run.analysis_id, p_result: result });
+    expect(done.error?.message ?? null).toBeNull();
+    expect(done.data).toBe("completed");
+    expect((await admin().rpc("complete_analysis", { p_analysis_id: run.analysis_id, p_result: result })).data).toBe("already_completed");
+    expect(await balance(c.client)).toBe(1);
+    const row = await c.client.from("credit_ledger").select("delta, note").eq("analysis_id", run.analysis_id).single();
+    expect(row.data).toMatchObject({ delta: -2, note: "Video analizi tamamlandı" });
+    const fields = await c.client.from("findings").select("field").eq("analysis_id", run.analysis_id);
+    expect(fields.data?.some((f) => f.field === "speech")).toBe(true);
+    // One credit left: another video cannot start, and the user cannot change the cost.
+    const second = await admin().rpc("start_analysis", {
+      p_user_id: c.id, p_client_request_id: randomUUID(), p_brand_id: null, p_sector: "genel", p_headline: "", p_primary_text: "x",
+      p_description: "", p_rejection_message: null, p_demo: true, p_hourly_limit: 100, p_credit_cost: 2,
+    });
+    expect(second.error?.message).toContain("insufficient_credits");
+    const tamper = await c.client.from("analyses").update({ credit_cost: 1 }).eq("id", run.analysis_id).select();
+    expect(tamper.data ?? []).toHaveLength(0);
+  });
+
+  it("season reminders: users toggle their own opt-in, only the server writes the log", async () => {
+    const own = await a.client.from("profiles").update({ season_reminders: true }).eq("id", a.id).select("season_reminders");
+    expect(own.data?.[0]?.season_reminders).toBe(true);
+    const other = await a.client.from("profiles").update({ season_reminders: true }).eq("id", b.id).select();
+    expect(other.data ?? []).toHaveLength(0);
+    expect((await a.client.from("season_reminder_log").insert({ user_id: a.id, event_key: "x-2027" })).error).not.toBeNull();
+    expect((await admin().from("season_reminder_log").insert({ user_id: a.id, event_key: "efsane-cuma-2027" })).error).toBeNull();
+    expect((await admin().from("season_reminder_log").insert({ user_id: a.id, event_key: "efsane-cuma-2027" })).error).not.toBeNull();
+    expect((await a.client.from("season_reminder_log").select("event_key")).data?.map((r) => r.event_key)).toEqual(["efsane-cuma-2027"]);
+    expect((await b.client.from("season_reminder_log").select("event_key")).data ?? []).toHaveLength(0);
+  });
+
+  it("allows one landing screenshot per analysis", async () => {
+    const run = await startAnalysis(b.id);
+    const shot = { analysis_id: run.analysis_id, user_id: b.id, storage_path: `${b.id}/${run.analysis_id}/${randomUUID()}.png`, mime_type: "image/png", size_bytes: 10, width: 1280, height: 2000, sha256: "b".repeat(64), kind: "landing_screenshot" };
+    expect((await admin().from("analysis_assets").insert(shot)).error).toBeNull();
+    expect((await admin().from("analysis_assets").insert({ ...shot, storage_path: `${b.id}/${run.analysis_id}/${randomUUID()}.png` })).error).not.toBeNull();
+    expect((await admin().from("analysis_assets").insert({ ...shot, storage_path: `${b.id}/${run.analysis_id}/${randomUUID()}.png`, kind: "landing_screenshot", frame_index: 0 })).error).not.toBeNull();
   });
 });
