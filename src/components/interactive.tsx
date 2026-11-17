@@ -70,7 +70,7 @@ export function Tabs({ label, tabs, initial = 0 }: { label: string; tabs: { titl
 
 /* ---------- Dialog: native <dialog> (focus trap, Esc and inert background come from the browser). ---------- */
 
-export function Dialog({ open, onClose, title, children, footer }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode }) {
+export function Dialog({ open, onClose, title, children, footer, wide = false }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -87,7 +87,7 @@ export function Dialog({ open, onClose, title, children, footer }: { open: boole
       onClick={(e) => {
         if (e.target === ref.current) onClose();
       }}
-      className="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-2xl border border-line bg-card p-0 text-ink shadow-float backdrop:bg-[rgb(var(--shadow-color)/0.45)]"
+      className={`m-auto ${wide ? "w-[min(46rem,calc(100vw-2rem))]" : "w-[min(32rem,calc(100vw-2rem))]"} rounded-2xl border border-line bg-card p-0 text-ink shadow-float backdrop:bg-[rgb(var(--shadow-color)/0.45)]`}
     >
       <div className="p-6">
         <h2 id={titleId} className="font-display text-2xl font-semibold">

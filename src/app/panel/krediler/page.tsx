@@ -22,9 +22,16 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
   return (
     <div>
       <h1 className="font-display text-4xl font-semibold leading-tight">Krediler</h1>
-      <p className="mt-2 text-ink-soft">
-        Bakiye: <strong className="font-display text-2xl text-ink tabular">{balance}</strong> analiz. Bakiye, aşağıdaki değiştirilemez kredi hareketlerinin toplamıdır.
-      </p>
+      <div className="mt-6 overflow-hidden rounded-3xl p-6 text-paper shadow-raised sm:p-8" style={{ background: "var(--gradient-brand)" }}>
+        <p className="text-small font-semibold text-paper/80">Kredi bakiyesi</p>
+        <p className="mt-1 flex items-baseline gap-2">
+          <span className="text-5xl font-extrabold tabular leading-none">{balance}</span>
+          <span className="text-lg font-semibold text-paper/85">analiz</span>
+        </p>
+        <p className="mt-3 max-w-xl text-small text-paper/85">
+          Bakiye: <span className="tabular">{balance}</span> kredi, yaklaşık <span className="tabular">{balance}</span> görsel ya da <span className="tabular">{Math.floor(balance / 2)}</span> video analizi. Bakiye, aşağıdaki değiştirilemez kredi hareketlerinin toplamıdır.
+        </p>
+      </div>
       {sp.odeme === "kapali" ? (
         <p role="alert" className="mt-5 rounded-xl bg-coral-tint px-4 py-3 text-body font-medium text-coral-deep">Online ödeme henüz aktif değil.</p>
       ) : null}
@@ -39,7 +46,7 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
         ) : null}
         <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {CREDIT_PACKAGES.map((p) => (
-            <div key={p.id} className="flex flex-col rounded-2xl border border-line bg-card p-5">
+            <div key={p.id} className="flex flex-col rounded-2xl border border-line bg-card p-5 shadow-card">
               <div className="flex items-baseline justify-between gap-3">
                 <h3 className="text-lg font-bold">{p.name}</h3>
                 <span className="font-display text-2xl font-semibold tabular">{formatTry(p.priceMinor)}</span>

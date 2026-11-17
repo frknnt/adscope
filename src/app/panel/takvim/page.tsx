@@ -49,7 +49,7 @@ function EventCard({ e, today, open, sector }: { e: SeasonEvent; today: Date; op
   const reached = order.indexOf(phase);
 
   return (
-    <article id={e.key} aria-labelledby={`${e.key}-h`} className="scroll-mt-6 rounded-2xl border border-line bg-card p-5 sm:p-6">
+    <article id={e.key} aria-labelledby={`${e.key}-h`} className="scroll-mt-24 rounded-2xl border border-line bg-card p-5 sm:p-6">
       <div className="grid gap-5 sm:grid-cols-[5.5rem_1fr]">
         <div className="flex items-baseline gap-2 sm:block sm:text-center" aria-hidden>
           <p className="font-display text-4xl font-semibold leading-none tabular sm:text-5xl">{fmt(e.start, { day: "numeric" })}</p>
@@ -200,6 +200,41 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         </p>
       ) : null}
 
+      {events.length ? (
+        <section aria-labelledby="zaman-cizelgesi" className="mt-6 rounded-2xl border border-line bg-card p-4 shadow-card sm:p-5">
+          <h2 id="zaman-cizelgesi" className="text-meta font-bold uppercase tracking-[0.08em] text-muted">Önümüzdeki 12 ay</h2>
+          <div className="relative mt-3 overflow-x-auto pb-1" tabIndex={0} role="group" aria-label="Aylara göre dönemler">
+            <ol className="grid min-w-[44rem] grid-cols-12 gap-1">
+              {Array.from({ length: 12 }, (_, i) => {
+                const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + i, 1));
+                const key = d.toISOString().slice(0, 7);
+                const list = months.get(key) ?? [];
+                return (
+                  <li key={key} className="rounded-xl bg-paper-2 px-2 py-2.5">
+                    <a href={list.length ? `#ay-${key}` : undefined} className="block text-center text-fine font-bold capitalize text-ink-soft no-underline">
+                      {fmt(`${key}-01`, { month: "short" })}
+                    </a>
+                    <ul className="mt-2 flex min-h-5 flex-wrap justify-center gap-1">
+                      {list.map((e) => (
+                        <li key={e.key}>
+                          <a href={`#${e.key}`} title={`${e.name} · ${fmt(e.start, { day: "numeric", month: "long" })}`} className={`block size-3 rounded-full ${phaseOf(e, today) === "yayinda" ? "bg-coral" : "bg-blue"}`}>
+                            <span className="sr-only">
+                              {e.name}, {fmt(e.start, { day: "numeric", month: "long" })}
+                              {phaseOf(e, today) === "yayinda" ? ", şu an reklam döneminde" : ""}
+                            </span>
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+          <p className="mt-2 text-fine text-muted">Her nokta bir dönem; kırmızı olanlar şu an reklam döneminde. Noktaya tıklayınca ayrıntıya gider.</p>
+        </section>
+      ) : null}
+
       {unverified ? (
         <p className="mt-6 flex max-w-3xl items-start gap-2 rounded-xl bg-amber-tint px-4 py-3 text-small text-amber">
           <IconInfo className="mt-0.5 size-4 shrink-0" />
@@ -212,8 +247,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           <p className="rounded-2xl border border-line bg-card px-5 py-4 text-ink-soft">Bu sektör için önümüzdeki 12 ayda kayıtlı dönem yok.</p>
         ) : (
           [...months.entries()].map(([month, list]) => (
-            <section key={month} aria-labelledby={`ay-${month}`}>
-              <h2 id={`ay-${month}`} className="font-display text-2xl font-semibold capitalize">{fmt(`${month}-01`, { month: "long", year: "numeric" })}</h2>
+            <section key={month} id={`ay-${month}`} aria-labelledby={`ay-${month}-h`} className="scroll-mt-24">
+              <h2 id={`ay-${month}-h`} className="font-display text-2xl font-semibold capitalize">{fmt(`${month}-01`, { month: "long", year: "numeric" })}</h2>
               <div className="mt-4 grid gap-4">
                 {list.map((e) => <EventCard key={e.key} e={e} today={today} open={e === events[0]} sector={sector ?? profile?.defaultSector ?? null} />)}
               </div>

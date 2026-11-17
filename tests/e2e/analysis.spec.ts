@@ -129,7 +129,7 @@ test("users cannot see each other's analyses or files", async ({ browser }) => {
 });
 
 test("history delete, demo credits, appeal from the assistant and account deletion", async ({ page }) => {
-  await signUp(page);
+  const email = await signUp(page);
   await page.goto("/panel/yeni");
   await fillWizard(page);
   await page.getByRole("button", { name: "Analizi başlat" }).click();
@@ -161,8 +161,13 @@ test("history delete, demo credits, appeal from the assistant and account deleti
   await page.getByLabel("Saklama süresi (gün)").fill("30");
   await page.getByRole("button", { name: "Ayarları kaydet" }).click();
   await expect(page.getByRole("status").filter({ hasText: /\S/ }).first()).toContainText("Ayarlar kaydedildi");
-  await page.getByLabel("Onaylamak için SİL yaz").fill("sil");
-  await page.getByRole("button", { name: /Hesabımı ve tüm verilerimi sil/ }).click();
+  await page.getByRole("button", { name: "Hesabımı sil…" }).click();
+  const del = page.getByRole("dialog", { name: "Hesap kalıcı olarak silinsin mi?" });
+  await del.getByLabel("Onaylamak için e-posta adresini yaz").fill("baska@example.com");
+  await del.getByRole("button", { name: /Hesabımı ve tüm verilerimi sil/ }).click();
+  await expect(del.getByRole("alert").filter({ hasText: /\S/ }).first()).toContainText("e-posta adresini aynen");
+  await del.getByLabel("Onaylamak için e-posta adresini yaz").fill(email);
+  await del.getByRole("button", { name: /Hesabımı ve tüm verilerimi sil/ }).click();
   await page.waitForURL((u) => u.pathname === "/");
   await page.goto("/panel");
   await expect(page).toHaveURL(/\/giris/);

@@ -34,9 +34,9 @@ export function BulkCheck({ brands, defaultSector }: { brands: { id: string; nam
   }
 
   return (
-    <div className="grid gap-8">
-      <form action={action} className="grid gap-5 rounded-2xl border border-line bg-card p-5 sm:p-6">
-        <div className="grid gap-4 sm:grid-cols-3">
+    <div className="grid gap-8 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] xl:items-start">
+      <form action={action} className="grid gap-5 rounded-2xl border border-line bg-card p-5 shadow-card sm:p-6 xl:sticky xl:top-24">
+        <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
           <Field label="Platform" htmlFor="b-platform">
             <select id="b-platform" name="platform" {...bind("platform")} className={selectClass}>
               {PLATFORM_IDS.map((p) => <option key={p} value={p}>{PLATFORM_INFO[p].label}</option>)}
@@ -63,7 +63,13 @@ export function BulkCheck({ brands, defaultSector }: { brands: { id: string; nam
         </div>
       </form>
 
-      <div aria-live="polite">
+      <div aria-live="polite" className="min-w-0">
+        {state.status === "idle" ? (
+          <div className="hidden rounded-2xl border border-dashed border-line-strong px-6 py-16 text-center xl:block">
+            <p className="font-display text-xl font-semibold">Sonuçlar burada listelenir.</p>
+            <p className="mt-2 text-ink-soft">En riskli reklam en üstte; her satırda risk düzeyi, ilk bulgu ve güvenli metin önerisi.</p>
+          </div>
+        ) : null}
         {state.status === "error" ? <p role="alert" className="rounded-xl bg-coral-tint px-4 py-3 font-medium text-coral-deep">{state.message}</p> : null}
         {state.status === "done" ? (
           <section aria-labelledby="toplu-sonuc">

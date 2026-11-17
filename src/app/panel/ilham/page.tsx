@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Tabs } from "@/components/interactive";
 import { IconAlert, IconBoard, IconExternal, IconInfo, IconTrash } from "@/components/icons";
 import { formatDateTr } from "@/components/rule-status";
 import { buttonClass, Disclaimer, inputClass, selectClass } from "@/components/ui";
@@ -16,7 +17,13 @@ import { PinButton } from "./pin-button";
 export const metadata = { title: "İlham panosu" };
 
 type SP = Record<string, string | string[] | undefined>;
-const str = (v: SP[string], max: number) => (typeof v === "string" ? v.replace(/[\u0000-\u001F]/g, " ").trim().slice(0, max) : "");
+const str = (v: SP[string], max: number) =>
+  typeof v === "string"
+    ? v
+        .replace(/[\u0000-\u001F]/g, " ")
+        .trim()
+        .slice(0, max)
+    : "";
 
 const ERRORS: Record<Exclude<LibraryResult, { ok: true }>["reason"], string> = {
   not_configured: "Meta Reklam Kütüphanesi bağlantısı kurulmamış.",
@@ -28,14 +35,14 @@ const ERRORS: Record<Exclude<LibraryResult, { ok: true }>["reason"], string> = {
 };
 
 function signals(ad: { title: string; body: string }, rules: RuleRecord[]) {
-  const found = runRuleEngine(
-    { headline: ad.title, primaryText: ad.body, description: "", flags: { influencerPost: false, aiHumanCharacter: false, aiRealPersonCopy: false } },
-    rules,
-  );
+  const found = runRuleEngine({ headline: ad.title, primaryText: ad.body, description: "", flags: { influencerPost: false, aiHumanCharacter: false, aiRealPersonCopy: false } }, rules);
   return {
     red: found.filter((f) => f.severity === "red").length,
     yellow: found.filter((f) => f.severity === "yellow").length,
-    titles: found.filter((f) => f.severity !== "info").slice(0, 2).map((f) => f.title),
+    titles: found
+      .filter((f) => f.severity !== "info")
+      .slice(0, 2)
+      .map((f) => f.title),
   };
 }
 
@@ -71,12 +78,25 @@ function AdCard({ ad, country, rules, saved }: { ad: LibraryAd; country: string;
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="font-bold">{ad.pageName || "Sayfa adı yok"}</p>
         <p className="text-meta text-muted">
-          {ad.deliveryStart ? <>Başlangıç <time dateTime={ad.deliveryStart}>{formatDateTr(ad.deliveryStart)}</time></> : null}
-          {ad.deliveryStop ? <> · bitiş <time dateTime={ad.deliveryStop}>{formatDateTr(ad.deliveryStop)}</time></> : ad.deliveryStart ? " · yayında" : null}
+          {ad.deliveryStart ? (
+            <>
+              Başlangıç <time dateTime={ad.deliveryStart}>{formatDateTr(ad.deliveryStart)}</time>
+            </>
+          ) : null}
+          {ad.deliveryStop ? (
+            <>
+              {" "}
+              · bitiş <time dateTime={ad.deliveryStop}>{formatDateTr(ad.deliveryStop)}</time>
+            </>
+          ) : ad.deliveryStart ? (
+            " · yayında"
+          ) : null}
         </p>
       </div>
       {days >= 0 ? (
-        <p className="w-fit rounded-full bg-paper-2 px-2.5 py-0.5 text-meta font-semibold tabular">{days} gün{ad.deliveryStop ? " yayında kaldı" : "dür yayında"}</p>
+        <p className="w-fit rounded-full bg-paper-2 px-2.5 py-0.5 text-meta font-semibold tabular">
+          {days} gün{ad.deliveryStop ? " yayında kaldı" : "dür yayında"}
+        </p>
       ) : null}
       {title ? <p className="font-semibold leading-snug">{title}</p> : null}
       {body ? <p className="line-clamp-6 whitespace-pre-line text-body text-ink-soft">{body}</p> : <p className="text-small text-muted">Metin yok (yalnızca görsel veya video).</p>}
@@ -107,8 +127,8 @@ function SetupState() {
         <IconInfo className="size-6 text-info" aria-hidden /> Meta Reklam Kütüphanesi bağlantısı kurulmamış
       </h2>
       <p className="mt-2 max-w-2xl text-ink-soft">
-        Arama yapabilmek için sunucuya bir Meta erişim anahtarı tanımlanmalı. Bu bir kez, uygulamayı yöneten kişi tarafından yapılır; anahtar tarayıcıya hiç gönderilmez.
-        Bağlantı kurulana kadar burada örnek ya da uydurma reklam gösterilmez.
+        Arama yapabilmek için sunucuya bir Meta erişim anahtarı tanımlanmalı. Bu bir kez, uygulamayı yöneten kişi tarafından yapılır; anahtar tarayıcıya hiç gönderilmez. Bağlantı kurulana kadar burada
+        örnek ya da uydurma reklam gösterilmez.
       </p>
       <ol className="mt-4 grid list-decimal gap-2 pl-5 text-body">
         <li>Meta for Developers üzerinde bir uygulama oluştur.</li>
@@ -160,117 +180,162 @@ export default async function InspirationPage({ searchParams }: { searchParams: 
   };
 
   return (
-    <div className="max-w-6xl">
+    <div>
       <h1 className="font-display text-4xl font-semibold leading-tight">İlham panosu</h1>
       <p className="mt-2 max-w-2xl text-ink-soft">
-        Meta Reklam Kütüphanesi&apos;nde sektöründeki reklamları ara, beğendiklerini panoya kaydet. Her reklamın metni AdScope kural setiyle taranır; böylece hangi ifadelerin risk
-        taşıdığını yayından önce görürsün.
+        Meta Reklam Kütüphanesi&apos;nde sektöründeki reklamları ara, beğendiklerini panoya kaydet. Her reklamın metni AdScope kural setiyle taranır; böylece hangi ifadelerin risk taşıdığını yayından
+        önce görürsün.
       </p>
 
-      {library.enabled ? (
-        <form method="get" action="/panel/ilham" className="mt-8 grid gap-4 rounded-2xl border border-line bg-card p-5 sm:p-6" role="search" aria-label="Reklam kütüphanesinde ara">
-          <input type="hidden" name="ara" value="1" />
-          <div className="grid gap-4 md:grid-cols-[1fr_12rem_12rem]">
-            <label className="grid gap-1.5 text-body font-semibold">
-              Arama terimi
-              <input name="q" defaultValue={q} required minLength={2} maxLength={100} placeholder="ör. kolajen, diyetisyen, kampanya" className={inputClass} />
-            </label>
-            <label className="grid gap-1.5 text-body font-semibold">
-              Gösterildiği ülke
-              <select name="ulke" defaultValue={country} className={selectClass}>
-                {Object.entries(LIBRARY_COUNTRIES).map(([code, label]) => (
-                  <option key={code} value={code}>{label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1.5 text-body font-semibold">
-              Sinyal için sektör
-              <select name="sektor" defaultValue={sector} className={selectClass}>
-                {SECTOR_IDS.map((s) => <option key={s} value={s}>{SECTOR_INFO[s].label}</option>)}
-              </select>
-            </label>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-body">
-            <label className="flex items-center gap-2"><input type="checkbox" name="tr" value="1" defaultChecked={turkishOnly} className="accent-ink" /> Yalnızca Türkçe reklamlar</label>
-            <label className="flex items-center gap-2"><input type="checkbox" name="aktif" value="1" defaultChecked={activeOnly} className="accent-ink" /> Yalnızca yayında olanlar</label>
-            <button type="submit" className={buttonClass("accent", "ml-auto")}>Ara</button>
-          </div>
-          <p className="text-meta text-muted">Meta ticari reklamları API&apos;de yalnızca AB ülkelerinde gösterilenler için açar. Arama terimin kaydedilmez.</p>
-        </form>
-      ) : (
-        <SetupState />
-      )}
-
-      {result && !result.ok ? (
-        <p role="alert" className="mt-6 rounded-xl bg-coral-tint px-4 py-3 text-body text-coral-deep">{ERRORS[result.reason]}</p>
-      ) : null}
-
-      {result?.ok ? (
-        <section aria-labelledby="sonuclar" className="mt-8">
-          <h2 id="sonuclar" className="font-display text-2xl font-semibold">
-            {result.ads.length ? `“${q}” için ${result.ads.length} reklam` : `“${q}” için reklam bulunamadı`}
-          </h2>
-          {result.ads.length > 1 ? <p className="mt-1 text-small text-muted">En uzun süredir yayında olanlar üstte. Uzun süre yayında kalan reklam çoğu zaman kârlı reklamdır.</p> : null}
-          {result.ads.length ? (
-            <ul className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {result.ads.map((ad) => <AdCard key={ad.id} ad={ad} country={country} rules={rules} saved={pinned.has(ad.id)} />)}
-            </ul>
-          ) : (
-            <p className="mt-2 text-ink-soft">Başka bir terim dene ya da “Yalnızca Türkçe reklamlar” seçeneğini kaldır.</p>
-          )}
-          {result.after ? (
-            <p className="mt-5">
-              <Link href={nextHref(result.after)} className={buttonClass("ghost")}>Sonraki sayfa</Link>
-            </p>
-          ) : null}
-        </section>
-      ) : null}
-
-      <section aria-labelledby="pano" className="mt-10">
-        <h2 id="pano" className="flex items-center gap-2 font-display text-2xl font-semibold">
-          <IconBoard className="size-6" aria-hidden /> Panom
-        </h2>
-        {pins.length ? (
-          <ul className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {pins.map((p) => {
-              const s = signals(p, rules);
-              return (
-                <li key={p.id} className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-4">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="font-bold">{p.pageName || "Sayfa adı yok"}</p>
-                    <p className="text-meta text-muted">{LIBRARY_COUNTRIES[p.country as keyof typeof LIBRARY_COUNTRIES] ?? p.country} · kaydedildi {formatDateTr(p.createdAt)}</p>
-                  </div>
-                  {p.title ? <p className="font-semibold leading-snug">{p.title}</p> : null}
-                  {p.body ? <p className="line-clamp-6 whitespace-pre-line text-body text-ink-soft">{p.body}</p> : null}
-                  <SignalLine s={s} />
-                  <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-dashed border-line pt-3">
-                    <Link href={checkHref(p.title, p.body)} className="rounded-full border border-line-strong px-3 py-1.5 text-meta font-semibold no-underline hover:bg-paper-2">
-                      Benzerini kontrol et
-                    </Link>
-                    <a href={`https://www.facebook.com/ads/library/?id=${p.adArchiveId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-meta font-semibold">
-                      Kütüphanede aç <IconExternal className="size-3.5" aria-hidden />
-                      <span className="sr-only">(yeni sekmede açılır)</span>
-                    </a>
-                    <form action={deletePinAction} className="ml-auto">
-                      <input type="hidden" name="id" value={p.id} />
-                      <button type="submit" className="inline-flex items-center gap-1 text-meta font-semibold text-coral-deep" aria-label={`${p.pageName || "Reklamı"} panodan kaldır`}>
-                        <IconTrash className="size-4" aria-hidden /> Kaldır
-                      </button>
+      <div className="mt-8">
+        <Tabs
+          label="İlham panosu bölümleri"
+          initial={q || !pins.length ? 0 : 1}
+          tabs={[
+            {
+              title: "Ara",
+              content: (
+                <div className="-mt-8">
+                  {library.enabled ? (
+                    <form method="get" action="/panel/ilham" className="mt-8 grid gap-4 rounded-2xl border border-line bg-card p-5 sm:p-6" role="search" aria-label="Reklam kütüphanesinde ara">
+                      <input type="hidden" name="ara" value="1" />
+                      <div className="grid gap-4 md:grid-cols-[1fr_12rem_12rem]">
+                        <label className="grid gap-1.5 text-body font-semibold">
+                          Arama terimi
+                          <input name="q" defaultValue={q} required minLength={2} maxLength={100} placeholder="ör. kolajen, diyetisyen, kampanya" className={inputClass} />
+                        </label>
+                        <label className="grid gap-1.5 text-body font-semibold">
+                          Gösterildiği ülke
+                          <select name="ulke" defaultValue={country} className={selectClass}>
+                            {Object.entries(LIBRARY_COUNTRIES).map(([code, label]) => (
+                              <option key={code} value={code}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="grid gap-1.5 text-body font-semibold">
+                          Sinyal için sektör
+                          <select name="sektor" defaultValue={sector} className={selectClass}>
+                            {SECTOR_IDS.map((s) => (
+                              <option key={s} value={s}>
+                                {SECTOR_INFO[s].label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-body">
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" name="tr" value="1" defaultChecked={turkishOnly} className="accent-ink" /> Yalnızca Türkçe reklamlar
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" name="aktif" value="1" defaultChecked={activeOnly} className="accent-ink" /> Yalnızca yayında olanlar
+                        </label>
+                        <button type="submit" className={buttonClass("accent", "ml-auto")}>
+                          Ara
+                        </button>
+                      </div>
+                      <p className="text-meta text-muted">Meta ticari reklamları API&apos;de yalnızca AB ülkelerinde gösterilenler için açar. Arama terimin kaydedilmez.</p>
                     </form>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="mt-2 text-ink-soft">Henüz kayıtlı reklam yok. Arama sonuçlarında “Panoya kaydet” ile buraya ekleyebilirsin.</p>
-        )}
-      </section>
+                  ) : (
+                    <SetupState />
+                  )}
+
+                  {result && !result.ok ? (
+                    <p role="alert" className="mt-6 rounded-xl bg-coral-tint px-4 py-3 text-body text-coral-deep">
+                      {ERRORS[result.reason]}
+                    </p>
+                  ) : null}
+
+                  {result?.ok ? (
+                    <section aria-labelledby="sonuclar" className="mt-8">
+                      <h2 id="sonuclar" className="font-display text-2xl font-semibold">
+                        {result.ads.length ? `“${q}” için ${result.ads.length} reklam` : `“${q}” için reklam bulunamadı`}
+                      </h2>
+                      {result.ads.length > 1 ? <p className="mt-1 text-small text-muted">En uzun süredir yayında olanlar üstte. Uzun süre yayında kalan reklam çoğu zaman kârlı reklamdır.</p> : null}
+                      {result.ads.length ? (
+                        <ul className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                          {result.ads.map((ad) => (
+                            <AdCard key={ad.id} ad={ad} country={country} rules={rules} saved={pinned.has(ad.id)} />
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-ink-soft">Başka bir terim dene ya da “Yalnızca Türkçe reklamlar” seçeneğini kaldır.</p>
+                      )}
+                      {result.after ? (
+                        <p className="mt-5">
+                          <Link href={nextHref(result.after)} className={buttonClass("ghost")}>
+                            Sonraki sayfa
+                          </Link>
+                        </p>
+                      ) : null}
+                    </section>
+                  ) : null}
+                </div>
+              ),
+            },
+            {
+              title: `Panom (${pins.length})`,
+              hash: "panom",
+              content: (
+                <section aria-labelledby="pano">
+                  <h2 id="pano" className="flex items-center gap-2 font-display text-2xl font-semibold">
+                    <IconBoard className="size-6" aria-hidden /> Panom
+                  </h2>
+                  {pins.length ? (
+                    <ul className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {pins.map((p) => {
+                        const s = signals(p, rules);
+                        return (
+                          <li key={p.id} className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-4">
+                            <div className="flex flex-wrap items-baseline justify-between gap-2">
+                              <p className="font-bold">{p.pageName || "Sayfa adı yok"}</p>
+                              <p className="text-meta text-muted">
+                                {LIBRARY_COUNTRIES[p.country as keyof typeof LIBRARY_COUNTRIES] ?? p.country} · kaydedildi {formatDateTr(p.createdAt)}
+                              </p>
+                            </div>
+                            {p.title ? <p className="font-semibold leading-snug">{p.title}</p> : null}
+                            {p.body ? <p className="line-clamp-6 whitespace-pre-line text-body text-ink-soft">{p.body}</p> : null}
+                            <SignalLine s={s} />
+                            <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-dashed border-line pt-3">
+                              <Link href={checkHref(p.title, p.body)} className="rounded-full border border-line-strong px-3 py-1.5 text-meta font-semibold no-underline hover:bg-paper-2">
+                                Benzerini kontrol et
+                              </Link>
+                              <a
+                                href={`https://www.facebook.com/ads/library/?id=${p.adArchiveId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-meta font-semibold"
+                              >
+                                Kütüphanede aç <IconExternal className="size-3.5" aria-hidden />
+                                <span className="sr-only">(yeni sekmede açılır)</span>
+                              </a>
+                              <form action={deletePinAction} className="ml-auto">
+                                <input type="hidden" name="id" value={p.id} />
+                                <button type="submit" className="inline-flex items-center gap-1 text-meta font-semibold text-coral-deep" aria-label={`${p.pageName || "Reklamı"} panodan kaldır`}>
+                                  <IconTrash className="size-4" aria-hidden /> Kaldır
+                                </button>
+                              </form>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-ink-soft">Henüz kayıtlı reklam yok. Arama sonuçlarında “Panoya kaydet” ile buraya ekleyebilirsin.</p>
+                  )}
+                </section>
+              ),
+            },
+          ]}
+        />
+      </div>
 
       <div className="mt-10 grid gap-3 text-meta text-muted">
         <p>
-          Bir reklamın kütüphanede yayında görünmesi, Meta tarafından kalıcı olarak onaylandığı ya da mevzuata uygun olduğu anlamına gelmez. Sinyaller yalnızca AdScope kural setindeki
-          eşleşmelerdir. Reklam metinleri sahiplerine aittir; birebir kopyalamak yerine fikir almak için kullan.
+          Bir reklamın kütüphanede yayında görünmesi, Meta tarafından kalıcı olarak onaylandığı ya da mevzuata uygun olduğu anlamına gelmez. Sinyaller yalnızca AdScope kural setindeki eşleşmelerdir.
+          Reklam metinleri sahiplerine aittir; birebir kopyalamak yerine fikir almak için kullan.
         </p>
         <Disclaimer />
       </div>

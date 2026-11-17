@@ -104,10 +104,15 @@ test("agency workflow: report exports, DM kit, brands, team, API and inspiration
 
   // Brands with a banned word.
   await page.goto("/panel/markalar");
+  await expect(async () => {
+    await page.getByRole("button", { name: "Yeni marka" }).first().click({ timeout: 2000 });
+    await expect(page.getByRole("dialog", { name: "Yeni marka" })).toBeVisible({ timeout: 1000 });
+  }).toPass();
   await page.getByLabel("Marka adı").first().fill("Ajans Müşterisi");
   await page.getByLabel("Yasaklı kelimeler").first().fill("ucuz, bedava");
   await page.getByRole("button", { name: "Marka ekle" }).click();
-  await expect(page.getByText("Ajans Müşterisi").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ajans Müşterisi" })).toBeVisible();
+  await page.getByRole("dialog").getByRole("button", { name: "Kapat" }).click();
   await axeClean(page);
 
   // Team invite: the link is shown once.
@@ -121,7 +126,10 @@ test("agency workflow: report exports, DM kit, brands, team, API and inspiration
   await page.goto("/panel/api");
   await page.getByLabel("Anahtar adı").fill("CRM");
   await page.getByRole("button", { name: "Anahtar oluştur" }).click();
-  const key = await page.locator("code").filter({ hasText: /^ads_live_[A-Za-z0-9_-]{30,}$/ }).innerText();
+  const keyDialog = page.getByRole("dialog", { name: "Yeni API anahtarın" });
+  const key = await keyDialog.locator("code").filter({ hasText: /^ads_live_[A-Za-z0-9_-]{30,}$/ }).innerText();
+  await keyDialog.getByRole("button", { name: "Kopyaladım, kapat" }).click();
+  await expect(keyDialog).toBeHidden();
   const list = await page.request.get(`${baseURL}/api/v1/analyses`, { headers: { Authorization: `Bearer ${key}` } });
   expect(list.status()).toBe(200);
   const json = await list.json();
@@ -141,6 +149,7 @@ test("agency workflow: report exports, DM kit, brands, team, API and inspiration
   expect(await page.content()).not.toContain("LEAK");
   await page.getByRole("button", { name: "Panoya kaydet" }).click();
   await expect(page.getByRole("button", { name: "Panoda", exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: /^Panom/ }).click();
   await expect(page.getByRole("region", { name: "Panom" }).getByText("Örnek Takviye")).toBeVisible();
   await noHorizontalScroll(page);
   await axeClean(page);

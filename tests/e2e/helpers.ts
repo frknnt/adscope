@@ -41,7 +41,7 @@ export async function fillWizard(page: Page, opts: { rejection?: string } = {}) 
 
 export async function balance(page: Page) {
   await page.goto("/panel/krediler");
-  const text = await page.locator("main p").first().innerText();
+  const text = await page.locator("main").innerText();
   return Number(text.match(/Bakiye:\s*(\d+)/)?.[1] ?? NaN);
 }
 

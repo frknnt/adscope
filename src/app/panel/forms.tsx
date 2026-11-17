@@ -2,6 +2,7 @@
 
 import { SECTOR_IDS, SECTOR_INFO } from "@/lib/sectors";
 import { useActionState, useRef, useState } from "react";
+import { Dialog } from "@/components/interactive";
 import { Button, Field, inputClass, selectClass } from "@/components/ui";
 import type { Brand, Profile } from "@/lib/data/types";
 import {
@@ -107,18 +108,26 @@ export function SettingsForm({ profile, retentionDefault, emailEnabled }: { prof
   );
 }
 
-export function DeleteAccountForm() {
+export function DeleteAccountForm({ email }: { email: string }) {
   const [state, action, pending] = useActionState(deleteAccountAction, initial);
+  const [open, setOpen] = useState(false);
   return (
-    <form action={action} className="grid gap-4">
-      <ActionMessage state={state} />
-      <Field label="Onaylamak için SİL yaz" htmlFor="confirm">
-        <input id="confirm" name="confirm" autoComplete="off" className={`${inputClass} max-w-xs`} />
-      </Field>
-      <div>
-        <Button type="submit" variant="danger" disabled={pending}>{pending ? "Siliniyor…" : "Hesabımı ve tüm verilerimi sil"}</Button>
-      </div>
-    </form>
+    <>
+      <Button type="button" variant="danger" onClick={() => setOpen(true)}>Hesabımı sil…</Button>
+      <Dialog open={open} onClose={() => setOpen(false)} title="Hesap kalıcı olarak silinsin mi?">
+        <form action={action} className="grid gap-4 text-ink">
+          <p className="text-ink-soft">Tüm analizlerin, görsellerin, markaların ve kalan kredilerin silinir. Bu işlem geri alınamaz.</p>
+          <ActionMessage state={state} />
+          <Field label="Onaylamak için e-posta adresini yaz" htmlFor="confirm" hint={email}>
+            <input id="confirm" name="confirm" type="email" autoComplete="off" className={inputClass} />
+          </Field>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Vazgeç</Button>
+            <Button type="submit" variant="danger" disabled={pending}>{pending ? "Siliniyor…" : "Hesabımı ve tüm verilerimi sil"}</Button>
+          </div>
+        </form>
+      </Dialog>
+    </>
   );
 }
 

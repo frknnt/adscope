@@ -108,9 +108,9 @@ export async function deleteAnalysesAction(ids: string[]): Promise<{ deleted: nu
 }
 
 export async function deleteAccountAction(_prev: ActionState, form: FormData): Promise<ActionState> {
-  await requireUser();
-  const confirm = String(form.get("confirm") ?? "").trim().toLocaleUpperCase("tr-TR");
-  if (confirm !== "SİL") return { error: "Onaylamak için kutuya büyük harflerle SİL yazın." };
+  const u = await requireUser();
+  const confirm = String(form.get("confirm") ?? "").trim().toLowerCase();
+  if (!confirm || confirm !== u.email.trim().toLowerCase()) return { error: "Onaylamak için hesabının e-posta adresini aynen yazın." };
   const ok = await getRepo().deleteAccount();
   if (!ok) return { error: "Hesap silinemedi. Lütfen tekrar deneyin; sorun sürerse bize yazın." };
   redirect("/?hesap=silindi");

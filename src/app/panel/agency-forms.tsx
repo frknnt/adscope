@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Button, Field, inputClass, selectClass } from "@/components/ui";
+import { Dialog } from "@/components/interactive";
 import type { Brand, FindingFeedback } from "@/lib/data/types";
 import { SECTOR_IDS, SECTOR_INFO } from "@/lib/sectors";
 import type { ActionState } from "./actions";
@@ -129,6 +130,24 @@ export function BrandForm({ brand }: { brand?: Brand }) {
   );
 }
 
+/** Opens the brand form in a dialog ("Yeni marka" or "Düzenle"). */
+export function BrandDialogButton({ brand }: { brand?: Brand }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button type="button" variant={brand ? "ghost" : "accent"} className={brand ? "h-10 px-4" : "h-11 px-5"} onClick={() => setOpen(true)}>
+        {brand ? <>Düzenle<span className="sr-only">: {brand.name}</span></> : "Yeni marka"}
+      </Button>
+      <Dialog open={open} onClose={() => setOpen(false)} title={brand ? `${brand.name}: düzenle` : "Yeni marka"} wide>
+        <div className="max-h-[70dvh] overflow-y-auto pr-1 text-ink">{open ? <BrandForm brand={brand} /> : null}</div>
+        <div className="mt-4 flex justify-end">
+          <Button type="button" variant="quiet" onClick={() => setOpen(false)}>Kapat</Button>
+        </div>
+      </Dialog>
+    </>
+  );
+}
+
 export function InviteForm() {
   const [state, action, pending] = useActionState(inviteMemberAction, initial);
   return (
@@ -174,6 +193,7 @@ export function ReviewShareForm({ analysisId }: { analysisId: string }) {
 
 export function ApiKeyForm() {
   const [state, action, pending] = useActionState(createApiKeyAction, initial);
+  const [seen, setSeen] = useState<string | null>(null);
   return (
     <form action={action} className="grid gap-3">
       <div className="flex flex-wrap items-end gap-3">
@@ -183,7 +203,13 @@ export function ApiKeyForm() {
         <Button type="submit" variant="accent" disabled={pending}>{pending ? "Oluşturuluyor…" : "Anahtar oluştur"}</Button>
       </div>
       <ActionMessage state={state} />
-      {state.link ? <OneTimeSecret value={state.link} label="API anahtarı (bir daha gösterilmez)" /> : null}
+      <Dialog open={!!state.link && seen !== state.link} onClose={() => setSeen(state.link ?? null)} title="Yeni API anahtarın" wide>
+        <p>Anahtarı şimdi kopyala ve güvenli bir yerde sakla. Bu pencere kapandıktan sonra bir daha gösterilmez; kaybedersen iptal edip yenisini oluştur.</p>
+        {state.link ? <div className="mt-4 text-ink"><OneTimeSecret value={state.link} label="API anahtarı (bir daha gösterilmez)" /></div> : null}
+        <div className="mt-4 flex justify-end">
+          <Button type="button" variant="primary" onClick={() => setSeen(state.link ?? null)}>Kopyaladım, kapat</Button>
+        </div>
+      </Dialog>
     </form>
   );
 }

@@ -6,6 +6,7 @@ import { getRepo } from "@/lib/data";
 import { SECTOR_LABEL } from "@/lib/sectors";
 import { teamAction } from "../agency-actions";
 import { InviteForm } from "../agency-forms";
+import { DataTable } from "@/components/ui";
 
 export const metadata = { title: "Ekip" };
 
@@ -17,14 +18,14 @@ const NOTICE: Record<string, { ok: boolean; text: string }> = {
 };
 
 export default async function TeamPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  await requirePanelUser();
+  const user = await requirePanelUser();
   const sp = await searchParams;
   const repo = getRepo();
   const [team, shared] = await Promise.all([repo.getTeam(), repo.listTeamAnalyses(50)]);
   const notice = sp.davet ? NOTICE[sp.davet] : null;
 
   return (
-    <div className="max-w-4xl">
+    <div>
       <h1 className="font-display text-4xl font-semibold leading-tight">Ekip</h1>
       <p className="mt-2 max-w-2xl text-ink-soft">
         Ekip arkadaşların senin analizlerini, raporlarını ve markalarını <strong>salt okunur</strong> görür; analiz başlatmaz, silmez, kredini kullanmaz.
@@ -34,47 +35,74 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
         <p role={notice.ok ? "status" : "alert"} className={`mt-5 rounded-xl px-4 py-3 text-body font-medium ${notice.ok ? "bg-green-tint text-green" : "bg-coral-tint text-coral-deep"}`}>{notice.text}</p>
       ) : null}
 
-      <section aria-labelledby="davet" className="mt-8 rounded-2xl border border-line bg-card p-5 sm:p-7">
-        <h2 id="davet" className="font-display text-2xl font-semibold">Ekibine davet et</h2>
-        <div className="mt-5"><InviteForm /></div>
-        {team.invites.length ? (
-          <>
-            <h3 className="mt-6 text-sm font-bold">Bekleyen davetler</h3>
-            <ul className="mt-2 grid gap-2 text-body">
-              {team.invites.map((i) => (
-                <li key={i.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line px-4 py-2.5">
-                  <span>{i.email} <span className="text-muted">· {formatDateTr(i.expiresAt)} tarihine kadar</span></span>
-                  <form action={teamAction}>
-                    <input type="hidden" name="op" value="revoke-invite" />
-                    <input type="hidden" name="id" value={i.id} />
-                    <button type="submit" className="font-semibold text-coral-deep">Daveti iptal et</button>
-                  </form>
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : null}
-        <h3 className="mt-6 text-sm font-bold">Ekip üyeleri · {team.members.length} / 10</h3>
-        {team.members.length === 0 ? (
-          <p className="mt-2 text-body text-muted">Henüz ekip üyesi yok.</p>
-        ) : (
-          <ul className="mt-2 grid gap-2 text-body">
-            {team.members.map((m) => (
-              <li key={m.memberId} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line px-4 py-2.5">
-                <span>{m.email} <span className="text-muted">· İzleyici · {formatDateTr(m.createdAt)}</span></span>
-                <form action={teamAction}>
-                  <input type="hidden" name="op" value="remove-member" />
-                  <input type="hidden" name="id" value={m.memberId} />
-                  <button type="submit" className="font-semibold text-coral-deep">Ekipten çıkar</button>
-                </form>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+        <section aria-labelledby="uyeler" className="min-w-0">
+          <h2 id="uyeler" className="font-display text-2xl font-semibold">Ekip üyeleri <span className="text-base font-normal text-muted tabular">· {team.members.length} / 10</span></h2>
+          <DataTable label="Ekip üyeleri tablosu" className="mt-4">
+            <table className="w-full min-w-[34rem] text-left text-body">
+              <thead className="border-b border-line bg-paper-2 text-meta text-muted">
+                <tr>
+                  <th scope="col" className="px-5 py-3 font-semibold">E-posta</th>
+                  <th scope="col" className="px-3 py-3 font-semibold">Rol</th>
+                  <th scope="col" className="px-3 py-3 font-semibold">Katılma</th>
+                  <th scope="col" className="px-5 py-3 font-semibold"><span className="sr-only">İşlem</span></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                <tr>
+                  <td className="px-5 py-3 font-semibold">{user?.email ?? "Sen"}</td>
+                  <td className="px-3 py-3"><span className="rounded-full bg-ink px-2.5 py-0.5 text-meta font-bold text-paper">Sahip</span></td>
+                  <td className="px-3 py-3 text-muted">—</td>
+                  <td className="px-5 py-3" />
+                </tr>
+                {team.members.map((m) => (
+                  <tr key={m.memberId}>
+                    <td className="px-5 py-3">{m.email}</td>
+                    <td className="px-3 py-3"><span className="rounded-full bg-blue-tint px-2.5 py-0.5 text-meta font-bold text-blue">Salt okunur</span></td>
+                    <td className="px-3 py-3 text-ink-soft">{formatDateTr(m.createdAt)}</td>
+                    <td className="px-5 py-3 text-right">
+                      <form action={teamAction}>
+                        <input type="hidden" name="op" value="remove-member" />
+                        <input type="hidden" name="id" value={m.memberId} />
+                        <button type="submit" className="inline-flex h-10 items-center font-semibold text-coral-deep">Ekipten çıkar<span className="sr-only">: {m.email}</span></button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </DataTable>
+          {team.members.length === 0 ? <p className="mt-3 text-body text-muted">Henüz ekip üyesi yok. Sağdaki karttan davet gönder.</p> : null}
+        </section>
+
+        <section aria-labelledby="davet" className="rounded-2xl border border-line bg-card p-5 shadow-card sm:p-6 lg:sticky lg:top-24">
+          <h2 id="davet" className="text-lg font-bold">Ekibine davet et</h2>
+          <div className="mt-4"><InviteForm /></div>
+          {team.invites.length ? (
+            <>
+              <h3 className="mt-6 text-sm font-bold">Bekleyen davetler</h3>
+              <ul className="mt-2 grid gap-2 text-small">
+                {team.invites.map((i) => (
+                  <li key={i.id} className="rounded-xl border border-line px-3 py-2.5">
+                    <span className="block break-all">{i.email}</span>
+                    <span className="flex items-center justify-between gap-2 text-muted">
+                      {formatDateTr(i.expiresAt)} tarihine kadar
+                      <form action={teamAction}>
+                        <input type="hidden" name="op" value="revoke-invite" />
+                        <input type="hidden" name="id" value={i.id} />
+                        <button type="submit" className="inline-flex h-10 items-center font-semibold text-coral-deep">Daveti iptal et</button>
+                      </form>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </section>
+      </div>
 
       {team.memberships.length ? (
-        <section aria-labelledby="uyelik" className="mt-8">
+        <section aria-labelledby="uyelik" className="mt-10 rounded-2xl border border-line bg-card p-5 shadow-card sm:p-7">
           <h2 id="uyelik" className="font-display text-2xl font-semibold">Üyesi olduğun ekipler</h2>
           <ul className="mt-3 grid gap-2 text-body">
             {team.memberships.map((m) => (
