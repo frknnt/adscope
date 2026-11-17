@@ -119,3 +119,79 @@ test("creative studio: free previews of eight layouts, one-credit ZIP download",
   expect(file.suggestedFilename()).toBe("adscope-etiket-tum-boyutlar.zip");
   expect(await balance(page)).toBe(start - 1);
 });
+
+test("video maker: a 6 second vertical video from an image, recorded in the browser and checked", async ({ page }) => {
+  test.setTimeout(90_000);
+  await signUp(page);
+  await onboard(page);
+  const start = await balance(page);
+  await page.goto("/panel/uret?sekme=video");
+  await page.locator("#video-gorsel").setInputFiles("tests/fixtures/ad.png");
+  await page.getByLabel("Altyazı 1 (isteğe bağlı)").fill("Günlük bakım, hafif doku");
+  await page.getByLabel("Ekranda görünecek marka adı").fill("Vita Plus");
+  await page.getByLabel("Teklif (ilk 3 saniye)").fill("Yeni sezon setleri sitede");
+  await page.getByLabel("Kapanış çağrısı (isteğe bağlı)").fill("Hemen incele");
+  await page.getByLabel(/Süre: \d+ saniye/).fill("6");
+  await expect(page.getByText("Süre: 6 saniye")).toBeVisible();
+  await expect(page.getByRole("img", { name: "Video önizlemesi, 1080×1920" })).toBeVisible();
+  await noHorizontalScroll(page);
+  const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+
+  await page.getByRole("button", { name: /Videoyu oluştur/ }).click();
+  const link = page.getByRole("link", { name: /Videoyu indir \((MP4|WebM)\)/ });
+  await expect(link).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Kanca notu:")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByLabel("Video kontrolü")).toContainText("İlk 3 saniyede marka ve teklif ekranda");
+  await expect(page.getByLabel("Video kontrolü")).toContainText("Risk değerlendirmesidir, hukuki görüş değildir.");
+  expect(await link.getAttribute("download")).toMatch(/^adscope-video-6sn\.(mp4|webm)$/);
+  const duration = await page.getByLabel("Oluşturulan video").evaluate(async (v: HTMLVideoElement) => {
+    // MediaRecorder files often report Infinity until the browser seeks to the end.
+    if (!Number.isFinite(v.duration)) {
+      v.currentTime = 1e6;
+      await new Promise((r) => v.addEventListener("timeupdate", r, { once: true }));
+    }
+    return v.duration;
+  });
+  expect(duration).toBeGreaterThan(4.5);
+  expect(duration).toBeLessThan(8);
+  // Making a video is free.
+  expect(await balance(page)).toBe(start);
+});
+
+test("video script: 30 second template script with the AI disclosure and SRT export", async ({ page }) => {
+  await signUp(page);
+  await onboard(page);
+  const start = await balance(page);
+  await page.goto("/panel/uret?sekme=senaryo");
+  await expect(page.getByText("Yapay zekâ bu ortamda kapalı. Senaryo şablonla üretilir")).toBeVisible();
+  await page.getByLabel("Ürün ya da hizmet adı").fill("Filtre kahve seti");
+  await page.getByLabel("Kısa açıklama").fill("Taze çekilmiş çekirdek, üç farklı kavrum");
+  await page.getByText("30 sn", { exact: true }).click();
+  await page.getByLabel(/yapay zekâ ile üretilmiş kişi ya da ses/).check();
+  await expect(async () => {
+    await page.getByRole("button", { name: "Senaryoyu üret" }).click({ timeout: 2000 });
+    await expect(page).toHaveURL(/sekme=senaryo&sonuc=/, { timeout: 8000 });
+  }).toPass();
+  const result = page.locator("#senaryo");
+  await expect(result.getByRole("heading", { name: "Senaryo: Filtre kahve seti" })).toBeVisible();
+  await expect(result.getByLabel("Senaryo uyarıları").getByRole("listitem").first()).toContainText("Yapay zekâ ile üretildiğini belirt");
+  await expect(result.getByRole("heading", { name: /^1\. sahne/ })).toBeVisible();
+  await expect(result.getByText(/–30 sn/)).toBeVisible();
+  await expect(result.getByText("Risk değerlendirmesidir, hukuki görüş değildir.")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Filtre kahve seti · 30 sn/ })).toBeVisible();
+  await noHorizontalScroll(page);
+  const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+
+  const download = page.waitForEvent("download");
+  await result.getByRole("button", { name: "Dış ses altyazısı (SRT)" }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe("adscope-senaryo-30sn-dis-ses.srt");
+  const { readFile } = await import("node:fs/promises");
+  const srt = await readFile((await file.path())!, "utf8");
+  expect(srt).toMatch(/^1\n00:00:00,000 --> 00:00:0\d,\d{3}\n/);
+  expect(srt).toContain("Filtre kahve seti");
+  // Template scripts are free.
+  expect(await balance(page)).toBe(start);
+});

@@ -159,3 +159,9 @@ Takvimdeki uyum hatırlatmaları bulgu değildir; bağlı kural kartının durum
 | Lemon Squeezy | Webhook imzası (`X-Signature`, ham gövdenin HMAC-SHA256 hex özeti) ve `order_created` olayı belgelerden okundu. Türkiye ödeme alınabilen ülkeler listesinde. Stripe'ın "merchant of record" ürününe geçiş duyurusu var; yeni kayıtların kapandığına dair bir ifade bulunamadı. Türkiye'deki bireysel satıcıların yeni hesap açıp açamayacağı bulunamadı. | Adaptör hazır, hesap bekliyor. |
 | Shopier | Satıcı koşulları ve callback/API belgesi bu ortamdan okunamadı. Bireysel satıcıyı kabul ettiği ikincil kaynaklarda geçiyor. | Yalnızca iskelet; imza şeması yer tutucu. Resmî belge okunmadan açılmamalı. |
 | iyzico, Stripe | Şirket kaydı istiyor; ürün kararıyla ödeme sağlayıcısı şimdilik Shopier. | Kapsam dışı. |
+
+## Video üretici ve yapay zekâ etiketi (17.11.2026)
+
+- Görselden video tarayıcının yerleşik `canvas.captureStream` ve `MediaRecorder` arayüzleriyle yapılır (MDN: https://developer.mozilla.org/docs/Web/API/MediaRecorder). Üçüncü taraf kitaplık ya da lisanslı kod kullanılmaz.
+- 9:16 güvenli alan değerleri (üst 250, alt 340 piksel) görsel üreticiyle aynıdır (`STORY_UNSAFE`); platform rehberlerindeki arayüz bantlarına göre tutucu seçilmiş bir varsayımdır.
+- Yapay zekâ ile üretilen kişi ya da ses notu: Meta, gerçekçi görünen yapay zekâ içeriklerini "AI info / Yapay zekâ bilgisi" etiketiyle işaretler (https://about.fb.com/news/2024/04/metas-approach-to-labeling-ai-generated-content-and-manipulated-media/), TikTok yapay zekâ ile üretilen gerçekçi içerik için etiket ister (https://support.tiktok.com/en/using-tiktok/creating-videos/ai-generated-content). Bu sayfalar bu ortamdan yeniden okunmadı; uyarı bir kural kartı değil, bilgi notudur ve mevzuat ihlali olarak gösterilmez.
