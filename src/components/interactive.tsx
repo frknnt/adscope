@@ -4,10 +4,29 @@ import { createContext, useCallback, useContext, useEffect, useId, useRef, useSt
 
 /* ---------- Tabs: WAI-ARIA tabs with roving focus (arrow keys, Home, End). ---------- */
 
-export function Tabs({ label, tabs, initial = 0 }: { label: string; tabs: { title: string; content: ReactNode }[]; initial?: number }) {
+export function Tabs({ label, tabs, initial = 0 }: { label: string; tabs: { title: string; content: ReactNode; /** Opens this tab when the URL hash equals it, or contains an element with that id. */ hash?: string }[]; initial?: number }) {
   const [active, setActive] = useState(initial);
   const id = useId();
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const hashes = tabs.map((t) => t.hash ?? "").join("|");
+
+  useEffect(() => {
+    if (!hashes.replace(/\|/g, "")) return;
+    const sync = () => {
+      const h = decodeURIComponent(window.location.hash.slice(1));
+      if (!h) return;
+      const list = hashes.split("|");
+      const i = list.findIndex((x) => x && x === h);
+      if (i >= 0) {
+        // Opening the tab that holds the linked section (e.g. #itiraz after an appeal is saved).
+        setActive(i);
+        requestAnimationFrame(() => document.getElementById(h)?.scrollIntoView({ block: "start" }));
+      }
+    };
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, [hashes]);
 
   function onKey(e: KeyboardEvent) {
     const last = tabs.length - 1;

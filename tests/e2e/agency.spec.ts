@@ -66,8 +66,10 @@ test("agency workflow: report exports, DM kit, brands, team, API and inspiration
   const id = analysisUrl.split("/").pop()!;
 
   // DM kit and feedback controls are part of the report.
-  await expect(page.getByRole("heading", { name: "WhatsApp / DM şablonları" })).toBeVisible();
   await expect(page.getByText("Bu uyarı doğru mu?").first()).toBeVisible();
+  await page.getByRole("tab", { name: "DM şablonu" }).click();
+  await expect(page.getByRole("heading", { name: "WhatsApp / DM şablonları" })).toBeVisible();
+  await page.getByRole("tab", { name: /^Bulgular/ }).click();
   await page.getByRole("button", { name: "Yararlı" }).first().click();
   await expect(page.getByText("Teşekkürler, kaydettik.").first()).toBeVisible();
 

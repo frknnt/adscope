@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { IconDoc, IconPrint, IconTrash } from "@/components/icons";
+import { IconDoc, IconTrash } from "@/components/icons";
+import { AdThumb, Menu } from "@/components/panel-client";
 import { SECTOR_LABEL, formatDateTimeTr } from "@/components/rule-status";
 import { ButtonLink, buttonClass } from "@/components/ui";
 import { getRepo } from "@/lib/data";
@@ -30,30 +31,50 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
   if (!a) notFound();
   const [feedback, shares] = a.ownedByMe && a.status === "completed" ? await Promise.all([repo.listFindingFeedback(a.id), repo.listReviewShares(a.id)]) : [[], []];
 
+  const brand = a.brandId && a.ownedByMe ? ((await repo.listBrands()).find((b) => b.id === a.brandId)?.name ?? null) : null;
   const title = a.headline || a.primaryText.slice(0, 70) || "Başlıksız reklam";
 
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="font-display text-3xl font-semibold leading-tight sm:text-4xl">{title}</h1>
-          <p className="mt-1.5 text-sm text-muted">{SECTOR_LABEL[a.sector]} · {PLATFORM_SHORT[a.platform]} · {formatDateTimeTr(a.createdAt)}</p>
-          {!a.ownedByMe ? <p className="mt-2 inline-flex rounded-full bg-info-tint px-3 py-1 text-meta font-semibold text-info">Ekip analizi · salt okunur</p> : null}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-line bg-card p-4 shadow-card sm:p-5">
+        <div className="flex min-w-0 items-center gap-4">
+          <AdThumb id={a.id} mediaType={a.mediaType} className="hidden size-20 shrink-0 rounded-xl sm:block" />
+          <div className="min-w-0">
+            <h1 className="font-display text-2xl font-semibold leading-tight sm:text-3xl">{title}</h1>
+            <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-small text-muted">
+              <span className="rounded-md bg-paper-2 px-1.5 py-0.5 font-semibold text-ink-soft">{PLATFORM_SHORT[a.platform]}</span>
+              {brand ? <span>{brand}</span> : null}
+              <span>{SECTOR_LABEL[a.sector]}</span>
+              <time dateTime={a.createdAt}>{formatDateTimeTr(a.createdAt)}</time>
+            </p>
+            {!a.ownedByMe ? <p className="mt-2 inline-flex rounded-full bg-blue-tint px-3 py-1 text-meta font-semibold text-blue">Ekip analizi · salt okunur</p> : null}
+          </div>
         </div>
-        <div className="no-print flex flex-wrap gap-2">
+        <div className="no-print flex flex-wrap items-center gap-2">
           {a.status === "completed" ? (
             <>
-              <a href={`/api/analyses/${a.id}/export?format=pdf`} className={buttonClass("primary")} download>
+              <a href={`/api/analyses/${a.id}/export?format=pdf`} className={buttonClass("primary", "h-11 px-4")} download>
                 <IconDoc className="size-4" /> PDF indir
               </a>
-              <ButtonLink href={`/panel/analiz/${a.id}/rapor`} variant="ghost"><IconPrint className="size-4" /> Yazdır</ButtonLink>
+              <Menu
+                label="Paylaş"
+                trigger={<>Paylaş</>}
+                triggerClassName={buttonClass("ghost", "h-11 px-4")}
+                items={[
+                  ...(a.ownedByMe ? [{ label: "E-postayla gönder", href: "#eposta" }, { label: "Avukat inceleme bağlantısı", href: "#avukat" }] : []),
+                  { label: "Varyantlar (CSV)", href: `/api/analyses/${a.id}/export?format=csv`, download: true },
+                  { label: "Yazdır", href: `/panel/analiz/${a.id}/rapor` },
+                ]}
+              />
             </>
           ) : null}
           {a.ownedByMe ? (
             <form action={deleteAnalysisAction}>
               <input type="hidden" name="id" value={a.id} />
               <input type="hidden" name="from" value="detail" />
-              <button type="submit" className={buttonClass("ghost", "text-coral-deep")}><IconTrash className="size-4" /> Sil</button>
+              <button type="submit" aria-label="Analizi sil" title="Analizi sil" className="inline-flex size-11 items-center justify-center rounded-xl text-ink-soft hover:bg-coral-tint hover:text-coral-deep">
+                <IconTrash className="size-4" />
+              </button>
             </form>
           ) : null}
         </div>
@@ -73,16 +94,29 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
         </div>
       ) : (
         <div className="mt-8">
-          <ReportView a={a} feedback={a.ownedByMe ? feedback : undefined} />
+          <ReportView
+            a={a}
+            layout="tabs"
+            feedback={a.ownedByMe ? feedback : undefined}
+            appealSlot={
+              a.ownedByMe ? (
+                <section id="itiraz" className="scroll-mt-24" aria-labelledby="itiraz-form">
+                  <h2 id="itiraz-form" className="font-display text-2xl font-semibold">Bu reklam reddedildi mi?</h2>
+                  <p className="mt-1.5 text-ink-soft">Meta&apos;nın ret mesajını yapıştır; itiraz mı yeni reklam mı daha mantıklı, söyleyelim ve TR + EN taslağı hazırlayalım. Ek kredi düşmez.</p>
+                  <div className="mt-5"><AppealForm analyses={[{ id: a.id, label: title }]} defaultId={a.id} /></div>
+                </section>
+              ) : undefined
+            }
+          />
           {a.ownedByMe && a.status === "completed" ? (
-            <section id="eposta" className="no-print mt-10 scroll-mt-6 rounded-2xl border border-line bg-card p-5 sm:p-7" aria-labelledby="eposta-h">
+            <section id="eposta" className="no-print mt-10 scroll-mt-24 rounded-2xl border border-line bg-card p-5 sm:p-7" aria-labelledby="eposta-h">
               <h2 id="eposta-h" className="font-display text-2xl font-semibold">Raporu e-postayla gönder</h2>
               <p className="mt-1 text-body text-ink-soft">Logolu PDF rapor müşterine veya ekibine ek olarak gider. Saatte en fazla 10 gönderim.</p>
               <div className="mt-5"><ReportEmailForm analysisId={a.id} /></div>
             </section>
           ) : null}
           {a.ownedByMe ? (
-            <section id="avukat" className="no-print mt-10 scroll-mt-6 rounded-2xl border border-line bg-card p-5 sm:p-7" aria-labelledby="avukat-h">
+            <section id="avukat" className="no-print mt-10 scroll-mt-24 rounded-2xl border border-line bg-card p-5 sm:p-7" aria-labelledby="avukat-h">
               <h2 id="avukat-h" className="font-display text-2xl font-semibold">Avukat incelemesine gönder</h2>
               <p className="mt-1.5 max-w-2xl text-ink-soft">
                 Raporun salt okunur bir kopyasını, hesabı olmayan bir hukukçuya bağlantıyla gönder. Bağlantı süre dolunca veya iptal edince çalışmaz;
@@ -111,13 +145,6 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
                   })}
                 </ul>
               ) : null}
-            </section>
-          ) : null}
-          {!a.appeal && a.ownedByMe ? (
-            <section id="itiraz" className="no-print mt-10 scroll-mt-6 rounded-2xl border border-line bg-card p-5 sm:p-7" aria-labelledby="itiraz-form">
-              <h2 id="itiraz-form" className="font-display text-2xl font-semibold">Bu reklam reddedildi mi?</h2>
-              <p className="mt-1.5 text-ink-soft">Meta&apos;nın ret mesajını yapıştır; itiraz mı yeni reklam mı daha mantıklı, söyleyelim ve TR + EN taslağı hazırlayalım. Ek kredi düşmez.</p>
-              <div className="mt-5"><AppealForm analyses={[{ id: a.id, label: title }]} defaultId={a.id} /></div>
             </section>
           ) : null}
         </div>

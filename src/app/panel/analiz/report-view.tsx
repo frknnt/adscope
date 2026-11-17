@@ -1,9 +1,14 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { HighlightedText } from "@/components/highlighted-text";
 import { IconAlert, IconCheck, IconExternal, IconInfo, IconLink } from "@/components/icons";
 import { LevelPill, SEVERITY_LABEL, ScaleBar } from "@/components/risk";
 import { DOMAIN_LABEL, RULE_STATUS_LABEL, SECTOR_LABEL, formatDateTimeTr, formatDateTr } from "@/components/rule-status";
 import { Disclaimer } from "@/components/ui";
+import { Tabs } from "@/components/interactive";
+import { wordDiff, type DiffPart } from "@/lib/text/word-diff";
+import type { VariantView } from "@/lib/data/types";
+import { SeverityFilter } from "./severity-filter";
 import type { AnalysisDetail, FindingFeedback, FindingView } from "@/lib/data/types";
 import type { DmKit } from "@/lib/engine/dm";
 import { PLATFORM_INFO, PLATFORM_SHORT, type Platform } from "@/lib/platforms";
@@ -277,14 +282,94 @@ function DmSection({ dm, print }: { dm: DmKit; print: boolean }) {
   );
 }
 
+function DiffText({ parts, kind }: { parts: DiffPart[]; kind: "del" | "ins" }) {
+  return (
+    <>
+      {parts.map((p, i) =>
+        p.changed ? (
+          kind === "del" ? (
+            <del key={i} className="rounded bg-coral-tint px-0.5 text-coral-deep decoration-coral-deep/60">{p.text}</del>
+          ) : (
+            <ins key={i} className="rounded bg-green-tint px-0.5 font-semibold text-green no-underline">{p.text}</ins>
+          )
+        ) : (
+          <span key={i}>{p.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+/** Before / after with the changed words highlighted (colour plus strike-through / bold, never colour alone). */
+function SafeCompare({ a, safe }: { a: AnalysisDetail; safe: VariantView }) {
+  const head = wordDiff(a.headline, safe.headline);
+  const body = wordDiff(a.primaryText, safe.primaryText);
+  return (
+    <section aria-labelledby="guvenli" className="break-inside-avoid">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="guvenli" className="font-display text-2xl font-semibold">Güvenli metin önerisi</h2>
+        <CopyButton text={[safe.headline, safe.primaryText, safe.description].filter(Boolean).join("\n\n")} label="Güvenli metni kopyala" />
+      </div>
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl border border-line bg-card p-5">
+          <p className="text-meta font-semibold text-muted">Önce: senin metnin</p>
+          {a.headline ? <p className="mt-2 font-bold"><DiffText parts={head.before} kind="del" /></p> : null}
+          <p className="mt-1 whitespace-pre-line leading-relaxed"><DiffText parts={body.before} kind="del" /></p>
+        </div>
+        <div className="rounded-2xl border border-green/30 bg-green-tint/40 p-5">
+          <p className="text-meta font-semibold text-green">Sonra: güvenli öneri</p>
+          {safe.headline ? <p className="mt-2 font-bold"><DiffText parts={head.after} kind="ins" /></p> : null}
+          <p className="mt-1 whitespace-pre-line leading-relaxed"><DiffText parts={body.after} kind="ins" /></p>
+          {safe.description ? <p className="mt-2 text-body text-ink-soft">{safe.description}</p> : null}
+        </div>
+      </div>
+      <p className="mt-2 text-meta text-muted">Çıkarılan ifadelerin üstü çizili, eklenenler kalın. Öneri aynı kural kartlarıyla yeniden tarandı: {safe.recheckRed} kırmızı, {safe.recheckYellow} sarı bayrak.</p>
+    </section>
+  );
+}
+
+/** The single most important thing to fix: the first red (legal before platform), else the first yellow finding. */
+function FixFirst({ a, safe }: { a: AnalysisDetail; safe: VariantView | undefined }) {
+  const rank = (f: FindingView) => (f.severity === "red" ? 0 : f.severity === "yellow" ? 2 : 4) + (f.domain === "tr_law" && f.rule?.status === "active" ? 0 : 1);
+  const top = [...a.findings].filter((f) => f.severity !== "info").sort((x, y) => rank(x) - rank(y))[0];
+  if (!top) return null;
+  return (
+    <section aria-labelledby="once-duzelt" className="rounded-2xl border border-blue/20 bg-blue-tint p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 id="once-duzelt" className="text-meta font-bold uppercase tracking-[0.08em] text-blue">Önce bunu düzelt</h2>
+          <p className="mt-2 text-lg font-bold leading-snug text-ink">
+            {top.matchedText ? <><span className={top.severity === "red" ? "mark-risk" : "mark-warn"}>“{top.matchedText}”</span> · </> : null}
+            {top.title}
+          </p>
+          <p className="mt-1.5 text-body leading-relaxed text-ink-soft"><span className="font-semibold text-ink">Düzeltme: </span>{top.suggestion}</p>
+        </div>
+        <span className="shrink-0 rounded-full bg-card px-2.5 py-1 text-meta font-bold text-ink">{SEVERITY_LABEL[top.severity]}</span>
+      </div>
+      {safe ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-card p-4">
+          <p className="min-w-0 flex-1 text-body leading-relaxed"><span className="font-semibold">Güvenli öneri: </span>{safe.primaryText}</p>
+          <CopyButton text={[safe.headline, safe.primaryText, safe.description].filter(Boolean).join("\n\n")} />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export function ReportView({
   a,
   print = false,
   feedback,
   assetBase,
+  layout = "flow",
+  appealSlot,
 }: {
   a: AnalysisDetail;
   print?: boolean;
+  /** "tabs" is the interactive panel layout; "flow" keeps every section in reading order (print, review link). */
+  layout?: "flow" | "tabs";
+  /** Shown in the İtiraz tab when there is no appeal yet (the owner's appeal form). */
+  appealSlot?: ReactNode;
   /** Feedback already given by the viewer; pass to show the "bu uyarı yanlış mı?" controls. */
   feedback?: FindingFeedback[];
   /** Where creative files are served from (the review link page uses its own route). */
@@ -298,9 +383,8 @@ export function ReportView({
   const safe = a.variants.find((v) => v.kind === "safe");
   const variants = a.variants.filter((v) => v.kind === "variant").sort((x, y) => x.position - y.position);
 
-  return (
-    <div className="flex flex-col gap-10">
-      {/* Scores */}
+  const scoresNode = (
+    <>
       <section aria-labelledby="skorlar" className="grid gap-4 md:grid-cols-3">
         <h2 id="skorlar" className="sr-only">Skorlar</h2>
         <div className="rounded-2xl border border-line bg-card p-5 break-inside-avoid">
@@ -321,7 +405,11 @@ export function ReportView({
         </div>
       </section>
 
-      {/* Creative and text */}
+
+    </>
+  );
+  const creativeNode = (
+    <>
       <section aria-labelledby="reklam" className="grid gap-6 md:grid-cols-[minmax(0,15rem)_1fr]">
         <h2 id="reklam" className="sr-only">İncelenen reklam</h2>
         <CreativeMedia a={a} base={base} />
@@ -356,14 +444,18 @@ export function ReportView({
         </div>
       </section>
 
-      {/* Findings */}
+
+    </>
+  );
+  const findingsNode = (
+    <>
       <section aria-labelledby="bulgular">
         <h2 id="bulgular" className="font-display text-2xl font-semibold">Bulgular <span className="text-base font-normal text-muted">· {a.findings.length}</span></h2>
         {a.findings.length === 0 ? (
           <p className="mt-4 rounded-2xl border border-line bg-card px-5 py-4 text-ink-soft">Aktif kural kartlarına göre işaretlenen bir ifade bulunmadı. Bu, reklamın onaylanacağı anlamına gelmez; görseldeki metin ve hedefleme ayrıca kontrol edilmelidir.</p>
         ) : (
           groups.filter((g) => g.items.length).map((g) => (
-            <div key={g.sev} className="mt-5">
+            <div key={g.sev} data-sev={g.sev} className="mt-5">
               <h3 className={`flex items-center gap-2 text-body font-bold ${SEV_STYLE[g.sev].text}`}>
                 {g.sev === "info" ? <IconInfo className="size-4" /> : <IconAlert className="size-4" />}
                 {SEVERITY_LABEL[g.sev]} · {g.items.length}
@@ -378,10 +470,11 @@ export function ReportView({
         )}
       </section>
 
-      {bd?.video ? <VideoReviewSection review={bd.video} base={base} /> : null}
-      {bd?.landing ? <LandingSection report={bd.landing} base={base} hasScreenshot={a.hasLandingScreenshot} /> : null}
 
-      {/* Score breakdown */}
+    </>
+  );
+  const breakdownNode = (
+    <>
       {bd ? (
         <section aria-labelledby="skor-detay" className="rounded-2xl border border-line bg-card p-5 break-inside-avoid">
           <h2 id="skor-detay" className="font-display text-xl font-semibold">Skorlar nasıl oluştu?</h2>
@@ -415,7 +508,11 @@ export function ReportView({
         </section>
       ) : null}
 
-      {/* Safe text */}
+
+    </>
+  );
+  const safeNode = (
+    <>
       {safe ? (
         <section aria-labelledby="guvenli" className="break-inside-avoid">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -431,7 +528,11 @@ export function ReportView({
         </section>
       ) : null}
 
-      {/* Variants */}
+
+    </>
+  );
+  const variantsNode = (
+    <>
       {variants.length ? (
         <section aria-labelledby="varyantlar" className={print ? "print-break" : ""}>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -461,9 +562,11 @@ export function ReportView({
         </section>
       ) : null}
 
-      {bd?.dm ? <DmSection dm={bd.dm} print={print} /> : null}
 
-      {/* Appeal */}
+    </>
+  );
+  const appealNode = (
+    <>
       {a.appeal ? (
         <section id="itiraz" aria-labelledby="itiraz-h" className="scroll-mt-6 break-inside-avoid">
           <h2 id="itiraz-h" className="font-display text-2xl font-semibold">İtiraz asistanı</h2>
@@ -492,6 +595,11 @@ export function ReportView({
         </section>
       ) : null}
 
+
+    </>
+  );
+  const footerNode = (
+    <>
       <footer className="flex flex-col gap-3 text-meta text-muted">
         <Disclaimer />
         <p>
@@ -499,6 +607,65 @@ export function ReportView({
           {a.expiresAt ? <> · {formatDateTr(a.expiresAt)} tarihinde otomatik silinecek</> : null}
         </p>
       </footer>
+
+    </>
+  );
+
+  if (layout === "tabs") {
+    const tabs = [
+      {
+        title: `Bulgular (${a.findings.length})`,
+        content: (
+          <div className="flex flex-col gap-8">
+            {creativeNode}
+            <SeverityFilter counts={{ red: groups[0].items.length, yellow: groups[1].items.length, info: groups[2].items.length }}>{findingsNode}</SeverityFilter>
+            {breakdownNode}
+          </div>
+        ),
+      },
+      ...(safe || variants.length
+        ? [
+            {
+              title: "Güvenli metin ve varyantlar",
+              content: (
+                <div className="flex flex-col gap-8">
+                  {safe ? <SafeCompare a={a} safe={safe} /> : null}
+                  {variantsNode}
+                </div>
+              ),
+            },
+          ]
+        : []),
+      ...(bd?.video ? [{ title: "Video", content: <VideoReviewSection review={bd.video} base={base} /> }] : []),
+      ...(bd?.landing ? [{ title: "Açılış sayfası", content: <LandingSection report={bd.landing} base={base} hasScreenshot={a.hasLandingScreenshot} /> }] : []),
+      ...(bd?.dm ? [{ title: "DM şablonu", content: <DmSection dm={bd.dm} print={false} /> }] : []),
+      ...(a.appeal || appealSlot ? [{ title: "İtiraz", hash: "itiraz", content: a.appeal ? appealNode : appealSlot }] : []),
+    ];
+    return (
+      <div className="flex flex-col gap-8">
+        {scoresNode}
+        <FixFirst a={a} safe={safe} />
+        <Tabs label="Rapor bölümleri" tabs={tabs} />
+        {footerNode}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-10">
+      {scoresNode}
+      {creativeNode}
+      {findingsNode}
+      {bd?.video ? <VideoReviewSection review={bd.video} base={base} /> : null}
+      {bd?.landing ? <LandingSection report={bd.landing} base={base} hasScreenshot={a.hasLandingScreenshot} /> : null}
+
+      {breakdownNode}
+      {safeNode}
+      {variantsNode}
+      {bd?.dm ? <DmSection dm={bd.dm} print={print} /> : null}
+
+      {appealNode}
+      {footerNode}
     </div>
   );
 }

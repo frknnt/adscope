@@ -80,6 +80,9 @@ Her renk bir CSS değişkeni ve aynı adlı Tailwind sınıfıdır (`bg-card`, `
 | `SegmentedLinks` | panel-ui.tsx | Izgara/liste gibi birbirini dışlayan bağlantılar (URL parametresi) |
 | `AdThumb` | panel-client.tsx | Kreatif ya da videonun ilk karesi; yüklenemezse sade simge |
 | `Menu` | panel-client.tsx | Üç nokta menüsü; ok tuşları, Home/End, Esc; ekranın altına taşacaksa yukarı açılır. Kaydırılan tablo içinde kullanma (kırpılır), satır içi düğme koy |
+| `SeverityFilter` | app/panel/analiz/severity-filter.tsx | Rapor bulgularında Tümü / Kırmızı / Sarı / Bilgi süzgeci (`aria-pressed`); grupları CSS ile gizler |
+| `AdPreview`, `PreviewFrame` | app/panel/yeni/preview.tsx | Sihirbazdaki sade akış önizlemesi; platform arayüzünü taklit etmez |
+| `Tabs` (hash) | interactive.tsx | Sekmeye `hash` verilirse adres `#hash` olduğunda o sekme açılır (ör. `#itiraz`) |
 
 Yeni bir bileşen yazmadan önce bu listeye bak; benzer bir şey varsa onu genişlet.
 

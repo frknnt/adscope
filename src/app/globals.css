@@ -286,3 +286,10 @@ p {
     margin: 14mm;
   }
 }
+
+/* Report finding level filter (SeverityFilter): hide the groups that are not selected. */
+.sev-filter[data-f="red"] [data-sev]:not([data-sev="red"]),
+.sev-filter[data-f="yellow"] [data-sev]:not([data-sev="yellow"]),
+.sev-filter[data-f="info"] [data-sev]:not([data-sev="info"]) {
+  display: none;
+}

@@ -32,7 +32,7 @@ export function AdThumb({ id, mediaType, className = "" }: { id: string; mediaTy
 
 export type MenuItem = { label: string; href?: string; onSelect?: () => void; danger?: boolean; download?: boolean };
 
-export function Menu({ label, items, trigger }: { label: string; items: MenuItem[]; trigger: ReactNode }) {
+export function Menu({ label, items, trigger, triggerClassName }: { label: string; items: MenuItem[]; trigger: ReactNode; triggerClassName?: string }) {
   const [open, setOpen] = useState(false);
   const [up, setUp] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
@@ -83,7 +83,7 @@ export function Menu({ label, items, trigger }: { label: string; items: MenuItem
           setUp(!!r && r.bottom + 56 * items.length + 110 > window.innerHeight);
           setOpen((v) => !v);
         }}
-        className="inline-flex size-11 items-center justify-center rounded-xl text-ink-soft hover:bg-paper-2 hover:text-ink"
+        className={triggerClassName ?? "inline-flex size-11 items-center justify-center rounded-xl text-ink-soft hover:bg-paper-2 hover:text-ink"}
       >
         {trigger}
       </button>

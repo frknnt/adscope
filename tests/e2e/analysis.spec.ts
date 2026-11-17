@@ -36,12 +36,26 @@ test("signup → wizard → result → report → appeal, charging exactly one c
   await expect(page.getByText("Kreatif skoru").first()).toBeVisible();
   await expect(page.getByText("Kırmızı bayrak").first()).toBeVisible();
   await expect(page.getByRole("link", { name: /META-UO-TIMEFRAME/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Önce bunu düzelt" })).toBeVisible();
+  // Level filter: "Sarı" hides the red group.
+  const reds = page.locator("[data-sev=red]");
+  // Retried: a click that lands before hydration does nothing.
+  await expect(async () => {
+    await page.getByRole("button", { name: /^Sarı \d/ }).click();
+    await expect(reds).toBeHidden({ timeout: 1000 });
+  }).toPass();
+  await page.getByRole("button", { name: /^Tümü \d/ }).click();
+  await expect(reds).toBeVisible();
+  await page.getByRole("tab", { name: "Güvenli metin ve varyantlar" }).click();
   await expect(page.getByRole("heading", { name: "Güvenli metin önerisi" })).toBeVisible();
+  await expect(page.getByText("Önce: senin metnin")).toBeVisible();
+  await expect(page.locator("section[aria-labelledby=guvenli] del").first()).toBeVisible();
   await expect(page.locator("section[aria-labelledby=varyantlar] > ol > li")).toHaveCount(5);
+  await page.getByRole("tab", { name: "İtiraz" }).click();
   await expect(page.getByRole("heading", { name: "İtiraz asistanı" })).toBeVisible();
   await expect(page.getByText(/Öneri: itiraz yerine/)).toBeVisible();
   await expect(page.getByText(DISCLAIMER).first()).toBeVisible();
-  const body = await page.locator("main").innerText();
+  const body = (await page.locator("main").textContent()) ?? "";
   for (const re of FORBIDDEN) expect(body).not.toMatch(re);
   await noHorizontalScroll(page);
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
@@ -210,4 +224,23 @@ test("dashboard and reports: real numbers, URL filters, list view, bulk CSV and 
   await page.getByRole("button", { name: "Seçilenleri sil" }).click();
   await page.getByRole("dialog", { name: "2 rapor silinsin mi?" }).getByRole("button", { name: "Kalıcı olarak sil" }).click();
   await expect(page.getByText("Henüz rapor yok.")).toBeVisible();
+});
+
+test("new analysis: text draft is offered back, preview follows the platform", async ({ page, isMobile }) => {
+  await signUp(page);
+  await page.goto("/panel/yeni");
+  await page.locator("input[type=file]").setInputFiles("tests/fixtures/ad.png");
+  await page.getByRole("button", { name: "Devam" }).click();
+  await page.getByLabel("Ana metin").fill("Taslak metnim: yeni sezon çayları.");
+  await page.waitForTimeout(900);
+  await page.reload();
+  await page.getByRole("button", { name: "Taslağı geri yükle" }).click();
+  await page.locator("input[type=file]").setInputFiles("tests/fixtures/ad.png");
+  await page.getByRole("button", { name: "Devam" }).click();
+  await expect(page.getByLabel("Ana metin")).toHaveValue("Taslak metnim: yeni sezon çayları.");
+  await page.getByRole("button", { name: "Devam" }).click();
+  await page.getByRole("radio", { name: "TikTok" }).check({ force: true });
+  if (isMobile) await page.getByText("Önizlemeyi göster").click();
+  await expect(page.getByText("TikTok akışında yaklaşık görünüm").locator("visible=true")).toBeVisible();
+  await noHorizontalScroll(page);
 });

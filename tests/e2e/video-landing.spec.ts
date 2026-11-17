@@ -42,7 +42,11 @@ test("video/Reels analysis: frames only, transcript scanned, landing page checke
   await signUp(page);
   await page.goto("/panel/yeni");
 
-  await page.getByRole("radio", { name: "Video / Reels" }).check({ force: true });
+  // Retried: a click that lands before hydration is undone by React.
+  await expect(async () => {
+    await page.getByRole("radio", { name: "Video / Reels" }).check({ force: true, timeout: 2000 });
+    await expect(page.getByRole("radio", { name: "Video / Reels" })).toBeChecked({ timeout: 1000 });
+  }).toPass();
   await expect(page.getByText("video cihazından çıkmaz")).toBeVisible();
 
   // A file the browser cannot decode gets a clear, non-technical message.
@@ -87,18 +91,22 @@ test("video/Reels analysis: frames only, transcript scanned, landing page checke
   await expect(page.getByText(/· Video metni/).first()).toBeVisible();
   await expect(page.getByText("Video çözünürlüğü düşük").first()).toBeVisible();
   await expect(page.getByText("Reels formatı").first()).toBeVisible();
+  await page.getByRole("tab", { name: "Video" }).click();
   const review = page.getByRole("region", { name: "Video kanca incelemesi" });
   await expect(review).toContainText("0 sn'de başlıyor");
   await expect(review).toContainText("Değerlendirilmedi (yapay zekâ kapalı)");
   if (withLanding) {
     expect(speechCalls).toEqual([{ wav: true }]);
+    await page.getByRole("tab", { name: /^Bulgular/ }).click();
     await expect(page.getByText(/Videodaki konuşma \(otomatik yazıya döküldü/)).toBeVisible();
     await expect(page.getByText("· Konuşma (otomatik)").first()).toBeVisible();
+    await page.getByRole("tab", { name: "Video" }).click();
     await expect(review).toContainText("Doktorlar bunu size söylemiyor, izle!");
   } else {
     expect(speechCalls).toEqual([]);
   }
   if (withLanding) {
+    await page.getByRole("tab", { name: "Açılış sayfası" }).click();
     const landing = page.getByRole("region", { name: "Açılış sayfası taraması" });
     await expect(landing).toBeVisible();
     await expect(landing).toContainText("Sayfa okundu");
@@ -126,7 +134,11 @@ test("video/Reels analysis: frames only, transcript scanned, landing page checke
   // A video analysis costs 2 credits (3 signup credits - 2).
   expect(await balance(page)).toBe(1);
   await page.goto("/panel/yeni");
-  await page.getByRole("radio", { name: "Video / Reels" }).check({ force: true });
+  // Retried: a click that lands before hydration is undone by React.
+  await expect(async () => {
+    await page.getByRole("radio", { name: "Video / Reels" }).check({ force: true, timeout: 2000 });
+    await expect(page.getByRole("radio", { name: "Video / Reels" })).toBeChecked({ timeout: 1000 });
+  }).toPass();
   await page.locator("input[type=file]").setInputFiles("tests/fixtures/reel.webm");
   await expect(page.getByText(/6 kare analiz edilecek/)).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Devam" }).click();
@@ -152,6 +164,7 @@ test("a landing page screenshot is stored, shown and only served to its owner", 
   await page.getByRole("button", { name: "Analizi başlat" }).click();
   await page.waitForURL(/\/panel\/analiz\/[0-9a-f-]{36}$/, { timeout: 60_000 });
 
+  await page.getByRole("tab", { name: "Açılış sayfası" }).click();
   const landing = page.getByRole("region", { name: "Açılış sayfası taraması" });
   await expect(landing).toBeVisible();
   await expect(landing.getByAltText("Yüklenen açılış sayfası ekran görüntüsü")).toBeVisible();

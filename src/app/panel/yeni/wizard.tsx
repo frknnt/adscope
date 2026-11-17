@@ -6,10 +6,11 @@ import { useEffect, useId, useRef, useState } from "react";
 import { IconAlert, IconImage, IconUpload, IconVideo } from "@/components/icons";
 import { Button, Field, inputClass, selectClass, Stepper } from "@/components/ui";
 import { creditCostFor } from "@/lib/analysis/cost";
+import { AdPreview, PreviewFrame } from "./preview";
 import { analyzeAudio, extractVideoFrames, VIDEO_MIME, videoErrorMessage, type AudioInfo, type ExtractedVideo } from "@/lib/video/extract-frames";
 
 import { SECTOR_IDS, SECTOR_INFO, type Sector } from "@/lib/sectors";
-import { isPlatform, PLATFORM_IDS, PLATFORM_INFO, type Platform } from "@/lib/platforms";
+import { isPlatform, PLATFORM_IDS, PLATFORM_INFO, PLATFORM_SHORT, type Platform } from "@/lib/platforms";
 type BrandOpt = { id: string; name: string; sector: Sector };
 
 const STEPS = ["Kreatif", "Metin", "Sektör", "Beyanlar", "Ret mesajı", "Kontrol"] as const;
@@ -20,13 +21,32 @@ const MAX_VIDEO_SECONDS = 600;
 const MAX_BYTES = 5 * 1024 * 1024;
 const MIME = ["image/jpeg", "image/png", "image/webp"];
 
-const SECTORS: { value: Sector; label: string; note: string }[] = SECTOR_IDS.map((s) => ({ value: s, label: SECTOR_INFO[s].label, note: SECTOR_INFO[s].note }));
+const SECTORS: { value: Sector; label: string; note: string }[] = SECTOR_IDS.map((s) => ({
+  value: s,
+  label: SECTOR_INFO[s].label,
+  note: SECTOR_INFO[s].note,
+}));
 
-type ImageState = { file: File; url: string; width: number; height: number } | null;
+type ImageState = {
+  file: File;
+  url: string;
+  width: number;
+  height: number;
+} | null;
 type VideoState = (ExtractedVideo & { name: string; audio: AudioInfo; wav: Blob | null }) | null;
 type ShotState = { file: File; url: string } | null;
-export type WizardInitial = { headline?: string; primaryText?: string; description?: string; sector?: Sector; templateTitle?: string; platform?: Platform; landingUrl?: string; media?: "image" | "video" };
+export type WizardInitial = {
+  headline?: string;
+  primaryText?: string;
+  description?: string;
+  sector?: Sector;
+  templateTitle?: string;
+  platform?: Platform;
+  landingUrl?: string;
+  media?: "image" | "video";
+};
 type Media = "image" | "video";
+const DRAFT_KEY = "adscope:yeni-analiz-taslak";
 
 /** Accepts "ornek.com/kampanya" as well as full URLs; returns null when it cannot be a public web address. */
 function normalizeLandingUrl(raw: string): string | null {
@@ -101,7 +121,11 @@ export function AnalysisWizard({
   const [shot, setShot] = useState<ShotState>(null);
   const [shotError, setShotError] = useState<string | null>(null);
   const [brandId, setBrandId] = useState<string>("");
-  const [flags, setFlags] = useState({ influencerPost: false, aiHumanCharacter: false, aiRealPersonCopy: false });
+  const [flags, setFlags] = useState({
+    influencerPost: false,
+    aiHumanCharacter: false,
+    aiRealPersonCopy: false,
+  });
   const [rejection, setRejection] = useState("");
   const [phase, setPhase] = useState<Phase>({ kind: "editing" });
   // One id per attempt: a double click or network retry of the same attempt reuses it (idempotent server side).
@@ -114,7 +138,11 @@ export function AnalysisWizard({
   useEffect(() => {
     if (initial?.templateTitle || !window.location.hash.startsWith("#")) return;
     const hp = new URLSearchParams(window.location.hash.slice(1));
-    const clean = (k: string, max: number) => (hp.get(k) ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").trim().slice(0, max);
+    const clean = (k: string, max: number) =>
+      (hp.get(k) ?? "")
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+        .trim()
+        .slice(0, max);
     const text = clean("metin", 2200);
     const head = clean("baslik", 255);
     const url = clean("url", 2048);
@@ -130,6 +158,82 @@ export function AnalysisWizard({
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }, [initial?.templateTitle]);
 
+  // Text-only draft in this browser (files are never stored). Offered back once on the next visit.
+  const [draft, setDraft] = useState<{
+    headline: string;
+    primaryText: string;
+    description: string;
+    landingUrl: string;
+    savedAt: string;
+  } | null>(null);
+  const draftReady = useRef(false);
+  useEffect(() => {
+    if (initial?.templateTitle || initial?.headline || window.location.hash.startsWith("#")) {
+      draftReady.current = true;
+      return;
+    }
+    let found = false;
+    try {
+      const raw = window.localStorage.getItem(DRAFT_KEY);
+      const d = raw ? JSON.parse(raw) : null;
+      if (d && typeof d.primaryText === "string" && (d.primaryText.trim() || d.headline?.trim())) {
+        found = true;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of browser-only state
+        setDraft({
+          headline: String(d.headline ?? "").slice(0, 255),
+          primaryText: d.primaryText.slice(0, 2200),
+          description: String(d.description ?? "").slice(0, 255),
+          landingUrl: String(d.landingUrl ?? "").slice(0, 2048),
+          savedAt: String(d.savedAt ?? ""),
+        });
+      }
+    } catch {
+      /* storage unavailable: drafts are a convenience only */
+    }
+    // While a saved draft is on offer, do not overwrite it.
+    draftReady.current = !found;
+  }, [initial?.templateTitle, initial?.headline]);
+  useEffect(() => {
+    if (!draftReady.current) return;
+    const t = window.setTimeout(() => {
+      try {
+        if (!headline.trim() && !primaryText.trim()) window.localStorage.removeItem(DRAFT_KEY);
+        else
+          window.localStorage.setItem(
+            DRAFT_KEY,
+            JSON.stringify({
+              headline,
+              primaryText,
+              description,
+              landingUrl,
+              savedAt: new Date().toISOString(),
+            }),
+          );
+      } catch {
+        /* ignore */
+      }
+    }, 600);
+    return () => window.clearTimeout(t);
+  }, [headline, primaryText, description, landingUrl]);
+  function restoreDraft() {
+    if (!draft) return;
+    setHeadline(draft.headline);
+    setPrimaryText(draft.primaryText);
+    setDescription(draft.description);
+    setLandingUrl(draft.landingUrl);
+    setDraft(null);
+    draftReady.current = true;
+  }
+  function discardDraft() {
+    setDraft(null);
+    draftReady.current = true;
+    try {
+      window.localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
   useEffect(() => {
     // Move focus only when the step actually changes (not on mount, not on StrictMode re-runs).
     if (shownStep.current === step) return;
@@ -137,9 +241,24 @@ export function AnalysisWizard({
     headingRef.current?.focus();
   }, [step]);
 
-  useEffect(() => () => { if (image) URL.revokeObjectURL(image.url); }, [image]);
-  useEffect(() => () => { video?.frames.forEach((f) => URL.revokeObjectURL(f.url)); }, [video]);
-  useEffect(() => () => { if (shot) URL.revokeObjectURL(shot.url); }, [shot]);
+  useEffect(
+    () => () => {
+      if (image) URL.revokeObjectURL(image.url);
+    },
+    [image],
+  );
+  useEffect(
+    () => () => {
+      video?.frames.forEach((f) => URL.revokeObjectURL(f.url));
+    },
+    [video],
+  );
+  useEffect(
+    () => () => {
+      if (shot) URL.revokeObjectURL(shot.url);
+    },
+    [shot],
+  );
 
   function acceptShot(file: File | undefined) {
     setShotError(null);
@@ -157,7 +276,10 @@ export function AnalysisWizard({
     try {
       // Frames and audio are both read in the browser; the video file itself is never uploaded.
       const [v, sound] = await Promise.all([
-        extractVideoFrames(file, { count: FRAME_COUNT, maxSeconds: MAX_VIDEO_SECONDS }),
+        extractVideoFrames(file, {
+          count: FRAME_COUNT,
+          maxSeconds: MAX_VIDEO_SECONDS,
+        }),
         analyzeAudio(file, { wavSeconds: speechEnabled ? SPEECH_SECONDS : 0 }),
       ]);
       setVideo({ ...v, name: file.name, audio: sound.info, wav: sound.wav });
@@ -249,7 +371,15 @@ export function AnalysisWizard({
         mediaType: media,
         video:
           media === "video" && video
-            ? { mime: video.mime, durationSec: video.durationSec, width: video.width, height: video.height, sizeBytes: video.sizeBytes, frameTimesMs: video.frames.map((f) => f.timeMs), audio: video.audio }
+            ? {
+                mime: video.mime,
+                durationSec: video.durationSec,
+                width: video.width,
+                height: video.height,
+                sizeBytes: video.sizeBytes,
+                frameTimesMs: video.frames.map((f) => f.timeMs),
+                audio: video.audio,
+              }
             : null,
         transcript: media === "video" ? transcript.trim() || null : null,
         landingUrl: normalizeLandingUrl(landingUrl),
@@ -258,8 +388,18 @@ export function AnalysisWizard({
     );
     try {
       const res = await fetch("/api/analyses", { method: "POST", body: fd });
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; analysisId?: string; code?: string; message?: string } | null;
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        analysisId?: string;
+        code?: string;
+        message?: string;
+      } | null;
       if (res.ok && data?.ok && data.analysisId) {
+        try {
+          window.localStorage.removeItem(DRAFT_KEY);
+        } catch {
+          /* ignore */
+        }
         router.push(`/panel/analiz/${data.analysisId}`);
         router.refresh();
         return;
@@ -274,7 +414,11 @@ export function AnalysisWizard({
       });
     } catch {
       // Network failure: the server may or may not have finished. Keep the same id so a retry is deduplicated.
-      setPhase({ kind: "error", message: "Bağlantı kesildi. Krediniz yalnızca rapor tamamlanırsa düşer; tekrar denediğinizde aynı analiz kaldığı yerden döner.", retryable: true });
+      setPhase({
+        kind: "error",
+        message: "Bağlantı kesildi. Krediniz yalnızca rapor tamamlanırsa düşer; tekrar denediğinizde aynı analiz kaldığı yerden döner.",
+        retryable: true,
+      });
     }
   }
 
@@ -286,11 +430,25 @@ export function AnalysisWizard({
         <p className="mx-auto mt-2 max-w-md text-ink-soft">
           {media === "video" ? "Video kareleri doğrulanıyor" : "Görsel doğrulanıyor"}
           {media === "video" && speechEnabled && speechOptIn && video?.wav ? ", konuşma yazıya dökülüyor" : ""}
-          {normalizeLandingUrl(landingUrl) || shot ? ", açılış sayfası taranıyor" : ""}, kural kartları uygulanıyor, güvenli metin ve varyantlar hazırlanıyor. Genellikle 10–60 saniye sürer; bu sayfadan ayrılma.
+          {normalizeLandingUrl(landingUrl) || shot ? ", açılış sayfası taranıyor" : ""}, kural kartları uygulanıyor, güvenli metin ve varyantlar hazırlanıyor. Genellikle 10–60 saniye sürer; bu
+          sayfadan ayrılma.
         </p>
       </div>
     );
   }
+
+  const preview = (
+    <PreviewFrame platform={platform}>
+      <AdPreview
+        platform={platform}
+        imageUrl={media === "video" ? (video?.frames[0]?.url ?? null) : (image?.url ?? null)}
+        headline={headline}
+        primaryText={primaryText}
+        description={description}
+        brandName={brands.find((b) => b.id === brandId)?.name ?? ""}
+      />
+    </PreviewFrame>
+  );
 
   const stepTitle = [
     media === "video" ? "Reklam videosunu seç" : "Reklam görselini yükle",
@@ -308,293 +466,470 @@ export function AnalysisWizard({
           Metin tarayıcı eklentisinden veya ilham panosundan geldi. Göndermeden önce kontrol et; görseli ilk adımda sen ekleyeceksin.
         </p>
       ) : null}
+      {draft ? (
+        <div role="status" className="mb-6 flex max-w-3xl flex-wrap items-center justify-between gap-3 rounded-xl border border-blue/20 bg-blue-tint px-4 py-3">
+          <p className="text-body text-ink">
+            Bu tarayıcıda kaydedilmiş bir metin taslağın var
+            {draft.savedAt && !Number.isNaN(Date.parse(draft.savedAt))
+              ? ` (${new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }).format(new Date(draft.savedAt))})`
+              : ""}
+            . Görseller saklanmaz.
+          </p>
+          <span className="flex gap-2">
+            <Button type="button" variant="primary" className="h-10 px-4" onClick={restoreDraft}>
+              Taslağı geri yükle
+            </Button>
+            <Button type="button" variant="ghost" className="h-10 px-4" onClick={discardDraft}>
+              Sil
+            </Button>
+          </span>
+        </div>
+      ) : null}
       <Stepper steps={[...STEPS, "Rapor"]} current={step} />
 
-      <section className="mt-6 rounded-2xl border border-line bg-card p-5 sm:p-8" aria-labelledby={`${ids}-h`}>
-        <h2 id={`${ids}-h`} ref={headingRef} tabIndex={-1} className="font-display text-2xl font-semibold outline-none">
-          <span className="sr-only">Adım {step + 1} / 7: </span>
-          {stepTitle}
-        </h2>
+      <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
+        <section className="min-w-0 rounded-2xl border border-line bg-card p-5 shadow-card sm:p-8" aria-labelledby={`${ids}-h`}>
+          <h2 id={`${ids}-h`} ref={headingRef} tabIndex={-1} className="font-display text-2xl font-semibold outline-none">
+            <span className="sr-only">Adım {step + 1} / 7: </span>
+            {stepTitle}
+          </h2>
 
-        {phase.kind === "error" ? (
-          <div role="alert" className="mt-5 flex gap-3 rounded-xl bg-coral-tint px-4 py-3 text-body text-coral-deep">
-            <IconAlert className="mt-0.5 size-5 shrink-0" />
-            <div>
-              <p className="font-semibold">{phase.message}</p>
-              {phase.analysisId ? <Link href={`/panel/analiz/${phase.analysisId}`} className="font-semibold text-coral-deep">Kaydı görüntüle</Link> : null}
-              {!phase.retryable ? <Link href="/panel/krediler" className="ml-3 font-semibold text-coral-deep">Kredi yükle</Link> : null}
+          {phase.kind === "error" ? (
+            <div role="alert" className="mt-5 flex gap-3 rounded-xl bg-coral-tint px-4 py-3 text-body text-coral-deep">
+              <IconAlert className="mt-0.5 size-5 shrink-0" />
+              <div>
+                <p className="font-semibold">{phase.message}</p>
+                {phase.analysisId ? (
+                  <Link href={`/panel/analiz/${phase.analysisId}`} className="font-semibold text-coral-deep">
+                    Kaydı görüntüle
+                  </Link>
+                ) : null}
+                {!phase.retryable ? (
+                  <Link href="/panel/krediler" className="ml-3 font-semibold text-coral-deep">
+                    Kredi yükle
+                  </Link>
+                ) : null}
+              </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
 
-        {step === 0 ? (
-          <div className="mt-5">
-            <div role="radiogroup" aria-label="Kreatif türü" className="inline-flex rounded-xl border border-line-strong bg-paper/60 p-1">
-              {([
-                ["image", "Görsel", IconImage],
-                ["video", "Video / Reels", IconVideo],
-              ] as const).map(([value, label, Icon]) => (
-                <label key={value} className="flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-body font-semibold text-ink-soft has-[:checked]:bg-ink has-[:checked]:text-paper has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-coral">
-                  <input type="radio" name="media" value={value} checked={media === value} onChange={() => { setMedia(value); setImageError(null); }} className="sr-only" />
-                  <Icon className="size-4.5" /> {label}
+          {step === 0 ? (
+            <div className="mt-5">
+              <div role="radiogroup" aria-label="Kreatif türü" className="inline-flex rounded-xl border border-line-strong bg-paper/60 p-1">
+                {(
+                  [
+                    ["image", "Görsel", IconImage],
+                    ["video", "Video / Reels", IconVideo],
+                  ] as const
+                ).map(([value, label, Icon]) => (
+                  <label
+                    key={value}
+                    className="flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-body font-semibold text-ink-soft has-[:checked]:bg-ink has-[:checked]:text-paper has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-coral"
+                  >
+                    <input
+                      type="radio"
+                      name="media"
+                      value={value}
+                      checked={media === value}
+                      onChange={() => {
+                        setMedia(value);
+                        setImageError(null);
+                      }}
+                      className="sr-only"
+                    />
+                    <Icon className="size-4.5" /> {label}
+                  </label>
+                ))}
+              </div>
+
+              <label
+                htmlFor={`${ids}-file`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  acceptAny(e.dataTransfer.files?.[0]);
+                }}
+                className={`mt-4 grid cursor-pointer place-items-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors ${dragOver ? "border-coral bg-coral-tint/40" : "border-line-strong bg-paper/60 hover:bg-paper-2/60"}`}
+              >
+                {media === "image" && image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={image.url} alt="Yüklenecek reklam görselinin önizlemesi" className="max-h-72 rounded-lg border border-line object-contain shadow-sm" />
+                ) : media === "video" && videoBusy ? (
+                  <span className="flex flex-col items-center gap-3 text-ink-soft" role="status">
+                    <span className="size-8 animate-spin rounded-full border-[3px] border-line border-t-coral motion-reduce:animate-none" aria-hidden />
+                    <span className="font-semibold text-ink">Videodan kareler alınıyor…</span>
+                  </span>
+                ) : media === "video" && video ? (
+                  <span className="flex max-w-full gap-2 overflow-x-auto pb-1">
+                    {video.frames.map((f, i) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        key={f.url}
+                        src={f.url}
+                        alt={`Kare ${i + 1}, ${(f.timeMs / 1000).toLocaleString("tr-TR", { maximumFractionDigits: 1 })}. saniye`}
+                        className="h-40 w-auto shrink-0 rounded-md border border-line object-cover shadow-sm"
+                      />
+                    ))}
+                  </span>
+                ) : (
+                  <span className="flex flex-col items-center gap-3 text-ink-soft">
+                    {media === "video" ? <IconVideo className="size-8 text-ink" /> : <IconUpload className="size-8 text-ink" />}
+                    <span className="font-semibold text-ink">{media === "video" ? "Videoyu sürükle bırak ya da seçmek için tıkla" : "Görseli sürükle bırak ya da seçmek için tıkla"}</span>
+                    <span className="text-small">
+                      {media === "video" ? "MP4, MOV veya WebM · en fazla 10 dakika · video cihazından çıkmaz" : "JPG, PNG veya WebP · en fazla 5 MB · en kısa kenar en az 200 px"}
+                    </span>
+                  </span>
+                )}
+              </label>
+              <input
+                id={`${ids}-file`}
+                key={media}
+                ref={fileInput}
+                type="file"
+                accept={media === "video" ? "video/mp4,video/quicktime,video/webm" : "image/jpeg,image/png,image/webp"}
+                className="sr-only"
+                aria-label={media === "video" ? "Reklam videosu" : "Reklam görseli"}
+                aria-describedby={imageError ? `${ids}-file-err` : undefined}
+                aria-invalid={imageError ? true : undefined}
+                onChange={(e) => (media === "video" ? void acceptVideo(e.target.files?.[0]) : void acceptFile(e.target.files?.[0]))}
+              />
+              {media === "image" && image ? (
+                <p className="mt-3 text-small text-ink-soft">
+                  <span className="font-semibold text-ink">{image.file.name}</span> ·{" "}
+                  <span className="tabular">
+                    {image.width}×{image.height}
+                  </span>{" "}
+                  px ·{" "}
+                  <span className="tabular">
+                    {(image.file.size / 1024 / 1024).toLocaleString("tr-TR", {
+                      maximumFractionDigits: 1,
+                    })}
+                  </span>{" "}
+                  MB{" "}
+                  <button type="button" className="ml-2 font-semibold text-coral-deep underline-offset-4 hover:underline" onClick={() => fileInput.current?.click()}>
+                    Değiştir
+                  </button>
+                </p>
+              ) : null}
+              {media === "video" && video && !videoBusy ? (
+                <p className="mt-3 text-small text-ink-soft">
+                  <span className="font-semibold text-ink">{video.name}</span> ·{" "}
+                  <span className="tabular">
+                    {video.width}×{video.height}
+                  </span>{" "}
+                  px ·{" "}
+                  <span className="tabular">
+                    {video.durationSec.toLocaleString("tr-TR", {
+                      maximumFractionDigits: 1,
+                    })}
+                  </span>{" "}
+                  sn · <span className="tabular">{video.frames.length}</span> kare analiz edilecek{" "}
+                  <button type="button" className="ml-2 font-semibold text-coral-deep underline-offset-4 hover:underline" onClick={() => fileInput.current?.click()}>
+                    Değiştir
+                  </button>
+                </p>
+              ) : null}
+              {media === "video" ? (
+                <p className="mt-3 max-w-2xl text-small text-muted">
+                  Video dosyası yüklenmez. Tarayıcın videodan altı kare alır (üçü ilk saniyelerden) ve sesin ne zaman başladığını ölçer; yalnızca bu kareler ve ölçümler gönderilir.
+                  {speechEnabled ? " Konuşmanın otomatik yazıya dökülmesini bir sonraki adımda açabilirsin." : " Konuşmayı bir sonraki adımda yazabilirsin."}
+                </p>
+              ) : null}
+              {imageError ? (
+                <p id={`${ids}-file-err`} role="alert" className="mt-3 text-body font-medium text-coral-deep">
+                  {imageError}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {step === 1 ? (
+            <div className="mt-5 grid gap-5">
+              <Field label="Ana metin" htmlFor="primaryText" error={textError} hint={<Counter value={primaryText} soft={125} max={2200} />}>
+                <textarea
+                  id="primaryText"
+                  rows={6}
+                  maxLength={2200}
+                  value={primaryText}
+                  onChange={(e) => setPrimaryText(e.target.value)}
+                  aria-invalid={textError ? true : undefined}
+                  className={inputClass}
+                  placeholder="Reklamın gönderi metni"
+                />
+              </Field>
+              <Field label="Başlık (isteğe bağlı)" htmlFor="headline" hint={<Counter value={headline} soft={40} max={255} />}>
+                <input id="headline" maxLength={255} value={headline} onChange={(e) => setHeadline(e.target.value)} className={inputClass} />
+              </Field>
+              <Field label="Açıklama (isteğe bağlı)" htmlFor="description" hint={<Counter value={description} soft={30} max={255} />}>
+                <input id="description" maxLength={255} value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
+              </Field>
+              {media === "video" ? (
+                <Field
+                  label="Videodaki konuşma ve ekran yazıları (isteğe bağlı)"
+                  htmlFor="transcript"
+                  hint={
+                    <span>
+                      Dış ses, altyazı ve ekranda geçen vaatleri yaz; aynı kurallarla taranır. <Counter value={transcript} soft={3000} max={3000} />
+                    </span>
+                  }
+                >
+                  <textarea
+                    id="transcript"
+                    rows={5}
+                    maxLength={3000}
+                    value={transcript}
+                    onChange={(e) => setTranscript(e.target.value)}
+                    className={inputClass}
+                    placeholder="Örn. “İlk 100 kişiye yüzde 50 indirim, hemen kaydır!”"
+                  />
+                </Field>
+              ) : null}
+              {media === "video" && speechEnabled ? (
+                <label className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-field/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-field">
+                  <input type="checkbox" checked={speechOptIn} onChange={(e) => setSpeechOptIn(e.target.checked)} disabled={!video?.wav} className="mt-1 accent-ink" />
+                  <span>
+                    <span className="block text-body font-semibold">Konuşmayı otomatik yazıya dök</span>
+                    <span className="block text-small text-ink-soft">
+                      {video?.wav
+                        ? `Videonun ilk ${Math.min(SPEECH_SECONDS, Math.round(video.durationSec))} saniyelik sesi bir kez konuşma tanıma hizmetine gönderilir. Ses saklanmaz; çıkan metin raporda gösterilir ve kurallarla taranır.`
+                        : "Bu videoda okunabilir bir ses bulunamadı."}
+                    </span>
+                  </span>
                 </label>
-              ))}
+              ) : null}
+              <Field
+                label="Açılış sayfası bağlantısı (isteğe bağlı)"
+                htmlFor="landingUrl"
+                error={landingError}
+                hint="Reklamın yönlendirdiği sayfa. Bir kez okunur; fiyat, indirim ve marka tutarlılığı kontrol edilir. Sayfa içeriği saklanmaz."
+              >
+                <input
+                  id="landingUrl"
+                  type="url"
+                  inputMode="url"
+                  autoComplete="url"
+                  maxLength={2048}
+                  value={landingUrl}
+                  onChange={(e) => setLandingUrl(e.target.value)}
+                  aria-invalid={landingError ? true : undefined}
+                  className={inputClass}
+                  placeholder="https://ornek.com/kampanya"
+                />
+              </Field>
+              <Field
+                label="Açılış sayfası ekran görüntüsü (isteğe bağlı)"
+                htmlFor="landingScreenshot"
+                error={shotError}
+                hint="Sayfa giriş istiyorsa, bot korumasındaysa ya da içeriği JavaScript ile yükleniyorsa ekran görüntüsünü ekle. Görüntü raporla birlikte saklanır."
+              >
+                <input
+                  id="landingScreenshot"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => acceptShot(e.target.files?.[0])}
+                  aria-invalid={shotError ? true : undefined}
+                  className="block w-full text-body text-ink-soft file:mr-4 file:rounded-full file:border-0 file:bg-ink file:px-4 file:py-2 file:text-small file:font-semibold file:text-paper hover:file:bg-ink-soft"
+                />
+              </Field>
             </div>
+          ) : null}
 
-            <label
-              htmlFor={`${ids}-file`}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={(e) => { e.preventDefault(); setDragOver(false); acceptAny(e.dataTransfer.files?.[0]); }}
-              className={`mt-4 grid cursor-pointer place-items-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors ${dragOver ? "border-coral bg-coral-tint/40" : "border-line-strong bg-paper/60 hover:bg-paper-2/60"}`}
-            >
+          {step === 2 ? (
+            <div className="mt-5 grid gap-6">
+              <fieldset>
+                <legend className="text-sm font-semibold">Platform</legend>
+                <div className="mt-3 inline-flex w-full max-w-md rounded-xl border border-line bg-paper-2 p-1 sm:w-auto">
+                  {PLATFORM_IDS.map((p) => (
+                    <label
+                      key={p}
+                      className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-lg px-4 text-small font-semibold text-ink-soft has-[:checked]:bg-card has-[:checked]:text-ink has-[:checked]:shadow-card has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-blue"
+                    >
+                      <input type="radio" name="platform" value={p} checked={platform === p} onChange={() => setPlatform(p)} className="sr-only" />
+                      {PLATFORM_SHORT[p]}
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-2 text-meta text-muted">{PLATFORM_INFO[platform].note}</p>
+              </fieldset>
+              <fieldset>
+                <legend className="text-sm font-semibold">Sektör</legend>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {SECTORS.map((s) => (
+                    <label
+                      key={s.value}
+                      className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-field/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-field has-[:checked]:shadow-[0_0_0_1px_var(--ink)]"
+                    >
+                      <input type="radio" name="sector" value={s.value} checked={sector === s.value} onChange={() => setSector(s.value)} className="mt-1 accent-ink" />
+                      <span>
+                        <span className="block text-body font-semibold">{s.label}</span>
+                        <span className="block text-meta text-muted">{s.note}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              {brands.length ? (
+                <Field label="Marka (isteğe bağlı)" htmlFor="brand">
+                  <select id="brand" value={brandId} onChange={(e) => setBrandId(e.target.value)} className={`${selectClass} max-w-sm`}>
+                    <option value="">Marka seçme</option>
+                    {brands.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              ) : null}
+            </div>
+          ) : null}
+
+          {step === 3 ? (
+            <fieldset className="mt-5">
+              <legend className="max-w-2xl text-body text-ink-soft">
+                Bunlar görselden güvenilir biçimde anlaşılamaz, o yüzden senden alıyoruz. İşaretlediğin her madde ilgili kural kartını devreye sokar.
+              </legend>
+              <div className="mt-4 grid gap-3">
+                {(
+                  [
+                    ["influencerPost", "Etkileyici (influencer) iş birliği", "Reklam bir sosyal medya fenomeninin hesabından yayınlanacak ya da ücretli/ürün karşılığı iş birliği içeriyor."],
+                    ["aiHumanCharacter", "Yapay zekâ ile üretilmiş insan karakteri", "Görselde gerçekte var olmayan, yapay zekâ ile oluşturulmuş bir kişi yer alıyor."],
+                    ["aiRealPersonCopy", "Gerçek bir kişinin dijital kopyası", "Gerçek bir kişinin görüntüsü veya sesi yapay zekâ ile yeniden üretildi."],
+                  ] as const
+                ).map(([key, title, note]) => (
+                  <label key={key} className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-field/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-field">
+                    <input type="checkbox" checked={flags[key]} onChange={(e) => setFlags((f) => ({ ...f, [key]: e.target.checked }))} className="mt-1 size-4.5 accent-ink" />
+                    <span>
+                      <span className="block text-body font-semibold">{title}</span>
+                      <span className="block text-small text-ink-soft">{note}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          ) : null}
+
+          {step === 4 ? (
+            <div className="mt-5">
+              <Field label="Meta ret mesajı (isteğe bağlı)" htmlFor="rejection" hint="Varsa yapıştır; raporla birlikte TR + EN itiraz taslağı da hazırlanır. Yoksa bu adımı boş geç.">
+                <textarea id="rejection" rows={5} maxLength={3000} value={rejection} onChange={(e) => setRejection(e.target.value)} className={inputClass} />
+              </Field>
+            </div>
+          ) : null}
+
+          {step === 5 ? (
+            <div className="mt-5 grid gap-5 sm:grid-cols-[10rem_1fr]">
               {media === "image" && image ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={image.url} alt="Yüklenecek reklam görselinin önizlemesi" className="max-h-72 rounded-lg border border-line object-contain shadow-sm" />
-              ) : media === "video" && videoBusy ? (
-                <span className="flex flex-col items-center gap-3 text-ink-soft" role="status">
-                  <span className="size-8 animate-spin rounded-full border-[3px] border-line border-t-coral motion-reduce:animate-none" aria-hidden />
-                  <span className="font-semibold text-ink">Videodan kareler alınıyor…</span>
-                </span>
-              ) : media === "video" && video ? (
-                <span className="flex max-w-full gap-2 overflow-x-auto pb-1">
-                  {video.frames.map((f, i) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img key={f.url} src={f.url} alt={`Kare ${i + 1}, ${(f.timeMs / 1000).toLocaleString("tr-TR", { maximumFractionDigits: 1 })}. saniye`} className="h-40 w-auto shrink-0 rounded-md border border-line object-cover shadow-sm" />
-                  ))}
-                </span>
-              ) : (
-                <span className="flex flex-col items-center gap-3 text-ink-soft">
-                  {media === "video" ? <IconVideo className="size-8 text-ink" /> : <IconUpload className="size-8 text-ink" />}
-                  <span className="font-semibold text-ink">{media === "video" ? "Videoyu sürükle bırak ya da seçmek için tıkla" : "Görseli sürükle bırak ya da seçmek için tıkla"}</span>
-                  <span className="text-small">
-                    {media === "video" ? "MP4, MOV veya WebM · en fazla 10 dakika · video cihazından çıkmaz" : "JPG, PNG veya WebP · en fazla 5 MB · en kısa kenar en az 200 px"}
-                  </span>
-                </span>
-              )}
-            </label>
-            <input
-              id={`${ids}-file`}
-              key={media}
-              ref={fileInput}
-              type="file"
-              accept={media === "video" ? "video/mp4,video/quicktime,video/webm" : "image/jpeg,image/png,image/webp"}
-              className="sr-only"
-              aria-label={media === "video" ? "Reklam videosu" : "Reklam görseli"}
-              aria-describedby={imageError ? `${ids}-file-err` : undefined}
-              aria-invalid={imageError ? true : undefined}
-              onChange={(e) => (media === "video" ? void acceptVideo(e.target.files?.[0]) : void acceptFile(e.target.files?.[0]))}
-            />
-            {media === "image" && image ? (
-              <p className="mt-3 text-small text-ink-soft">
-                <span className="font-semibold text-ink">{image.file.name}</span> · <span className="tabular">{image.width}×{image.height}</span> px · <span className="tabular">{(image.file.size / 1024 / 1024).toLocaleString("tr-TR", { maximumFractionDigits: 1 })}</span> MB{" "}
-                <button type="button" className="ml-2 font-semibold text-coral-deep underline-offset-4 hover:underline" onClick={() => fileInput.current?.click()}>Değiştir</button>
-              </p>
-            ) : null}
-            {media === "video" && video && !videoBusy ? (
-              <p className="mt-3 text-small text-ink-soft">
-                <span className="font-semibold text-ink">{video.name}</span> · <span className="tabular">{video.width}×{video.height}</span> px · <span className="tabular">{video.durationSec.toLocaleString("tr-TR", { maximumFractionDigits: 1 })}</span> sn · <span className="tabular">{video.frames.length}</span> kare analiz edilecek{" "}
-                <button type="button" className="ml-2 font-semibold text-coral-deep underline-offset-4 hover:underline" onClick={() => fileInput.current?.click()}>Değiştir</button>
-              </p>
-            ) : null}
-            {media === "video" ? (
-              <p className="mt-3 max-w-2xl text-small text-muted">Video dosyası yüklenmez. Tarayıcın videodan altı kare alır (üçü ilk saniyelerden) ve sesin ne zaman başladığını ölçer; yalnızca bu kareler ve ölçümler gönderilir.{speechEnabled ? " Konuşmanın otomatik yazıya dökülmesini bir sonraki adımda açabilirsin." : " Konuşmayı bir sonraki adımda yazabilirsin."}</p>
-            ) : null}
-            {imageError ? <p id={`${ids}-file-err`} role="alert" className="mt-3 text-body font-medium text-coral-deep">{imageError}</p> : null}
-          </div>
-        ) : null}
-
-        {step === 1 ? (
-          <div className="mt-5 grid gap-5">
-            <Field label="Ana metin" htmlFor="primaryText" error={textError} hint={<Counter value={primaryText} soft={125} max={2200} />}>
-              <textarea id="primaryText" rows={6} maxLength={2200} value={primaryText} onChange={(e) => setPrimaryText(e.target.value)} aria-invalid={textError ? true : undefined} className={inputClass} placeholder="Reklamın gönderi metni" />
-            </Field>
-            <Field label="Başlık (isteğe bağlı)" htmlFor="headline" hint={<Counter value={headline} soft={40} max={255} />}>
-              <input id="headline" maxLength={255} value={headline} onChange={(e) => setHeadline(e.target.value)} className={inputClass} />
-            </Field>
-            <Field label="Açıklama (isteğe bağlı)" htmlFor="description" hint={<Counter value={description} soft={30} max={255} />}>
-              <input id="description" maxLength={255} value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
-            </Field>
-            {media === "video" ? (
-              <Field
-                label="Videodaki konuşma ve ekran yazıları (isteğe bağlı)"
-                htmlFor="transcript"
-                hint={<span>Dış ses, altyazı ve ekranda geçen vaatleri yaz; aynı kurallarla taranır. <Counter value={transcript} soft={3000} max={3000} /></span>}
-              >
-                <textarea id="transcript" rows={5} maxLength={3000} value={transcript} onChange={(e) => setTranscript(e.target.value)} className={inputClass} placeholder="Örn. “İlk 100 kişiye yüzde 50 indirim, hemen kaydır!”" />
-              </Field>
-            ) : null}
-            {media === "video" && speechEnabled ? (
-              <label className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-field/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-field">
-                <input type="checkbox" checked={speechOptIn} onChange={(e) => setSpeechOptIn(e.target.checked)} disabled={!video?.wav} className="mt-1 accent-ink" />
-                <span>
-                  <span className="block text-body font-semibold">Konuşmayı otomatik yazıya dök</span>
-                  <span className="block text-small text-ink-soft">
-                    {video?.wav
-                      ? `Videonun ilk ${Math.min(SPEECH_SECONDS, Math.round(video.durationSec))} saniyelik sesi bir kez konuşma tanıma hizmetine gönderilir. Ses saklanmaz; çıkan metin raporda gösterilir ve kurallarla taranır.`
-                      : "Bu videoda okunabilir bir ses bulunamadı."}
-                  </span>
-                </span>
-              </label>
-            ) : null}
-            <Field
-              label="Açılış sayfası bağlantısı (isteğe bağlı)"
-              htmlFor="landingUrl"
-              error={landingError}
-              hint="Reklamın yönlendirdiği sayfa. Bir kez okunur; fiyat, indirim ve marka tutarlılığı kontrol edilir. Sayfa içeriği saklanmaz."
-            >
-              <input id="landingUrl" type="url" inputMode="url" autoComplete="url" maxLength={2048} value={landingUrl} onChange={(e) => setLandingUrl(e.target.value)} aria-invalid={landingError ? true : undefined} className={inputClass} placeholder="https://ornek.com/kampanya" />
-            </Field>
-            <Field
-              label="Açılış sayfası ekran görüntüsü (isteğe bağlı)"
-              htmlFor="landingScreenshot"
-              error={shotError}
-              hint="Sayfa giriş istiyorsa, bot korumasındaysa ya da içeriği JavaScript ile yükleniyorsa ekran görüntüsünü ekle. Görüntü raporla birlikte saklanır."
-            >
-              <input
-                id="landingScreenshot"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(e) => acceptShot(e.target.files?.[0])}
-                aria-invalid={shotError ? true : undefined}
-                className="block w-full text-body text-ink-soft file:mr-4 file:rounded-full file:border-0 file:bg-ink file:px-4 file:py-2 file:text-small file:font-semibold file:text-paper hover:file:bg-ink-soft"
-              />
-            </Field>
-          </div>
-        ) : null}
-
-        {step === 2 ? (
-          <div className="mt-5 grid gap-6">
-            <fieldset>
-              <legend className="text-sm font-semibold">Platform</legend>
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                {PLATFORM_IDS.map((p) => (
-                  <label key={p} className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-field/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-field has-[:checked]:shadow-[0_0_0_1px_var(--ink)]">
-                    <input type="radio" name="platform" value={p} checked={platform === p} onChange={() => setPlatform(p)} className="mt-1 accent-ink" />
-                    <span>
-                      <span className="block text-body font-semibold">{PLATFORM_INFO[p].label}</span>
-                      <span className="block text-meta text-muted">{PLATFORM_INFO[p].note}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            <fieldset>
-              <legend className="text-sm font-semibold">Sektör</legend>
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                {SECTORS.map((s) => (
-                  <label key={s.value} className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-field/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-field has-[:checked]:shadow-[0_0_0_1px_var(--ink)]">
-                    <input type="radio" name="sector" value={s.value} checked={sector === s.value} onChange={() => setSector(s.value)} className="mt-1 accent-ink" />
-                    <span>
-                      <span className="block text-body font-semibold">{s.label}</span>
-                      <span className="block text-meta text-muted">{s.note}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            {brands.length ? (
-              <Field label="Marka (isteğe bağlı)" htmlFor="brand">
-                <select id="brand" value={brandId} onChange={(e) => setBrandId(e.target.value)} className={`${selectClass} max-w-sm`}>
-                  <option value="">Marka seçme</option>
-                  {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-              </Field>
-            ) : null}
-          </div>
-        ) : null}
-
-        {step === 3 ? (
-          <fieldset className="mt-5">
-            <legend className="max-w-2xl text-body text-ink-soft">Bunlar görselden güvenilir biçimde anlaşılamaz, o yüzden senden alıyoruz. İşaretlediğin her madde ilgili kural kartını devreye sokar.</legend>
-            <div className="mt-4 grid gap-3">
-              {([
-                ["influencerPost", "Etkileyici (influencer) iş birliği", "Reklam bir sosyal medya fenomeninin hesabından yayınlanacak ya da ücretli/ürün karşılığı iş birliği içeriyor."],
-                ["aiHumanCharacter", "Yapay zekâ ile üretilmiş insan karakteri", "Görselde gerçekte var olmayan, yapay zekâ ile oluşturulmuş bir kişi yer alıyor."],
-                ["aiRealPersonCopy", "Gerçek bir kişinin dijital kopyası", "Gerçek bir kişinin görüntüsü veya sesi yapay zekâ ile yeniden üretildi."],
-              ] as const).map(([key, title, note]) => (
-                <label key={key} className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-field/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-field">
-                  <input type="checkbox" checked={flags[key]} onChange={(e) => setFlags((f) => ({ ...f, [key]: e.target.checked }))} className="mt-1 size-4.5 accent-ink" />
-                  <span>
-                    <span className="block text-body font-semibold">{title}</span>
-                    <span className="block text-small text-ink-soft">{note}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        ) : null}
-
-        {step === 4 ? (
-          <div className="mt-5">
-            <Field label="Meta ret mesajı (isteğe bağlı)" htmlFor="rejection" hint="Varsa yapıştır; raporla birlikte TR + EN itiraz taslağı da hazırlanır. Yoksa bu adımı boş geç.">
-              <textarea id="rejection" rows={5} maxLength={3000} value={rejection} onChange={(e) => setRejection(e.target.value)} className={inputClass} />
-            </Field>
-          </div>
-        ) : null}
-
-        {step === 5 ? (
-          <div className="mt-5 grid gap-5 sm:grid-cols-[10rem_1fr]">
-            {media === "image" && image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={image.url} alt="Reklam görseli önizlemesi" className="w-40 rounded-lg border border-line object-cover" />
-            ) : null}
-            {media === "video" && video?.frames[0] ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={video.frames[0].url} alt="Videonun ilk karesi" className="w-40 rounded-lg border border-line object-cover" />
-            ) : null}
-            <dl className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-body">
-              <dt className="text-muted">Kreatif</dt>
-              <dd>
-                {media === "video" && video ? (
-                  <>Video · <span className="tabular">{video.durationSec.toLocaleString("tr-TR", { maximumFractionDigits: 1 })}</span> sn · <span className="tabular">{video.frames.length}</span> kare</>
-                ) : (
-                  "Görsel"
-                )}
-              </dd>
-              <dt className="text-muted">Platform</dt><dd>{PLATFORM_INFO[platform].label}</dd>
-              <dt className="text-muted">Sektör</dt><dd>{SECTORS.find((s) => s.value === sector)?.label}</dd>
-              <dt className="text-muted">Başlık</dt><dd className="break-words">{headline || "—"}</dd>
-              <dt className="text-muted">Ana metin</dt><dd className="line-clamp-4 break-words">{primaryText}</dd>
-              <dt className="text-muted">Açıklama</dt><dd className="break-words">{description || "—"}</dd>
-              <dt className="text-muted">Beyanlar</dt>
-              <dd>{[flags.influencerPost && "Etkileyici", flags.aiHumanCharacter && "YZ karakter", flags.aiRealPersonCopy && "Dijital kopya"].filter(Boolean).join(", ") || "Yok"}</dd>
-              {media === "video" ? (<><dt className="text-muted">Video metni</dt><dd>{transcript.trim() ? "Var, taranacak" : "Yok"}</dd></>) : null}
-              {media === "video" ? (
-                <>
-                  <dt className="text-muted">Ses</dt>
-                  <dd>
-                    {!video?.audio.analyzed ? "Ölçülemedi" : video.audio.present ? `Var, ${(video.audio.firstSoundSec ?? 0).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} sn'de başlıyor` : "Ses yok"}
-                    {speechEnabled && speechOptIn && video?.wav ? " · yazıya dökülecek" : ""}
-                  </dd>
-                </>
+                <img src={image.url} alt="Reklam görseli önizlemesi" className="w-40 rounded-lg border border-line object-cover" />
               ) : null}
-              <dt className="text-muted">Açılış sayfası</dt>
-              <dd className="break-all">{normalizeLandingUrl(landingUrl) ?? "Yok"}{shot ? " · ekran görüntüsü eklendi" : ""}</dd>
-              <dt className="text-muted">Ret mesajı</dt><dd>{rejection.trim() ? "Var, itiraz taslağı hazırlanacak" : "Yok"}</dd>
-            </dl>
-            <p className="text-small text-ink-soft sm:col-span-2">
-              Bu analiz <strong className="text-ink">{creditCostFor(media)} kredi</strong> kullanır{media === "video" ? " (video analizi 2 kredidir)" : ""} (bakiye: <span className="tabular">{balance}</span>). Kredi yalnızca rapor tamamlanınca düşer.
-              {balance < creditCostFor(media) ? <span className="mt-1 block font-semibold text-coral-deep">Bakiyen bu analiz için yetmiyor. <Link href="/panel/krediler" className="text-coral-deep">Kredi yükle</Link></span> : null}
-            </p>
-          </div>
-        ) : null}
+              {media === "video" && video?.frames[0] ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={video.frames[0].url} alt="Videonun ilk karesi" className="w-40 rounded-lg border border-line object-cover" />
+              ) : null}
+              <dl className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-body">
+                <dt className="text-muted">Kreatif</dt>
+                <dd>
+                  {media === "video" && video ? (
+                    <>
+                      Video ·{" "}
+                      <span className="tabular">
+                        {video.durationSec.toLocaleString("tr-TR", {
+                          maximumFractionDigits: 1,
+                        })}
+                      </span>{" "}
+                      sn · <span className="tabular">{video.frames.length}</span> kare
+                    </>
+                  ) : (
+                    "Görsel"
+                  )}
+                </dd>
+                <dt className="text-muted">Platform</dt>
+                <dd>{PLATFORM_INFO[platform].label}</dd>
+                <dt className="text-muted">Sektör</dt>
+                <dd>{SECTORS.find((s) => s.value === sector)?.label}</dd>
+                <dt className="text-muted">Başlık</dt>
+                <dd className="break-words">{headline || "—"}</dd>
+                <dt className="text-muted">Ana metin</dt>
+                <dd className="line-clamp-4 break-words">{primaryText}</dd>
+                <dt className="text-muted">Açıklama</dt>
+                <dd className="break-words">{description || "—"}</dd>
+                <dt className="text-muted">Beyanlar</dt>
+                <dd>{[flags.influencerPost && "Etkileyici", flags.aiHumanCharacter && "YZ karakter", flags.aiRealPersonCopy && "Dijital kopya"].filter(Boolean).join(", ") || "Yok"}</dd>
+                {media === "video" ? (
+                  <>
+                    <dt className="text-muted">Video metni</dt>
+                    <dd>{transcript.trim() ? "Var, taranacak" : "Yok"}</dd>
+                  </>
+                ) : null}
+                {media === "video" ? (
+                  <>
+                    <dt className="text-muted">Ses</dt>
+                    <dd>
+                      {!video?.audio.analyzed
+                        ? "Ölçülemedi"
+                        : video.audio.present
+                          ? `Var, ${(video.audio.firstSoundSec ?? 0).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} sn'de başlıyor`
+                          : "Ses yok"}
+                      {speechEnabled && speechOptIn && video?.wav ? " · yazıya dökülecek" : ""}
+                    </dd>
+                  </>
+                ) : null}
+                <dt className="text-muted">Açılış sayfası</dt>
+                <dd className="break-all">
+                  {normalizeLandingUrl(landingUrl) ?? "Yok"}
+                  {shot ? " · ekran görüntüsü eklendi" : ""}
+                </dd>
+                <dt className="text-muted">Ret mesajı</dt>
+                <dd>{rejection.trim() ? "Var, itiraz taslağı hazırlanacak" : "Yok"}</dd>
+              </dl>
+              <p className="text-small text-ink-soft sm:col-span-2">
+                Bu analiz <strong className="text-ink">{creditCostFor(media)} kredi</strong> kullanır{media === "video" ? " (video analizi 2 kredidir)" : ""} (bakiye:{" "}
+                <span className="tabular">{balance}</span>). Kredi yalnızca rapor tamamlanınca düşer.
+                {balance < creditCostFor(media) ? (
+                  <span className="mt-1 block font-semibold text-coral-deep">
+                    Bakiyen bu analiz için yetmiyor.{" "}
+                    <Link href="/panel/krediler" className="text-coral-deep">
+                      Kredi yükle
+                    </Link>
+                  </span>
+                ) : null}
+              </p>
+            </div>
+          ) : null}
 
-        <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
-          <Button type="button" variant="quiet" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="px-0">
-            Geri
-          </Button>
-          {step < STEPS.length - 1 ? (
-            <Button type="button" onClick={next}>
-              {step === 4 && !rejection.trim() ? "Atla" : "Devam"}
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
+            <Button type="button" variant="quiet" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="px-0">
+              Geri
             </Button>
-          ) : (
-            <Button type="button" variant="accent" onClick={submit} disabled={balance < creditCostFor(media)} className="h-12 px-6">
-              {phase.kind === "error" && phase.retryable ? "Tekrar dene" : "Analizi başlat"}
-            </Button>
-          )}
-        </div>
-      </section>
+            {step < STEPS.length - 1 ? (
+              <Button type="button" onClick={next}>
+                {step === 4 && !rejection.trim() ? "Atla" : "Devam"}
+              </Button>
+            ) : (
+              <span className="flex flex-wrap items-center gap-3">
+                <span className="text-small text-ink-soft">
+                  <strong className="text-ink tabular">{creditCostFor(media)} kredi</strong> · bakiye <span className="tabular">{balance}</span>
+                </span>
+                <Button type="button" variant="accent" onClick={submit} disabled={balance < creditCostFor(media)} className="h-12 px-6">
+                  {phase.kind === "error" && phase.retryable ? "Tekrar dene" : "Analizi başlat"}
+                </Button>
+              </span>
+            )}
+          </div>
+        </section>
+        <aside aria-label="Önizleme" className="hidden lg:sticky lg:top-24 lg:block">
+          <div className="rounded-2xl border border-line bg-card p-4 shadow-card">{preview}</div>
+        </aside>
+      </div>
+      <details className="mt-6 rounded-2xl border border-line bg-card p-4 lg:hidden">
+        <summary className="cursor-pointer font-semibold text-ink">Önizlemeyi göster</summary>
+        <div className="mt-4">{preview}</div>
+      </details>
     </div>
   );
 }
