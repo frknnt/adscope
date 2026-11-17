@@ -83,7 +83,7 @@ export function readDimensions(bytes: Uint8Array, mime: ImageMeta["mime"]): { wi
 }
 
 /** Validates size, declared MIME, real magic bytes and dimensions. Declared type is never trusted alone. */
-export function validateImage(bytes: Uint8Array, declaredMime: string): FileCheck {
+export function validateImage(bytes: Uint8Array, declaredMime: string, minSide = 200): FileCheck {
   if (bytes.length === 0) return { ok: false, code: "empty", message: "Dosya boş görünüyor." };
   if (bytes.length > MAX_UPLOAD_BYTES)
     return { ok: false, code: "too_large", message: "Dosya 5 MB sınırını aşıyor. Daha küçük bir görsel yükleyin." };
@@ -96,8 +96,8 @@ export function validateImage(bytes: Uint8Array, declaredMime: string): FileChec
   const dims = readDimensions(bytes, real);
   if (!dims || dims.width < 1 || dims.height < 1 || dims.width > 12000 || dims.height > 12000)
     return { ok: false, code: "corrupt", message: "Görsel okunamadı. Dosya bozuk olabilir." };
-  if (Math.min(dims.width, dims.height) < 200)
-    return { ok: false, code: "too_small", message: "Görsel çok küçük (en az 200 piksel olmalı)." };
+  if (Math.min(dims.width, dims.height) < minSide)
+    return { ok: false, code: "too_small", message: `Görsel çok küçük (en az ${minSide} piksel olmalı).` };
   const ext = real === "image/jpeg" ? "jpg" : real === "image/png" ? "png" : "webp";
   return { ok: true, ext, meta: { mime: real, width: dims.width, height: dims.height, sizeBytes: bytes.length } };
 }

@@ -30,6 +30,11 @@ for (const [net, prefix] of [
 ] as const) blocked.addSubnet(net, prefix, "ipv4");
 for (const [net, prefix] of [["::", 128], ["::1", 128], ["fc00::", 7], ["fe80::", 10], ["ff00::", 8], ["2001:db8::", 32], ["64:ff9b::", 96], ["100::", 64]] as const) blocked.addSubnet(net, prefix, "ipv6");
 
+/** True only in local end-to-end runs that point the fetcher at a fixture server. */
+export function testHostsAllowed() {
+  return allowPrivate();
+}
+
 function allowPrivate() {
   // Only for local end-to-end tests against a fixture server. Never honoured in production.
   return process.env.LANDING_SCAN_ALLOW_PRIVATE === "true" && appMode() !== "production" && process.env.NODE_ENV !== "production";
@@ -82,7 +87,11 @@ function guardedLookup(hostname: string, options: object, cb: (err: NodeJS.Errno
   });
 }
 
-function requestOnce(url: URL, deadline: number): Promise<Raw> {
+type Want = { accept: string; types: RegExp; maxBytes: number; notType: LandingSnapshot["status"] };
+const HTML: Want = { accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1", types: /text\/html|application\/xhtml\+xml/i, maxBytes: MAX_BYTES, notType: "not_html" };
+const IMAGE: Want = { accept: "image/png,image/jpeg,image/webp;q=0.9", types: /^image\/(png|jpeg|webp)\b/i, maxBytes: 2 * 1024 * 1024, notType: "not_html" };
+
+function requestOnce(url: URL, deadline: number, want: Want = HTML): Promise<Raw> {
   return new Promise((resolve) => {
     const lib = url.protocol === "https:" ? https : http;
     const remaining = Math.max(500, deadline - Date.now());
@@ -94,7 +103,7 @@ function requestOnce(url: URL, deadline: number): Promise<Raw> {
         timeout: remaining,
         headers: {
           "User-Agent": "Mozilla/5.0 (compatible; AdScopeLandingCheck/1.0)",
-          Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1",
+          Accept: want.accept,
           "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.5",
           "Accept-Encoding": "gzip, deflate, br",
         },
@@ -106,12 +115,12 @@ function requestOnce(url: URL, deadline: number): Promise<Raw> {
           return resolve({ status, headers: res.headers, body: null });
         }
         const type = String(res.headers["content-type"] ?? "");
-        if (!/text\/html|application\/xhtml\+xml/i.test(type)) {
+        if (!want.types.test(type)) {
           res.destroy();
-          return resolve({ status, headers: res.headers, body: null, error: "not_html" });
+          return resolve({ status, headers: res.headers, body: null, error: want.notType });
         }
         const declared = Number(res.headers["content-length"] ?? 0);
-        if (declared > MAX_BYTES) {
+        if (declared > want.maxBytes) {
           res.destroy();
           return resolve({ status, headers: res.headers, body: null, error: "too_large" });
         }
@@ -128,7 +137,7 @@ function requestOnce(url: URL, deadline: number): Promise<Raw> {
         };
         stream.on("data", (c: Buffer) => {
           size += c.length;
-          if (size > MAX_BYTES) {
+          if (size > want.maxBytes) {
             res.destroy();
             finish({ status, headers: res.headers, body: null, error: "too_large" });
             return;
@@ -161,6 +170,42 @@ function decode(body: Buffer, contentType: string) {
   } catch {
     return new TextDecoder("utf-8").decode(body);
   }
+}
+
+/** Follows redirects (each hop re-validated) and returns the final body, or the reason it failed. */
+async function safeGet(rawUrl: string, want: Want): Promise<{ status: LandingSnapshot["status"]; finalUrl: string | null; body: Buffer | null; contentType: string }> {
+  const start = validateLandingUrl(rawUrl);
+  if (!start) return { status: "invalid_url", finalUrl: null, body: null, contentType: "" };
+  const deadline = Date.now() + TIMEOUT_MS;
+  let url = start;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const r = await requestOnce(url, deadline, want);
+    if (r.error) return { status: r.error, finalUrl: url.toString(), body: null, contentType: "" };
+    if (r.status >= 300 && r.status < 400) {
+      const loc = r.headers.location;
+      const next = loc ? validateLandingUrl(new URL(String(loc), url).toString()) : null;
+      if (!next) return { status: loc ? "blocked" : "http_error", finalUrl: url.toString(), body: null, contentType: "" };
+      url = next;
+      continue;
+    }
+    if (r.status < 200 || r.status >= 300 || !r.body) return { status: "http_error", finalUrl: url.toString(), body: null, contentType: "" };
+    return { status: "ok", finalUrl: url.toString(), body: r.body, contentType: String(r.headers["content-type"] ?? "") };
+  }
+  return { status: "http_error", finalUrl: url.toString(), body: null, contentType: "" };
+}
+
+/** Fetches an HTML page with the same SSRF protection; returns the decoded HTML (untrusted data). */
+export async function fetchHtml(rawUrl: string): Promise<{ ok: true; html: string; finalUrl: string } | { ok: false; status: LandingSnapshot["status"] }> {
+  const r = await safeGet(rawUrl, HTML);
+  if (r.status !== "ok" || !r.body || !r.finalUrl) return { ok: false, status: r.status };
+  return { ok: true, html: decode(r.body, r.contentType), finalUrl: r.finalUrl };
+}
+
+/** Fetches a PNG/JPEG/WebP image (max 2 MB) with the same SSRF protection. The bytes still need file validation. */
+export async function fetchImage(rawUrl: string): Promise<{ ok: true; bytes: Uint8Array; contentType: string } | { ok: false }> {
+  const r = await safeGet(rawUrl, IMAGE);
+  if (r.status !== "ok" || !r.body) return { ok: false };
+  return { ok: true, bytes: new Uint8Array(r.body), contentType: r.contentType.split(";")[0].trim().toLowerCase() };
 }
 
 export async function fetchLanding(rawUrl: string): Promise<LandingSnapshot> {

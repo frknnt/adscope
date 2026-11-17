@@ -5,7 +5,10 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getCurrentUser, getRepo } from "@/lib/data";
 import { emailConfigured, getEmailProvider } from "@/lib/email/provider";
+import { BRAND_FONT_IDS, extractSiteSuggestion, normalizeHex, normalizeRequiredPhrases, normalizeWebsite, type SiteSuggestion } from "@/lib/brand/kit";
+import type { BrandInput } from "@/lib/data/types";
 import { normalizeBannedWords } from "@/lib/engine/brand-voice";
+import { fetchHtml, fetchImage, testHostsAllowed } from "@/lib/landing/fetch";
 import { siteUrl } from "@/lib/env";
 import { LEGAL_VERSIONS } from "@/lib/legal";
 import { SECTOR_IDS } from "@/lib/sectors";
@@ -54,7 +57,41 @@ const brandSchema = z.object({
   bannedWords: z.string().max(2000).default(""),
   voiceNotes: z.string().trim().max(600, "Marka sesi notu en fazla 600 karakter olabilir.").default(""),
   preferredCta: z.string().trim().max(140, "Çağrı cümlesi en fazla 140 karakter olabilir.").default(""),
+  primaryColor: z.string().trim().max(9).default(""),
+  secondaryColor: z.string().trim().max(9).default(""),
+  font: z.union([z.enum(BRAND_FONT_IDS), z.literal("")]).default(""),
+  tagline: z.string().trim().max(120, "Slogan en fazla 120 karakter olabilir.").default(""),
+  audienceNote: z.string().trim().max(400, "Hedef kitle notu en fazla 400 karakter olabilir.").default(""),
+  requiredPhrases: z.string().max(2000).default(""),
+  website: z.string().trim().max(300).default(""),
+  logoUrl: z.string().trim().max(2048).default(""),
 });
+
+/** Turns the parsed form into repository input; returns an error message for an invalid colour or website. */
+function brandInputFromForm(d: z.infer<typeof brandSchema>): { input: BrandInput } | { error: string } {
+  const primaryColor = d.primaryColor ? normalizeHex(d.primaryColor) : null;
+  const secondaryColor = d.secondaryColor ? normalizeHex(d.secondaryColor) : null;
+  if ((d.primaryColor && !primaryColor) || (d.secondaryColor && !secondaryColor)) return { error: "Renkleri #1a2b3c biçiminde yazın." };
+  const website = d.website ? normalizeWebsite(d.website) : null;
+  if (d.website && !website) return { error: "Web sitesi https:// ile başlayan geçerli bir adres olmalı." };
+  return {
+    input: {
+      name: d.name,
+      sector: d.sector,
+      tone: d.tone,
+      bannedWords: normalizeBannedWords(d.bannedWords),
+      voiceNotes: d.voiceNotes || null,
+      preferredCta: d.preferredCta || null,
+      primaryColor,
+      secondaryColor,
+      font: d.font || null,
+      tagline: d.tagline || null,
+      audienceNote: d.audienceNote || null,
+      requiredPhrases: normalizeRequiredPhrases(d.requiredPhrases),
+      website,
+    },
+  };
+}
 
 export async function saveBrandAction(_prev: ActionState, form: FormData): Promise<ActionState> {
   await requireUser();
@@ -63,14 +100,9 @@ export async function saveBrandAction(_prev: ActionState, form: FormData): Promi
   const parsed = brandSchema.safeParse(raw);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Lütfen alanları kontrol edin." };
   const d = parsed.data;
-  const input = {
-    name: d.name,
-    sector: d.sector,
-    tone: d.tone,
-    bannedWords: normalizeBannedWords(d.bannedWords),
-    voiceNotes: d.voiceNotes || null,
-    preferredCta: d.preferredCta || null,
-  };
+  const built = brandInputFromForm(d);
+  if ("error" in built) return { error: built.error };
+  const input = built.input;
   const repo = getRepo();
   let id = d.id;
   if (id) {
@@ -87,11 +119,35 @@ export async function saveBrandAction(_prev: ActionState, form: FormData): Promi
     const check = validateImage(bytes, logo.type);
     if (!check.ok) return { error: "Logo okunamadı. PNG veya JPG yükleyin. Marka bilgileri kaydedildi." };
     if (!(await repo.setBrandLogo(id, { bytes, mime: check.meta.mime, ext: check.ext }))) return { error: "Logo yüklenemedi. Marka bilgileri kaydedildi." };
+  } else if (d.logoUrl) {
+    // Logo suggested by "Web sitesinden doldur" and approved by the user: fetched again here, never trusted.
+    const img = await fetchImage(d.logoUrl);
+    const check = img.ok && img.bytes.length <= 1024 * 1024 ? validateImage(img.bytes, img.contentType, 64) : null;
+    if (!check?.ok || !img.ok) return { error: "Önerilen logo indirilemedi. Logoyu dosya olarak yükleyebilirsin. Marka bilgileri kaydedildi." };
+    if (!(await repo.setBrandLogo(id, { bytes: img.bytes, mime: check.meta.mime, ext: check.ext }))) return { error: "Logo yüklenemedi. Marka bilgileri kaydedildi." };
   } else if (form.get("removeLogo") === "on") {
     await repo.setBrandLogo(id, null);
   }
   revalidatePath("/panel/markalar");
   return { error: null, ok: d.id ? "Marka güncellendi." : "Marka eklendi." };
+}
+
+export type SiteSuggestionState = { error: string | null; suggestion?: SiteSuggestion & { website: string } };
+
+/**
+ * "Web sitesinden doldur": reads the brand's site with the SSRF-protected fetcher and returns suggestions.
+ * Nothing is saved; the form shows the values and the user decides.
+ */
+export async function suggestBrandFromSiteAction(url: string): Promise<SiteSuggestionState> {
+  const u = await requireUser();
+  // Local end-to-end runs read a plain-http fixture page; production only accepts https sites.
+  const website = normalizeWebsite(url) ?? (testHostsAllowed() && /^http:\/\/127\.0\.0\.1:\d+\//.test(url) ? url : null);
+  if (!website) return { error: "https:// ile başlayan geçerli bir adres yaz." };
+  const limit = rateLimit(`brand-site:${await hashKey("brand-site", u.id)}`, 10, 10 * 60_000);
+  if (!limit.ok) return { error: "Çok sık denedin. Birkaç dakika sonra tekrar dene." };
+  const page = await fetchHtml(website);
+  if (!page.ok) return { error: page.status === "invalid_url" || page.status === "blocked" ? "Bu adres taranamıyor. Herkese açık bir web sitesi adresi yaz." : "Sayfa okunamadı. Adresi kontrol et ya da alanları elle doldur." };
+  return { error: null, suggestion: { ...extractSiteSuggestion(page.html, page.finalUrl), website } };
 }
 
 export async function deleteBrandAction(form: FormData) {

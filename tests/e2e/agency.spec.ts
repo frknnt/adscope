@@ -11,6 +11,14 @@ let graphCalls: { auth: string | undefined; url: string }[] = [];
 test.beforeAll(async () => {
   // Mock Graph API `ads_archive` (the demo server points META_GRAPH_BASE_URL here).
   graph = createServer((req, res) => {
+    if (req.url === "/marka-sitesi") {
+      // Brand website fixture for "Web sitesinden doldur". The script must never run or be stored.
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end(
+        `<html><head><title>Çınar Kahve | Taze kavrum</title><meta name="description" content="Her sabah taze çekilmiş kahve."><meta name="theme-color" content="#7A3E1D"><script>window.hacked=1</script></head><body><h1>Çınar Kahve</h1></body></html>`,
+      );
+      return;
+    }
     graphCalls.push({ auth: req.headers.authorization, url: req.url ?? "" });
     res.setHeader("content-type", "application/json");
     res.end(
@@ -108,10 +116,25 @@ test("agency workflow: report exports, DM kit, brands, team, API and inspiration
     await page.getByRole("button", { name: "Yeni marka" }).first().click({ timeout: 2000 });
     await expect(page.getByRole("dialog", { name: "Yeni marka" })).toBeVisible({ timeout: 1000 });
   }).toPass();
-  await page.getByLabel("Marka adı").first().fill("Ajans Müşterisi");
-  await page.getByLabel("Yasaklı kelimeler").first().fill("ucuz, bedava");
+  const dialog = page.getByRole("dialog", { name: "Yeni marka" });
+  // "Web sitesinden doldur" suggests values; nothing is saved until the user saves.
+  await dialog.getByLabel("Web sitesi adresi").fill("http://127.0.0.1:3198/marka-sitesi");
+  await dialog.getByRole("button", { name: "Web sitesinden doldur" }).click();
+  await expect(dialog.getByText("Sitede bulunanlar")).toBeVisible();
+  await expect(dialog.getByText("#7a3e1d")).toBeVisible();
+  await dialog.getByRole("button", { name: "Önerileri forma aktar" }).click();
+  await expect(dialog.getByLabel("Marka adı")).toHaveValue("Çınar Kahve");
+  await expect(dialog.getByLabel("Slogan")).toHaveValue("Her sabah taze çekilmiş kahve.");
+  await expect(dialog.getByLabel("Ana renk", { exact: true })).toHaveValue("#7a3e1d");
+  await expect(dialog.getByText(/kontrast \d/i).first()).toBeVisible();
+  // Saved brands keep https websites only, so the local fixture address is cleared before saving.
+  await dialog.getByLabel("Web sitesi adresi").fill("");
+  await dialog.getByLabel("Marka adı").fill("Ajans Müşterisi");
+  await dialog.getByLabel("Yasaklı kelimeler").fill("ucuz, bedava");
+  await dialog.getByLabel("Zorunlu ibareler").fill("Kampanya stokla sınırlıdır.");
   await page.getByRole("button", { name: "Marka ekle" }).click();
   await expect(page.getByRole("heading", { name: "Ajans Müşterisi" })).toBeVisible();
+  await expect(page.getByRole("img", { name: /Marka renkleri: #7a3e1d/ })).toBeVisible();
   await page.getByRole("dialog").getByRole("button", { name: "Kapat" }).click();
   await axeClean(page);
 

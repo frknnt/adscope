@@ -16,7 +16,7 @@ export interface AdInput {
   /** Ad platform the copy is checked against (default Meta). */
   platform?: Platform;
   /** Brand voice: banned words and preferred call to action (agency mode). */
-  brandVoice?: { bannedWords: string[]; preferredCta?: string | null; voiceNotes?: string | null } | null;
+  brandVoice?: { bannedWords: string[]; preferredCta?: string | null; voiceNotes?: string | null; requiredPhrases?: string[] } | null;
   headline: string;
   primaryText: string;
   description: string;

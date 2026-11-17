@@ -43,11 +43,19 @@ export default async function BrandsPage() {
                   ) : (
                     <span aria-hidden className="grid size-12 place-items-center rounded-xl bg-blue-tint text-lg font-extrabold text-blue">{b.name.slice(0, 1).toLocaleUpperCase("tr-TR")}</span>
                   )}
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <h3 className="truncate text-lg font-bold">{b.name}</h3>
-                    <p className="text-small text-muted">{SECTOR_LABEL[b.sector]}</p>
+                    <p className="truncate text-small text-muted">{b.tagline || SECTOR_LABEL[b.sector]}</p>
                   </div>
+                  {b.primaryColor || b.secondaryColor ? (
+                    <span className="flex shrink-0 -space-x-1.5" role="img" aria-label={`Marka renkleri: ${[b.primaryColor, b.secondaryColor].filter(Boolean).join(", ")}`}>
+                      {[b.primaryColor, b.secondaryColor].filter(Boolean).map((c) => (
+                        <span key={c} className="size-6 rounded-full border-2 border-card" style={{ background: c! }} />
+                      ))}
+                    </span>
+                  ) : null}
                 </div>
+                {b.requiredPhrases.length ? <p className="mt-3 text-meta text-muted">Zorunlu ibare: {b.requiredPhrases.length}</p> : null}
                 <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-xl bg-paper-2 px-2 py-2.5"><dt className="text-fine text-muted">Ton</dt><dd className="text-small font-bold">{TONE[b.tone]}</dd></div>
                   <div className="rounded-xl bg-paper-2 px-2 py-2.5"><dt className="text-fine text-muted">Yasaklı kelime</dt><dd className="text-small font-bold tabular">{b.bannedWords.length}</dd></div>

@@ -1,6 +1,7 @@
 import type { AnalysisResult, AppealOut, ImageMeta, Level, RuleRecord, VideoMeta } from "@/lib/engine/types";
 import type { Sector } from "@/lib/rules/catalog";
 import type { Platform } from "@/lib/platforms";
+import type { BrandFontId } from "@/lib/brand/kit";
 
 export interface SessionUser {
   id: string;
@@ -29,9 +30,21 @@ export interface Brand {
   voiceNotes: string | null;
   preferredCta: string | null;
   hasLogo: boolean;
+  /** Brand kit (P1.1). Colours are "#rrggbb"; font is one of BRAND_FONT_IDS. */
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  font: BrandFontId | null;
+  tagline: string | null;
+  audienceNote: string | null;
+  /** Phrases every ad of this brand must carry (e.g. "Kampanya stokla sınırlıdır."). */
+  requiredPhrases: string[];
+  website: string | null;
 }
 
-export type BrandInput = Pick<Brand, "name" | "sector" | "tone"> & Partial<Pick<Brand, "bannedWords" | "voiceNotes" | "preferredCta">>;
+export const BRAND_KIT_KEYS = ["primaryColor", "secondaryColor", "font", "tagline", "audienceNote", "requiredPhrases", "website"] as const;
+
+export type BrandInput = Pick<Brand, "name" | "sector" | "tone"> &
+  Partial<Pick<Brand, "bannedWords" | "voiceNotes" | "preferredCta" | (typeof BRAND_KIT_KEYS)[number]>>;
 
 export interface ReportBranding {
   brandName: string | null;

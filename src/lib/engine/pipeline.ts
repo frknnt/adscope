@@ -1,6 +1,6 @@
 import type { AiProvider, AiResult } from "@/lib/ai/provider";
 import { buildAppeal } from "./appeal";
-import { brandVoiceFindings, stripBannedWords } from "./brand-voice";
+import { appendRequiredPhrases, brandVoiceFindings, requiredPhraseFindings, stripBannedWords } from "./brand-voice";
 import { buildDmKit } from "./dm";
 import { ruleAppliesTo } from "@/lib/platforms";
 import { landingChecks } from "./landing";
@@ -104,7 +104,7 @@ export async function runPipeline(params: {
     landingReport = lc.report;
     findings = [...findings, ...lc.findings];
   }
-  findings = [...findings, ...seasonFindings(input), ...brandVoiceFindings(input)];
+  findings = [...findings, ...seasonFindings(input), ...brandVoiceFindings(input), ...requiredPhraseFindings(input)];
 
   const order = { red: 0, yellow: 1, info: 2 } as const;
   findings.sort((a, b) => order[a.severity] - order[b.severity]);
@@ -143,7 +143,7 @@ export async function runPipeline(params: {
     if (!recheck.some((f) => f.severity !== "info")) safeText = candidate;
   }
 
-  safeText = stripBannedWords(safeText, banned);
+  safeText = appendRequiredPhrases(stripBannedWords(safeText, banned), input.brandVoice?.requiredPhrases ?? []);
   let variants: VariantOut[] = buildVariants(input, safeText, rules);
   if (ai?.ok) {
     variants = variants.map((fallback, idx) => {

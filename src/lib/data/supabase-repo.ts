@@ -29,7 +29,7 @@ const BUCKET = "creatives";
 
 type Row = Record<string, unknown>;
 
-const BRAND_COLS = "id,user_id,name,sector,tone,banned_words,voice_notes,preferred_cta,logo_path,logo_mime";
+const BRAND_COLS = "id,user_id,name,sector,tone,banned_words,voice_notes,preferred_cta,logo_path,logo_mime,primary_color,secondary_color,font,tagline,audience_note,required_phrases,website";
 
 function toBrand(r: Row): Brand {
   return {
@@ -41,6 +41,13 @@ function toBrand(r: Row): Brand {
     voiceNotes: (r.voice_notes as string) ?? null,
     preferredCta: (r.preferred_cta as string) ?? null,
     hasLogo: Boolean(r.logo_path),
+    primaryColor: (r.primary_color as string) ?? null,
+    secondaryColor: (r.secondary_color as string) ?? null,
+    font: (r.font as Brand["font"]) ?? null,
+    tagline: (r.tagline as string) ?? null,
+    audienceNote: (r.audience_note as string) ?? null,
+    requiredPhrases: (r.required_phrases as string[]) ?? [],
+    website: (r.website as string) ?? null,
   };
 }
 
@@ -52,6 +59,13 @@ function brandRow(input: Partial<BrandInput>): Row {
   if (input.bannedWords !== undefined) row.banned_words = input.bannedWords;
   if (input.voiceNotes !== undefined) row.voice_notes = input.voiceNotes;
   if (input.preferredCta !== undefined) row.preferred_cta = input.preferredCta;
+  if (input.primaryColor !== undefined) row.primary_color = input.primaryColor;
+  if (input.secondaryColor !== undefined) row.secondary_color = input.secondaryColor;
+  if (input.font !== undefined) row.font = input.font;
+  if (input.tagline !== undefined) row.tagline = input.tagline;
+  if (input.audienceNote !== undefined) row.audience_note = input.audienceNote;
+  if (input.requiredPhrases !== undefined) row.required_phrases = input.requiredPhrases;
+  if (input.website !== undefined) row.website = input.website;
   return row;
 }
 

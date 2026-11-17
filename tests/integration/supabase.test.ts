@@ -366,6 +366,19 @@ describe.skipIf(!reachable)("Supabase: agency mode, feedback, review links, API 
     expect(swap.error).not.toBeNull();
   });
 
+  it("brand kit: owner writes valid kit values, viewers read, others cannot change them", async () => {
+    const kit = { primary_color: "#0b1b3f", secondary_color: "#ff6a4d", font: "inter", tagline: "Her gün", audience_note: "25-40 yaş", required_phrases: ["Kampanya stokla sınırlıdır."], website: "https://ornek.com/" };
+    const { data: brand, error } = await owner.client.from("brands").insert({ user_id: owner.id, name: `Kit ${randomUUID().slice(0, 6)}`, ...kit }).select("id").single();
+    expect(error).toBeNull();
+    const seen = await viewer.client.from("brands").select("primary_color, required_phrases").eq("id", brand!.id).single();
+    expect(seen.data).toMatchObject({ primary_color: "#0b1b3f", required_phrases: ["Kampanya stokla sınırlıdır."] });
+    const viewerEdit = await viewer.client.from("brands").update({ primary_color: "#000000" }, { count: "exact" }).eq("id", brand!.id);
+    expect(viewerEdit.count ?? 0).toBe(0);
+    for (const bad of [{ primary_color: "red" }, { font: "comic-sans" }, { website: "http://ornek.com" }, { required_phrases: Array.from({ length: 11 }, (_, i) => `ibare ${i}`) }]) {
+      expect((await owner.client.from("brands").update(bad).eq("id", brand!.id)).error).not.toBeNull();
+    }
+  });
+
   it("brand logo paths are written by the server only", async () => {
     const bad = await owner.client.from("brands").insert({ user_id: owner.id, name: "Marka", sector: "genel", logo_path: `${stranger.id}/brand-logos/x.png` });
     expect(bad.error).not.toBeNull();

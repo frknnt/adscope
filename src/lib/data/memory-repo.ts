@@ -33,6 +33,7 @@ import type {
   StartAnalysisParams,
   StartAnalysisResult,
 } from "./types";
+import { BRAND_KIT_KEYS } from "./types";
 
 /**
  * In-memory backend used in demo mode when Supabase is not configured. It mirrors the
@@ -117,6 +118,13 @@ function brandView(b: StoredBrand): Brand {
     voiceNotes: b.voiceNotes ?? null,
     preferredCta: b.preferredCta ?? null,
     hasLogo: Boolean(store().logos?.[b.id]),
+    primaryColor: b.primaryColor ?? null,
+    secondaryColor: b.secondaryColor ?? null,
+    font: b.font ?? null,
+    tagline: b.tagline ?? null,
+    audienceNote: b.audienceNote ?? null,
+    requiredPhrases: b.requiredPhrases ?? [],
+    website: b.website ?? null,
   };
 }
 
@@ -355,6 +363,13 @@ export class MemoryRepo implements DataRepo {
       voiceNotes: input.voiceNotes ?? null,
       preferredCta: input.preferredCta ?? null,
       hasLogo: false,
+      primaryColor: input.primaryColor ?? null,
+      secondaryColor: input.secondaryColor ?? null,
+      font: input.font ?? null,
+      tagline: input.tagline ?? null,
+      audienceNote: input.audienceNote ?? null,
+      requiredPhrases: input.requiredPhrases ?? [],
+      website: input.website ?? null,
     };
     s.brands.push(b);
     persist();
@@ -367,7 +382,7 @@ export class MemoryRepo implements DataRepo {
     const b = s.brands.find((x) => x.id === id && x.userId === u.id);
     if (!b) return false;
     if (patch.name && s.brands.some((x) => x.userId === u.id && x.id !== id && x.name === patch.name)) return false;
-    for (const k of ["name", "sector", "tone", "bannedWords", "voiceNotes", "preferredCta"] as const) {
+    for (const k of ["name", "sector", "tone", "bannedWords", "voiceNotes", "preferredCta", ...BRAND_KIT_KEYS] as const) {
       if (patch[k] !== undefined) (b as unknown as Record<string, unknown>)[k] = patch[k];
     }
     persist();

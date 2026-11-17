@@ -58,6 +58,46 @@ export function brandVoiceFindings(input: AdInput): EngineFinding[] {
   return out;
 }
 
+/** True when the text carries the phrase (case, Turkish letters and spacing ignored; trailing punctuation optional). */
+export function hasPhrase(text: string, phrase: string): boolean {
+  const core = phrase.trim().replace(/[.!…]+$/, "");
+  if (!core) return true;
+  return findMatches(text, wordPattern(core), 1).length > 0;
+}
+
+/**
+ * Mandatory brand phrases (brand kit): each must appear somewhere in the ad copy. A missing one is a
+ * brand rule, not a platform or legal rule, so it is a creative-quality finding.
+ */
+export function requiredPhraseFindings(input: AdInput): EngineFinding[] {
+  const phrases = input.brandVoice?.requiredPhrases ?? [];
+  const all = FIELDS.map((f) => f.get(input)).join("\n");
+  return phrases
+    .filter((p) => !hasPhrase(all, p))
+    .map((p) => ({
+      ruleId: null,
+      ruleVersionId: null,
+      ruleStatus: null,
+      domain: "creative_quality" as const,
+      severity: "yellow" as const,
+      field: "primary_text" as const,
+      matchedText: null,
+      title: `Markanın zorunlu ibaresi eksik: “${p}”`,
+      explanation: "Bu ibare marka kitinde her reklamda bulunması gereken metin olarak kayıtlı. Platform veya mevzuat kuralı değildir; marka tutarlılığı için işaretlendi.",
+      suggestion: "İbareyi ana metnin sonuna ya da açıklama alanına ekleyin. Güvenli metin önerisine eklendi.",
+      origin: "heuristic" as const,
+    }));
+}
+
+/** Appends the mandatory phrases a text does not already carry. */
+export function appendRequiredPhrases(text: string, phrases: string[]): string {
+  const missing = phrases.filter((p) => !hasPhrase(text, p));
+  if (!missing.length) return text;
+  const end = text.trim();
+  const sep = !end ? "" : /[.!?…]$/.test(end) ? " " : ". ";
+  return `${end}${sep}${missing.map((p) => (/[.!?…]$/.test(p) ? p : `${p}.`)).join(" ")}`;
+}
+
 /** Removes banned words from generated text (safe text, variants, DM templates). */
 export function stripBannedWords(text: string, words: string[]): string {
   let out = text;
