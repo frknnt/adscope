@@ -23,7 +23,7 @@ export default function PricingPage() {
         Görsel analizi 1 kredi, video/Reels analizi 2 kredidir. Kredi yalnızca rapor başarıyla tamamlandığında düşer; analiz yarıda kalırsa krediniz yerinde kalır.
       </p>
 
-      <div className="mt-12 grid gap-5 md:grid-cols-3">
+      <div className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         {plans.map((p) => (
           <section
             key={p.name}

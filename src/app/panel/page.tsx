@@ -5,13 +5,16 @@ import { ButtonLink } from "@/components/ui";
 import { getRepo } from "@/lib/data";
 import { requirePanelUser } from "@/app/panel/guard";
 import { AnalysisList } from "./analysis-list";
+import { rescanAnalyses } from "@/lib/engine/rescan";
+import { IconAlert } from "@/components/icons";
 
 export const metadata = { title: "Pano" };
 
 export default async function DashboardPage() {
   await requirePanelUser();
   const repo = getRepo();
-  const [profile, balance, analyses] = await Promise.all([repo.getProfile(), repo.getBalance(), repo.listAnalyses(6)]);
+  const [profile, balance, analyses, recent, rules] = await Promise.all([repo.getProfile(), repo.getBalance(), repo.listAnalyses(6), repo.listAnalyses(50), repo.listAllRules()]);
+  const rescan = rescanAnalyses(recent, rules);
   const completed = analyses.filter((a) => a.status === "completed");
   const highRisk = completed.filter((a) => a.metaRiskLevel === "high" || a.legalRiskLevel === "high").length;
   const name = profile?.displayName?.split(" ")[0];
@@ -20,6 +23,29 @@ export default async function DashboardPage() {
 
   return (
     <div>
+      {rescan.length ? (
+        <section aria-labelledby="kural-guncel" className="mb-8 rounded-2xl border border-[#e9b43c]/60 bg-amber-tint/50 p-5">
+          <h2 id="kural-guncel" className="flex items-center gap-2 text-lg font-bold">
+            <IconAlert className="size-5 text-amber" aria-hidden />
+            Kurallar güncellendi: {rescan.length} eski reklamında artık yeni risk var
+          </h2>
+          <p className="mt-1 text-[0.9rem] text-ink-soft">
+            Son 50 analizinin metnini bugünkü doğrulanmış kural kartlarıyla yeniden taradık (kredi harcanmadı). Bu reklamlar hâlâ yayındaysa gözden geçir.
+          </p>
+          <ul className="mt-3 grid gap-2">
+            {rescan.slice(0, 5).map((h) => (
+              <li key={h.id} className="rounded-xl border border-line bg-card px-4 py-2.5 text-[0.9rem]">
+                <Link href={`/panel/analiz/${h.id}`} className="font-semibold">{h.label}</Link>
+                <span className="text-muted">
+                  {" "}· ret riski {h.oldMeta} → <strong className="text-ink">{h.newMeta}</strong>
+                  {h.newLegal > h.oldLegal ? <> · mevzuat bulgusu {h.oldLegal} → <strong className="text-ink">{h.newLegal}</strong></> : null}
+                </span>
+                {h.titles.length ? <span className="block text-[0.82rem] text-muted">{h.titles.join(" · ")}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-4xl font-semibold leading-tight">{name ? `Merhaba ${name}.` : "Merhaba."}</h1>

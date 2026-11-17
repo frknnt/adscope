@@ -83,6 +83,11 @@ test("agency workflow: report exports, DM kit, brands, team, API and inspiration
   expect((await pdf.body()).subarray(0, 5).toString()).toBe("%PDF-");
   expect((await page.request.get(`/api/analyses/${id}/export?format=exe`)).status()).toBe(404);
 
+  // E-mail the PDF (demo outbox in demo mode; production without Resend shows a clear message).
+  await page.getByLabel("Alıcının e-postası").fill("musteri@example.com");
+  await page.getByRole("button", { name: "PDF'i gönder" }).click();
+  await expect(page.getByText(/musteri@example.com/).first()).toBeVisible();
+
   // Lawyer review link: read-only page without login.
   await page.getByRole("button", { name: "İnceleme bağlantısı oluştur" }).click();
   const reviewLink = await page.locator("code").filter({ hasText: "/inceleme/" }).innerText();
@@ -146,4 +151,22 @@ test("agency workflow: report exports, DM kit, brands, team, API and inspiration
   await page.locator("input[type=file]").setInputFiles("tests/fixtures/ad.png");
   await page.getByRole("button", { name: "Devam" }).click();
   await expect(page.getByLabel("Ana metin")).toHaveValue(/mucize çay/);
+});
+
+test("bulk check, account restriction guide and rule-change rescan", async ({ page }) => {
+  await signUp(page);
+  await page.goto("/panel/toplu");
+  await page.getByLabel("Reklam metinleri").fill("7 günde 5 kilo ver! Garantili sonuç.\n\nYeni sezon ürünlerimiz mağazada, bize mesaj gönderin.\n\n---\nSon gün %70 indirim, hemen al!");
+  await page.getByRole("button", { name: /3 reklamı kontrol et/ }).click();
+  await expect(page.getByRole("heading", { name: /3 reklam/ })).toBeVisible();
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Tabloyu indir (CSV)" }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^adscope-toplu-kontrol-.*\.csv$/);
+  await noHorizontalScroll(page);
+  await axeClean(page);
+
+  await page.goto("/panel/itiraz");
+  await expect(page.getByRole("heading", { name: "Hesabın kısıtlandıysa: adım adım" })).toBeVisible();
+  await page.getByLabel(/Neyin kısıtlandığını belirle/).check();
+  await expect(page.getByText("1 / 8 tamamlandı")).toBeVisible();
+  await axeClean(page);
 });

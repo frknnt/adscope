@@ -37,7 +37,7 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
             {demo ? " Bu demo ortamında, akışı denemek için ücretsiz demo kredisi ekleyebilirsin; gerçek ödeme alınmaz." : ""}
           </p>
         ) : null}
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {CREDIT_PACKAGES.map((p) => (
             <div key={p.id} className="flex flex-col rounded-2xl border border-line bg-card p-5">
               <div className="flex items-baseline justify-between gap-3">

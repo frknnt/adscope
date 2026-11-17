@@ -8,6 +8,8 @@ export interface EmailMessage {
   text: string;
   /** Same key = same e-mail; the provider drops a repeated send. */
   idempotencyKey: string;
+  /** Optional files, base64 encoded (Resend `attachments`). */
+  attachments?: { filename: string; contentBase64: string }[];
 }
 
 export type EmailResult = { ok: true; id: string | null } | { ok: false; reason: "not_configured" | "api_error" | "timeout" };
@@ -39,7 +41,14 @@ export class ResendEmailProvider implements EmailProvider {
       const res = await fetch(`${this.baseUrl}/emails`, {
         method: "POST",
         headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json", "Idempotency-Key": m.idempotencyKey.slice(0, 256) },
-        body: JSON.stringify({ from: this.from, to: [m.to], subject: m.subject, html: m.html, text: m.text }),
+        body: JSON.stringify({
+          from: this.from,
+          to: [m.to],
+          subject: m.subject,
+          html: m.html,
+          text: m.text,
+          ...(m.attachments?.length ? { attachments: m.attachments.map((a) => ({ filename: a.filename, content: a.contentBase64 })) } : {}),
+        }),
         signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) return { ok: false, reason: "api_error" };

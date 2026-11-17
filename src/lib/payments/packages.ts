@@ -3,7 +3,7 @@
  * confirmed before going live (see README "Üretime geçmeden önce").
  */
 export interface CreditPackage {
-  id: "baslangic" | "profesyonel";
+  id: "baslangic" | "profesyonel" | "ajans";
   name: string;
   credits: number;
   priceMinor: number; // kuruş
@@ -27,6 +27,14 @@ export const CREDIT_PACKAGES: CreditPackage[] = [
     priceMinor: 49900,
     currency: "TRY",
     description: "Düzenli reklam veren e-ticaret markaları için.",
+  },
+  {
+    id: "ajans",
+    name: "Ajans",
+    credits: 400,
+    priceMinor: 149000,
+    currency: "TRY",
+    description: "Ajans ve freelancer'lar için: çoklu marka, ekip, logolu PDF, avukat bağlantısı, API. Ayda bir alınması önerilir.",
   },
 ];
 

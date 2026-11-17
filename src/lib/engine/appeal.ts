@@ -95,7 +95,7 @@ export function buildAppeal(params: {
           : "Düzeltilmiş metinle yeni reklam oluşturun; aynı reklamı değiştirmeden tekrar göndermeyin.",
       done: false,
     },
-    { label: "Hesap kısıtlaması varsa Hesap Kalitesi ekranındaki adımları sırayla izleyin ve tekrar eden retlerden kaçının.", done: false },
+    { label: "Hesap kısıtlaması varsa İtiraz asistanı sayfasındaki adım adım kontrol listesini izleyin.", done: false },
   ];
 
   return {

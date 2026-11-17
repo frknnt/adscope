@@ -109,6 +109,8 @@ Son çalıştırma (17.11.2026, ajans modu, platformlar, API, ilham panosu ve ek
 
 ## Bitti
 
+17.11.2026 (3): toplu kontrol, kurallar değişince eski reklamları yeniden tarama, raporu e-postayla gönderme, hesap kısıtlaması adım adım rehberi, ajans paketi (400 kredi). Birim + entegrasyon 121/121; yeni uçtan uca testler demo ve Supabase modunda geçti.
+
 17.11.2026 (2): sektör paketleri (kozmetik, kurs/eğitim, emlak, finans), WhatsApp/DM şablonu, varyantları CSV olarak dışa aktarma, sunucu tarafı markalı PDF, uyarı geri bildirimi, ajans modu (markalar, ekip, avukat inceleme bağlantısı), Google Ads ve TikTok kural setleri, kurumsal API, ücretsiz "Reklamım reddedilir mi?" sayfası, aylık mevzuat bülteni, Meta Reklam Kütüphanesi ilham panosu, tarayıcı eklentisi. Yeni tablolarda istemci rollerinin genel yetkileri kaldırıldı.
 
 17.11.2026: video kanca analizi (6 kare, ses ölçümü, onaylı konuşma çevirisi, kanca/altyazı/güvenli alan incelemesi), video 2 kredi, açılış sayfası ekran görüntüsü yedeği ve JavaScript sayfası tespiti, sezon takviminde kampanya şablonları, okula dönüş, analizde sezon notu ve e-posta hatırlatmaları, kural kartları 23'ten 40'a.
@@ -122,5 +124,7 @@ Kapsam dışı (ürün kararı, 17.11.2026):
 - **Meta reklam hesabı bağlama ve gerçek kampanya verisi:** şirket kurulmadan Meta uygulama incelemesi ve işletme doğrulaması yapılamıyor.
 - **iyzico:** kullanılmayacak. Ödeme sağlayıcısı şimdilik **Shopier**; adaptör iskeleti hazır, resmî callback belgesi okunup imza doğrulaması yazılınca açılacak.
 - **ikas ve Ticimax entegrasyonu:** iş ortaklığı planlanmıyor.
+
+Yapılmayan PDF maddesi: **Reklam Kurulu ilke kararları** kural tabanına eklenmedi; resmî karar metinleri okunmadan kart yazmak uydurma kaynak riski taşıyor. Ajans paketi şimdilik tek seferlik kredi paketidir; aylık otomatik yenileme ödeme sağlayıcısı (Shopier) bağlanınca eklenecek.
 
 Diğer: şifre sıfırlama ekranı, uyarı geri bildirimleri için yönetim görünümü, API için OpenAPI belgesi.

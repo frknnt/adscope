@@ -7,7 +7,7 @@ import { requirePanelUser } from "@/app/panel/guard";
 import { deleteAnalysisAction } from "../../actions";
 import { AppealForm } from "../../forms";
 import { revokeReviewShareAction } from "../../agency-actions";
-import { ReviewShareForm } from "../../agency-forms";
+import { ReportEmailForm, ReviewShareForm } from "../../agency-forms";
 import { PLATFORM_SHORT } from "@/lib/platforms";
 import { ReportView } from "../report-view";
 import { StatusPoller } from "./status-poller";
@@ -74,6 +74,13 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
       ) : (
         <div className="mt-8">
           <ReportView a={a} feedback={a.ownedByMe ? feedback : undefined} />
+          {a.ownedByMe && a.status === "completed" ? (
+            <section id="eposta" className="no-print mt-10 scroll-mt-6 rounded-2xl border border-line bg-card p-5 sm:p-7" aria-labelledby="eposta-h">
+              <h2 id="eposta-h" className="font-display text-2xl font-semibold">Raporu e-postayla gönder</h2>
+              <p className="mt-1 text-[0.9rem] text-ink-soft">Logolu PDF rapor müşterine veya ekibine ek olarak gider. Saatte en fazla 10 gönderim.</p>
+              <div className="mt-5"><ReportEmailForm analysisId={a.id} /></div>
+            </section>
+          ) : null}
           {a.ownedByMe ? (
             <section id="avukat" className="no-print mt-10 scroll-mt-6 rounded-2xl border border-line bg-card p-5 sm:p-7" aria-labelledby="avukat-h">
               <h2 id="avukat-h" className="font-display text-2xl font-semibold">Avukat incelemesine gönder</h2>

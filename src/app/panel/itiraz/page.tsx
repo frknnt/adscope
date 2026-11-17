@@ -2,6 +2,7 @@ import { ButtonLink } from "@/components/ui";
 import { getRepo } from "@/lib/data";
 import { requirePanelUser } from "@/app/panel/guard";
 import { AppealForm } from "../forms";
+import { RestrictionGuide } from "./restriction-guide";
 
 export const metadata = { title: "İtiraz asistanı" };
 
@@ -26,6 +27,7 @@ export default async function AppealPage({ searchParams }: { searchParams: Promi
           </div>
         )}
       </div>
+      <RestrictionGuide />
     </div>
   );
 }

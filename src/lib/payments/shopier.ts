@@ -22,6 +22,7 @@ export class ShopierProvider implements PaymentProvider {
   private links: Record<string, string | undefined> = {
     baslangic: process.env.SHOPIER_LINK_BASLANGIC,
     profesyonel: process.env.SHOPIER_LINK_PROFESYONEL,
+    ajans: process.env.SHOPIER_LINK_AJANS,
   };
 
   isConfigured() {

@@ -5,7 +5,7 @@ import { Button, Field, inputClass } from "@/components/ui";
 import type { Brand, FindingFeedback } from "@/lib/data/types";
 import { SECTOR_IDS, SECTOR_INFO } from "@/lib/sectors";
 import type { ActionState } from "./actions";
-import { createApiKeyAction, createReviewShareAction, findingFeedbackAction, inviteMemberAction, saveBrandAction } from "./agency-actions";
+import { createApiKeyAction, createReviewShareAction, findingFeedbackAction, inviteMemberAction, saveBrandAction, sendReportEmailAction } from "./agency-actions";
 import { ActionMessage, CopyButton } from "./forms";
 
 const initial: ActionState = { error: null };
@@ -184,6 +184,25 @@ export function ApiKeyForm() {
       </div>
       <ActionMessage state={state} />
       {state.link ? <OneTimeSecret value={state.link} label="API anahtarı (bir daha gösterilmez)" /> : null}
+    </form>
+  );
+}
+
+export function ReportEmailForm({ analysisId }: { analysisId: string }) {
+  const [state, action, pending] = useActionState(sendReportEmailAction, initial);
+  return (
+    <form action={action} className="grid gap-3">
+      <input type="hidden" name="analysisId" value={analysisId} />
+      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <Field label="Alıcının e-postası" htmlFor="mail-to">
+          <input id="mail-to" name="to" type="email" required maxLength={320} autoComplete="email" className={inputClass} placeholder="musteri@ornek.com" />
+        </Field>
+        <Field label="Not (isteğe bağlı)" htmlFor="mail-note">
+          <input id="mail-note" name="note" maxLength={300} className={inputClass} placeholder="ör. Yayından önce son kontrol" />
+        </Field>
+        <Button type="submit" variant="ghost" disabled={pending}>{pending ? "Gönderiliyor…" : "PDF'i gönder"}</Button>
+      </div>
+      <ActionMessage state={state} />
     </form>
   );
 }

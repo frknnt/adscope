@@ -11,6 +11,8 @@ import { LEGAL_VERSIONS } from "@/lib/legal";
 import { SECTOR_IDS } from "@/lib/sectors";
 import { validateImage } from "@/lib/security/file-validation";
 import { hashToken, newToken, TOKEN_RE } from "@/lib/security/tokens";
+import { buildReportPdf } from "@/lib/export/pdf";
+import { hashKey, rateLimit } from "@/lib/security/rate-limit";
 import type { ActionState } from "./actions";
 
 async function requireUser() {
@@ -203,4 +205,52 @@ export async function setNewsletterAction(form: FormData) {
   await requireUser();
   await getRepo().setNewsletter(form.get("on") === "1", LEGAL_VERSIONS.terms);
   revalidatePath("/panel/ayarlar");
+}
+
+// Send the report by e-mail (PDF attached) ---------------------------------------------------
+const reportMailSchema = z.object({
+  analysisId: z.uuid(),
+  to: z.email("Geçerli bir e-posta adresi yaz.").max(320),
+  note: z.string().trim().max(300, "Not en fazla 300 karakter olabilir.").default(""),
+});
+
+const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+
+export async function sendReportEmailAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const u = await requireUser();
+  const parsed = reportMailSchema.safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Gönderilemedi." };
+  const d = parsed.data;
+  const provider = getEmailProvider();
+  if (!provider) return { error: "E-posta gönderimi bu kurulumda kapalı. PDF'i indirip kendin gönderebilirsin." };
+  const limit = rateLimit(`report-mail:${await hashKey("report-mail", u.id)}`, 10, 60 * 60_000);
+  if (!limit.ok) return { error: "Bir saatte en fazla 10 rapor gönderebilirsin. Biraz sonra tekrar dene." };
+  const repo = getRepo();
+  const a = await repo.getAnalysis(d.analysisId);
+  if (!a || !a.ownedByMe || a.status !== "completed") return { error: "Rapor bulunamadı." };
+  try {
+    const [branding, creative] = await Promise.all([
+      repo.getReportBranding(a.id),
+      a.mediaType === "video" ? repo.getAssetBytes(a.id, 0) : a.asset ? repo.getAssetBytes(a.id) : Promise.resolve(null),
+    ]);
+    const pdf = await buildReportPdf(a, branding, { creative });
+    const brandName = branding?.brandName ?? null;
+    const sender = brandName || "Bir AdScope kullanıcısı";
+    const note = d.note ? `\n\nNot: ${d.note}` : "";
+    const text = `${sender} size bir reklam ön kontrol raporu gönderdi. Rapor ekteki PDF dosyasındadır.${note}\n\nRisk değerlendirmesidir, hukuki görüş değildir. Reklamın onaylanacağını garanti etmez.`;
+    const html = `<p>${esc(sender)} size bir reklam ön kontrol raporu gönderdi. Rapor ekteki PDF dosyasındadır.</p>${d.note ? `<p><strong>Not:</strong> ${esc(d.note)}</p>` : ""}<p style="color:#56607a;font-size:13px">Risk değerlendirmesidir, hukuki görüş değildir. Reklamın onaylanacağını garanti etmez.</p>`;
+    const r = await provider.send({
+      to: d.to.toLowerCase(),
+      subject: `Reklam ön kontrol raporu${brandName ? ` · ${brandName}` : ""}`,
+      text,
+      html,
+      idempotencyKey: `report:${a.id}:${await hashKey(d.to.toLowerCase(), d.note)}`,
+      attachments: [{ filename: `adscope-rapor-${a.id.slice(0, 8)}.pdf`, contentBase64: Buffer.from(pdf).toString("base64") }],
+    });
+    if (!r.ok) return { error: "E-posta şu an gönderilemedi. PDF'i indirip kendin gönderebilirsin." };
+    return { error: null, ok: emailConfigured() ? `Rapor ${d.to} adresine gönderildi.` : `Demo modu: e-posta gerçekten gönderilmedi, demo kutusuna yazıldı (${d.to}).` };
+  } catch {
+    console.error("[report-mail] failed");
+    return { error: "E-posta şu an gönderilemedi. PDF'i indirip kendin gönderebilirsin." };
+  }
 }
