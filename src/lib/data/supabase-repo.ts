@@ -13,6 +13,12 @@ import type {
   AuthResult,
   Brand,
   BrandInput,
+  Audience,
+  AudienceInput,
+  GenerationKind,
+  GenerationRecord,
+  RecordGenerationInput,
+  RecordGenerationResult,
   DataRepo,
   FindingFeedback,
   InspirationPinInput,
@@ -24,6 +30,7 @@ import type {
   TeamState,
 } from "./types";
 import type { Platform } from "@/lib/platforms";
+import { generationFiles } from "./generation-files";
 
 const BUCKET = "creatives";
 
@@ -48,6 +55,19 @@ function toBrand(r: Row): Brand {
     audienceNote: (r.audience_note as string) ?? null,
     requiredPhrases: (r.required_phrases as string[]) ?? [],
     website: (r.website as string) ?? null,
+  };
+}
+
+const GEN_COLS = "id,kind,brand_id,platform,credit_cost,output,created_at";
+function toGeneration(r: Row): GenerationRecord {
+  return {
+    id: r.id as string,
+    kind: r.kind as GenerationKind,
+    brandId: (r.brand_id as string) ?? null,
+    platform: (r.platform as Platform) ?? null,
+    creditCost: r.credit_cost as number,
+    output: (r.output as Record<string, unknown>) ?? {},
+    createdAt: r.created_at as string,
   };
 }
 
@@ -389,6 +409,81 @@ export class SupabaseRepo implements DataRepo {
       analysisId: r.analysis_id,
       createdAt: r.created_at,
     }));
+  }
+
+  async listAudiences(brandId?: string) {
+    const u = await this.requireUser();
+    let q = (await this.db()).from("audiences").select("id,brand_id,name,age_min,age_max,need,objections,tone,created_at").eq("user_id", u.id).order("created_at");
+    if (brandId) q = q.eq("brand_id", brandId);
+    const { data } = await q;
+    return (data ?? []).map((r) => ({
+      id: r.id as string,
+      brandId: r.brand_id as string,
+      name: r.name as string,
+      ageMin: r.age_min as number,
+      ageMax: r.age_max as number,
+      need: r.need as string,
+      objections: r.objections as string,
+      tone: r.tone as string,
+      createdAt: r.created_at as string,
+    }));
+  }
+
+  async createAudience(input: AudienceInput) {
+    const u = await this.requireUser();
+    const db = await this.db();
+    const { count } = await db.from("audiences").select("id", { count: "exact", head: true }).eq("brand_id", input.brandId);
+    if ((count ?? 0) >= 20) return null;
+    const { data, error } = await db
+      .from("audiences")
+      .insert({ user_id: u.id, brand_id: input.brandId, name: input.name, age_min: input.ageMin, age_max: input.ageMax, need: input.need, objections: input.objections, tone: input.tone })
+      .select("id,created_at")
+      .single();
+    if (error || !data) return null;
+    return { ...input, id: data.id as string, createdAt: data.created_at as string };
+  }
+
+  async deleteAudience(id: string) {
+    const u = await this.requireUser();
+    const { error, count } = await (await this.db()).from("audiences").delete({ count: "exact" }).eq("id", id).eq("user_id", u.id);
+    return !error && (count ?? 0) > 0;
+  }
+
+  async recordGeneration(p: RecordGenerationInput): Promise<RecordGenerationResult> {
+    const u = await this.requireUser();
+    const { data, error } = await this.admin().rpc("record_generation", {
+      p_user_id: u.id,
+      p_client_request_id: p.clientRequestId,
+      p_kind: p.kind,
+      p_credit_cost: p.creditCost,
+      p_brand_id: p.brandId,
+      p_platform: p.platform,
+      p_output: p.output,
+    });
+    const row = (data as { generation_id: string | null; status: string }[] | null)?.[0];
+    if (error || !row) return { status: "error" };
+    if (row.status === "insufficient_credits" || row.status === "brand_not_found") return { status: row.status };
+    const g = row.generation_id ? await this.getGeneration(row.generation_id) : null;
+    if (!g) return { status: "error" };
+    return { status: row.status === "exists" ? "exists" : "created", generation: g };
+  }
+
+  async getGenerationByRequest(clientRequestId: string) {
+    const u = await this.requireUser();
+    const { data } = await (await this.db()).from("generations").select(GEN_COLS).eq("user_id", u.id).eq("client_request_id", clientRequestId).maybeSingle();
+    return data ? toGeneration(data) : null;
+  }
+
+  async getGeneration(id: string) {
+    const u = await this.requireUser();
+    const { data } = await (await this.db()).from("generations").select(GEN_COLS).eq("user_id", u.id).eq("id", id).maybeSingle();
+    return data ? toGeneration(data) : null;
+  }
+
+  async listGenerations(kind: GenerationKind, limit = 20) {
+    const u = await this.requireUser();
+    const { data } = await (await this.db()).from("generations").select(GEN_COLS).eq("user_id", u.id).eq("kind", kind).order("created_at", { ascending: false }).limit(limit);
+    return (data ?? []).map(toGeneration);
   }
 
   async listPurchases() {
@@ -975,7 +1070,16 @@ export class SupabaseAdminRepo implements AdminRepo {
     const paths = expired.flatMap((a) => ((a.analysis_assets as { storage_path: string }[]) ?? []).map((x) => x.storage_path));
     if (paths.length) await this.admin.storage.from(BUCKET).remove(paths);
     await this.admin.from("analyses").delete().in("id", expired.map((a) => a.id));
-    return expired.length;
+    return expired.length + (await this.purgeExpiredGenerations());
+  }
+
+  private async purgeExpiredGenerations() {
+    const { data: gens } = await this.admin.from("generations").select("id, output").lt("expires_at", new Date().toISOString()).limit(500);
+    if (!gens?.length) return 0;
+    const paths = gens.flatMap((g) => generationFiles((g.output as Record<string, unknown>) ?? {}));
+    if (paths.length) await this.admin.storage.from(BUCKET).remove(paths);
+    await this.admin.from("generations").delete().in("id", gens.map((g) => g.id));
+    return gens.length;
   }
 
   async listSeasonReminderRecipients() {

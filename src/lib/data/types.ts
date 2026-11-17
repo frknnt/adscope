@@ -105,11 +105,52 @@ export type InspirationPinInput = Omit<InspirationPin, "id" | "createdAt">;
 export interface LedgerEntry {
   id: string;
   delta: number;
-  reason: "signup_bonus" | "analysis" | "purchase" | "refund" | "admin_adjustment";
+  reason: "signup_bonus" | "analysis" | "purchase" | "refund" | "admin_adjustment" | "generation";
   note: string | null;
   analysisId: string | null;
   createdAt: string;
 }
+
+/** Audience profile of a brand (P1.3). */
+export interface Audience {
+  id: string;
+  brandId: string;
+  name: string;
+  ageMin: number;
+  ageMax: number;
+  need: string;
+  objections: string;
+  tone: string;
+  createdAt: string;
+}
+export type AudienceInput = Omit<Audience, "id" | "createdAt">;
+
+export type GenerationKind = "copy" | "creative" | "photo" | "tool";
+
+/** A paid output that is not an analysis (ad copy, creative download, product photo). */
+export interface GenerationRecord {
+  id: string;
+  kind: GenerationKind;
+  brandId: string | null;
+  platform: Platform | null;
+  creditCost: number;
+  /** Plain JSON. Storage paths inside it (files[].path) always start with the owner's id. */
+  output: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface RecordGenerationInput {
+  clientRequestId: string;
+  kind: GenerationKind;
+  creditCost: number;
+  brandId: string | null;
+  platform: Platform | null;
+  output: Record<string, unknown>;
+}
+
+export type RecordGenerationResult =
+  | { status: "created" | "exists"; generation: GenerationRecord }
+  | { status: "insufficient_credits" | "brand_not_found" | "error" };
 
 export interface PurchaseRecord {
   id: string;
@@ -291,6 +332,15 @@ export interface DataRepo {
 
   getBalance(): Promise<number>;
   listLedger(): Promise<LedgerEntry[]>;
+  /** Audience profiles of the user's brands (or of one brand). */
+  listAudiences(brandId?: string): Promise<Audience[]>;
+  createAudience(input: AudienceInput): Promise<Audience | null>;
+  deleteAudience(id: string): Promise<boolean>;
+  /** Stores a paid output and charges its credits in one step; idempotent per client request id. */
+  recordGeneration(input: RecordGenerationInput): Promise<RecordGenerationResult>;
+  getGenerationByRequest(clientRequestId: string): Promise<GenerationRecord | null>;
+  getGeneration(id: string): Promise<GenerationRecord | null>;
+  listGenerations(kind: GenerationKind, limit?: number): Promise<GenerationRecord[]>;
   listPurchases(): Promise<PurchaseRecord[]>;
 
   startAnalysis(params: StartAnalysisParams): Promise<StartAnalysisResult>;

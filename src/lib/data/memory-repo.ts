@@ -34,6 +34,9 @@ import type {
   StartAnalysisResult,
 } from "./types";
 import { BRAND_KIT_KEYS } from "./types";
+import type { Audience, AudienceInput, GenerationKind, GenerationRecord, RecordGenerationInput, RecordGenerationResult } from "./types";
+
+import { generationFiles } from "./generation-files";
 
 /**
  * In-memory backend used in demo mode when Supabase is not configured. It mirrors the
@@ -93,11 +96,15 @@ interface Store {
   brands: (Brand & { userId: string })[];
   analyses: StoredAnalysis[];
   ledger: (LedgerEntry & { userId: string; idempotencyKey: string })[];
+  audiences?: (Audience & { userId: string })[];
+  generations?: (GenerationRecord & { userId: string; clientRequestId: string; expiresAt: string })[];
   purchases: (PurchaseRecord & { userId: string | null; eventKey: string })[];
   consents: { userId: string; type: string; version: string; granted: boolean; createdAt: string }[];
   aiRuns: (AiRunRecord & { userId: string; createdAt: string })[];
   reminderLog?: { userId: string; eventKey: string; sentAt: string }[];
   logos?: Record<string, { mime: string; dataB64: string }>;
+  /** Files produced by generations (creatives, photos), keyed by storage path. */
+  genFiles?: Record<string, { mime: string; dataB64: string }>;
   team?: { ownerId: string; memberId: string; email: string; createdAt: string }[];
   invites?: { id: string; ownerId: string; email: string; tokenHash: string; expiresAt: string; acceptedAt: string | null; createdAt: string }[];
   feedback?: (FindingFeedback & { userId: string; analysisId: string; createdAt: string })[];
@@ -108,6 +115,9 @@ interface Store {
 }
 
 type StoredBrand = Store["brands"][number];
+function genView(g: NonNullable<Store["generations"]>[number]): GenerationRecord {
+  return { id: g.id, kind: g.kind, brandId: g.brandId, platform: g.platform, creditCost: g.creditCost, output: structuredClone(g.output), createdAt: g.createdAt };
+}
 function brandView(b: StoredBrand): Brand {
   return {
     id: b.id,
@@ -448,6 +458,84 @@ export class MemoryRepo implements DataRepo {
       .ledger.filter((l) => l.userId === u.id)
       .map(({ userId: _u, idempotencyKey: _k, ...l }) => l)
       .reverse();
+  }
+
+  async listAudiences(brandId?: string) {
+    const u = await this.requireUser();
+    return (store().audiences ?? []).filter((a) => a.userId === u.id && (!brandId || a.brandId === brandId)).map(({ userId: _u, ...a }) => ({ ...a }));
+  }
+
+  async createAudience(input: AudienceInput) {
+    const u = await this.requireUser();
+    const s = store();
+    if (!s.brands.some((b) => b.id === input.brandId && b.userId === u.id)) return null;
+    if (input.ageMin > input.ageMax) return null;
+    s.audiences ??= [];
+    if (s.audiences.filter((a) => a.brandId === input.brandId).length >= 20) return null;
+    const a = { ...input, id: randomUUID(), userId: u.id, createdAt: new Date().toISOString() };
+    s.audiences.push(a);
+    persist();
+    const { userId: _u, ...view } = a;
+    return view;
+  }
+
+  async deleteAudience(id: string) {
+    const u = await this.requireUser();
+    const s = store();
+    const before = (s.audiences ?? []).length;
+    s.audiences = (s.audiences ?? []).filter((a) => !(a.id === id && a.userId === u.id));
+    persist();
+    return s.audiences.length < before;
+  }
+
+  async recordGeneration(p: RecordGenerationInput): Promise<RecordGenerationResult> {
+    const u = await this.requireUser();
+    const s = store();
+    s.generations ??= [];
+    const existing = s.generations.find((g) => g.userId === u.id && g.clientRequestId === p.clientRequestId);
+    if (existing) return { status: "exists", generation: genView(existing) };
+    if (p.brandId && !s.brands.some((b) => b.id === p.brandId && b.userId === u.id)) return { status: "brand_not_found" };
+    if (p.creditCost > 0 && balanceOf(u.id) < p.creditCost) return { status: "insufficient_credits" };
+    const now = new Date();
+    const g = {
+      id: randomUUID(),
+      userId: u.id,
+      clientRequestId: p.clientRequestId,
+      kind: p.kind,
+      brandId: p.brandId,
+      platform: p.platform,
+      creditCost: p.creditCost,
+      output: structuredClone(p.output),
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + 90 * 864e5).toISOString(),
+    };
+    s.generations.push(g);
+    if (p.creditCost > 0) {
+      s.ledger.push({ id: randomUUID(), userId: u.id, delta: -p.creditCost, reason: "generation", note: null, analysisId: null, idempotencyKey: `generation:${g.id}`, createdAt: g.createdAt });
+    }
+    persist();
+    return { status: "created", generation: genView(g) };
+  }
+
+  async getGenerationByRequest(clientRequestId: string) {
+    const u = await this.requireUser();
+    const g = (store().generations ?? []).find((x) => x.userId === u.id && x.clientRequestId === clientRequestId);
+    return g ? genView(g) : null;
+  }
+
+  async getGeneration(id: string) {
+    const u = await this.requireUser();
+    const g = (store().generations ?? []).find((x) => x.userId === u.id && x.id === id);
+    return g ? genView(g) : null;
+  }
+
+  async listGenerations(kind: GenerationKind, limit = 20) {
+    const u = await this.requireUser();
+    return (store().generations ?? [])
+      .filter((x) => x.userId === u.id && x.kind === kind)
+      .slice(-limit)
+      .reverse()
+      .map(genView);
   }
 
   async listPurchases() {
@@ -832,6 +920,9 @@ export class MemoryRepo implements DataRepo {
     s.users = s.users.filter((x) => x.id !== u.id);
     delete s.profiles[u.id];
     s.brands = s.brands.filter((x) => x.userId !== u.id);
+    s.audiences = (s.audiences ?? []).filter((x) => x.userId !== u.id);
+    for (const g of (s.generations ?? []).filter((x) => x.userId === u.id)) for (const f of generationFiles(g.output)) delete s.genFiles?.[f];
+    s.generations = (s.generations ?? []).filter((x) => x.userId !== u.id);
     s.analyses = s.analyses.filter((x) => x.userId !== u.id);
     s.ledger = s.ledger.filter((x) => x.userId !== u.id);
     s.consents = s.consents.filter((x) => x.userId !== u.id);
@@ -971,6 +1062,9 @@ export class MemoryAdminRepo implements AdminRepo {
     const now = Date.now();
     const before = s.analyses.length;
     s.analyses = s.analyses.filter((a) => Date.parse(a.expiresAt) > now);
+    const expired = (s.generations ?? []).filter((g) => Date.parse(g.expiresAt) <= now);
+    for (const g of expired) for (const f of generationFiles(g.output)) delete s.genFiles?.[f];
+    s.generations = (s.generations ?? []).filter((g) => Date.parse(g.expiresAt) > now);
     persist();
     return before - s.analyses.length;
   }

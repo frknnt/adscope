@@ -6,6 +6,8 @@ import { useEffect, useId, useMemo, useRef, useState, type ComponentType, type S
 import { signOutAction } from "@/app/(auth)/actions";
 import {
   IconAppeal,
+  IconSpark,
+  IconTools,
   IconBoard,
   IconCalendar,
   IconClose,
@@ -36,7 +38,14 @@ const GROUPS: { title: string | null; items: Item[] }[] = [
       { href: "/panel/gecmis", label: "Raporlar", Icon: IconHistory, also: "/panel/analiz" },
     ],
   },
-  { title: "Düzelt", items: [{ href: "/panel/itiraz", label: "İtiraz asistanı", Icon: IconAppeal }] },
+  {
+    title: "Üret ve düzelt",
+    items: [
+      { href: "/panel/uret", label: "Üret", Icon: IconSpark },
+      { href: "/panel/araclar", label: "Görsel araçları", Icon: IconTools },
+      { href: "/panel/itiraz", label: "İtiraz asistanı", Icon: IconAppeal },
+    ],
+  },
   {
     title: "Planla",
     items: [
@@ -152,6 +161,9 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
     () => [
       { href: "/panel/yeni", label: "Yeni analiz başlat", hint: "Eylem" },
       { href: "/panel/toplu", label: "Toplu kontrol yap", hint: "Eylem" },
+      { href: "/panel/uret", label: "Reklam metni üret", hint: "Eylem" },
+      { href: "/panel/uret?sekme=gorsel", label: "Reklam görseli üret", hint: "Eylem" },
+      { href: "/panel/araclar", label: "Görsel araçları", hint: "Eylem" },
       { href: "/panel/itiraz", label: "İtiraz taslağı hazırla", hint: "Eylem" },
       ...ALL_ITEMS.map((i) => ({ href: i.href, label: i.label, hint: "Sayfa" })),
     ],

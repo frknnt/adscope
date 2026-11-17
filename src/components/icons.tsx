@@ -28,6 +28,9 @@ export const IconMeta = (p: SVGProps<SVGSVGElement>) => (
 export const IconSpark = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><path d="M12 3v4M12 17v4M3 12h4M17 12h4" /><path d="m6.5 6.5 2 2M15.5 15.5l2 2M6.5 17.5l2-2M15.5 8.5l2-2" /></svg>
 );
+export const IconTools = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M4 7h10M4 17h6M18 7h2M14 17h6" /><circle cx="16" cy="7" r="2" /><circle cx="12" cy="17" r="2" /></svg>
+);
 export const IconPen = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z" /><path d="m13.5 6.5 4 4" /></svg>
 );

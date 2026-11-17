@@ -16,7 +16,7 @@ const ODEME_MSG: Record<string, string> = {
   hata: "Onayın kaydedilemedi, ödeme başlatılmadı. Lütfen tekrar dene.",
 };
 
-const REASON = { signup_bonus: "Kayıt hediyesi", analysis: "Analiz", purchase: "Satın alma", refund: "İade", admin_adjustment: "Düzeltme" } as const;
+const REASON = { signup_bonus: "Kayıt hediyesi", analysis: "Analiz", purchase: "Satın alma", refund: "İade", admin_adjustment: "Düzeltme", generation: "Üretim" } as const;
 
 export default async function CreditsPage({ searchParams }: { searchParams: Promise<{ odeme?: string }> }) {
   await requirePanelUser();

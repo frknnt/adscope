@@ -145,15 +145,17 @@ export function AnalysisWizard({
         .slice(0, max);
     const text = clean("metin", 2200);
     const head = clean("baslik", 255);
+    const desc = clean("aciklama", 255);
     const url = clean("url", 2048);
     const plat = hp.get("platform");
-    if (!text && !head && !url && !isPlatform(plat)) return;
+    if (!text && !head && !desc && !url && !isPlatform(plat)) return;
     /* eslint-disable react-hooks/set-state-in-effect -- one-time read of browser-only state */
     if (text) setPrimaryText(text);
     if (head) setHeadline(head);
+    if (desc) setDescription(desc);
     if (/^https?:\/\//i.test(url)) setLandingUrl(url);
     if (isPlatform(plat)) setPlatform(plat);
-    setFromLink(Boolean(text || head || url));
+    setFromLink(Boolean(text || head || desc || url));
     /* eslint-enable react-hooks/set-state-in-effect */
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }, [initial?.templateTitle]);
@@ -463,7 +465,7 @@ export function AnalysisWizard({
     <div className="mt-8">
       {fromLink ? (
         <p className="mb-6 max-w-3xl rounded-xl bg-info-tint px-4 py-3 text-body text-info">
-          Metin tarayıcı eklentisinden veya ilham panosundan geldi. Göndermeden önce kontrol et; görseli ilk adımda sen ekleyeceksin.
+          Metin başka bir sayfadan aktarıldı (üretici, ilham panosu veya tarayıcı eklentisi). Göndermeden önce kontrol et; görseli ilk adımda sen ekleyeceksin.
         </p>
       ) : null}
       {draft ? (

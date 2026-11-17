@@ -180,7 +180,7 @@ test("agency workflow: report exports, DM kit, brands, team, API and inspiration
   // "Benzerini kontrol et" carries the text in the fragment into the wizard.
   await page.getByRole("region", { name: "Panom" }).getByRole("link", { name: "Benzerini kontrol et" }).click();
   await page.waitForURL("**/panel/yeni");
-  await expect(page.getByText(/ilham panosundan geldi/)).toBeVisible();
+  await expect(page.getByText(/başka bir sayfadan aktarıldı/)).toBeVisible();
   expect(page.url()).not.toContain("#");
   await page.locator("input[type=file]").setInputFiles("tests/fixtures/ad.png");
   await page.getByRole("button", { name: "Devam" }).click();

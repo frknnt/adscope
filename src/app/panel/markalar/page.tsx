@@ -4,6 +4,8 @@ import { SECTOR_LABEL } from "@/lib/sectors";
 import { deleteBrandAction } from "../agency-actions";
 import { BrandDialogButton } from "../agency-forms";
 import { EmptyState } from "@/components/ui";
+import { getAiProvider } from "@/lib/analysis/service";
+import { AudienceDialogButton } from "./audiences";
 
 export const metadata = { title: "Markalar" };
 
@@ -12,7 +14,8 @@ const TONE = { samimi: "Samimi", kurumsal: "Kurumsal", genc: "Genç" } as const;
 export default async function BrandsPage() {
   await requirePanelUser();
   const repo = getRepo();
-  const [brands, analyses] = await Promise.all([repo.listBrands(), repo.listAnalyses(200)]);
+  const [brands, analyses, audiences] = await Promise.all([repo.listBrands(), repo.listAnalyses(200), repo.listAudiences()]);
+  const aiOn = Boolean(getAiProvider()?.suggestAudiences);
   const count = (id: string) => analyses.filter((a) => a.brandId === id).length;
   return (
     <div>
@@ -20,7 +23,7 @@ export default async function BrandsPage() {
         <div>
           <h1 className="font-display text-4xl font-semibold leading-tight">Markalar</h1>
           <p className="mt-2 max-w-2xl text-ink-soft">
-            Ajans olarak birden fazla markayı yönet. Her markanın tonu, yasaklı kelimeleri ve çağrı cümlesi analizde kullanılır; logo PDF raporun ve avukat inceleme sayfasının başlığına gelir.
+            Ajans olarak birden fazla markayı yönet. Her markanın kiti (renkler, yazı tipi, slogan, zorunlu ibareler, yasaklı kelimeler) analizde ve üretimde kullanılır; hedef kitle profilleri metin üretiminde seçilebilir.
           </p>
         </div>
         <BrandDialogButton />
@@ -61,8 +64,11 @@ export default async function BrandsPage() {
                   <div className="rounded-xl bg-paper-2 px-2 py-2.5"><dt className="text-fine text-muted">Yasaklı kelime</dt><dd className="text-small font-bold tabular">{b.bannedWords.length}</dd></div>
                   <div className="rounded-xl bg-paper-2 px-2 py-2.5"><dt className="text-fine text-muted">Analiz</dt><dd className="text-small font-bold tabular">{count(b.id)}</dd></div>
                 </dl>
-                <div className="mt-auto flex items-center justify-between gap-3 pt-4">
-                  <BrandDialogButton brand={b} />
+                <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-4">
+                  <span className="flex flex-wrap gap-1">
+                    <BrandDialogButton brand={b} />
+                    <AudienceDialogButton brandId={b.id} brandName={b.name} hasWebsite={Boolean(b.website)} aiOn={aiOn} audiences={audiences.filter((a) => a.brandId === b.id)} />
+                  </span>
                   <form action={deleteBrandAction}>
                     <input type="hidden" name="id" value={b.id} />
                     <button type="submit" className="inline-flex h-10 items-center text-small font-semibold text-coral-deep">Markayı sil<span className="sr-only">: {b.name}</span></button>

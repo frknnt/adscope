@@ -398,12 +398,53 @@ describe.skipIf(!reachable)("Supabase: agency mode, feedback, review links, API 
     const other = await viewer.client.from("inspiration_pins").select("id");
     expect(other.data ?? []).toHaveLength(0);
   });
+
+  it("generations: written only through record_generation, charged once per request, private to the owner", async () => {
+    const direct = await owner.client.from("generations").insert({ user_id: owner.id, client_request_id: randomUUID(), kind: "copy", credit_cost: 0, output: {} });
+    expect(direct.error).not.toBeNull();
+    const before = await balance(owner.client);
+    const req = randomUUID();
+    const call = () => admin().rpc("record_generation", { p_user_id: owner.id, p_client_request_id: req, p_kind: "copy", p_credit_cost: 1, p_brand_id: null, p_platform: "meta", p_output: { headlines: [] } });
+    const first = await call();
+    expect(first.error).toBeNull();
+    expect((first.data as { status: string }[])[0].status).toBe("created");
+    const again = await call();
+    expect((again.data as { status: string }[])[0].status).toBe("exists");
+    expect(await balance(owner.client)).toBe(before - 1);
+    const id = (first.data as { generation_id: string }[])[0].generation_id;
+    expect((await owner.client.from("generations").select("id").eq("id", id)).data).toHaveLength(1);
+    expect((await stranger.client.from("generations").select("id").eq("id", id)).data ?? []).toHaveLength(0);
+    const tamper = await owner.client.from("generations").update({ credit_cost: 0 }).eq("id", id);
+    expect(tamper.error).not.toBeNull();
+    // Without enough credit nothing is stored and nothing is charged.
+    const broke = await admin().rpc("record_generation", { p_user_id: stranger.id, p_client_request_id: randomUUID(), p_kind: "creative", p_credit_cost: 20, p_brand_id: null, p_platform: null, p_output: {} });
+    expect((broke.data as { status: string }[])[0].status).toBe("insufficient_credits");
+    expect((await stranger.client.from("generations").select("id")).data ?? []).toHaveLength(0);
+    // Clients cannot call the RPC themselves.
+    const self = await owner.client.rpc("record_generation", { p_user_id: owner.id, p_client_request_id: randomUUID(), p_kind: "copy", p_credit_cost: 0, p_brand_id: null, p_platform: null, p_output: {} });
+    expect(self.error).not.toBeNull();
+  });
+
+  it("audiences: owner adds profiles to own brands only, team reads, ages are checked", async () => {
+    const { data: brand } = await owner.client.from("brands").insert({ user_id: owner.id, name: `Kitle ${randomUUID().slice(0, 6)}` }).select("id").single();
+    const row = { user_id: owner.id, brand_id: brand!.id, name: "Ev kahvecileri", age_min: 25, age_max: 40, need: "Hızlı sabah kahvesi" };
+    const ok = await owner.client.from("audiences").insert(row).select("id").single();
+    expect(ok.error).toBeNull();
+    expect((await viewer.client.from("audiences").select("id").eq("id", ok.data!.id)).data).toHaveLength(1);
+    expect((await stranger.client.from("audiences").select("id").eq("id", ok.data!.id)).data ?? []).toHaveLength(0);
+    const foreign = await stranger.client.from("audiences").insert({ ...row, user_id: stranger.id });
+    expect(foreign.error).not.toBeNull();
+    expect((await owner.client.from("audiences").insert({ ...row, age_min: 16 })).error).not.toBeNull();
+    expect((await owner.client.from("audiences").insert({ ...row, age_min: 50, age_max: 30 })).error).not.toBeNull();
+    const viewerEdit = await viewer.client.from("audiences").update({ name: "Değişti" }, { count: "exact" }).eq("id", ok.data!.id);
+    expect(viewerEdit.count ?? 0).toBe(0);
+  });
 });
 
 describe.skipIf(!reachable)("Supabase: client role privileges", () => {
   it("client roles have no blanket privileges on newer tables", async () => {
     const anon = createClient(URL_, PUB, opts);
-    for (const t of ["team_members", "team_invites", "finding_feedback", "review_shares", "newsletter_log", "api_keys", "inspiration_pins", "season_reminder_log"]) {
+    for (const t of ["team_members", "team_invites", "finding_feedback", "review_shares", "newsletter_log", "api_keys", "inspiration_pins", "season_reminder_log", "generations", "audiences"]) {
       const r = await anon.from(t).select("*").limit(1);
       expect(r.error?.code, t).toBe("42501");
     }
