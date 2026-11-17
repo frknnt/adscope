@@ -4,15 +4,16 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { SECTOR_IDS } from "@/lib/sectors";
 import { regenerateAppeal } from "@/lib/analysis/service";
 import { getCurrentUser, getRepo } from "@/lib/data";
 import { demoPurchasesAllowed } from "@/lib/env";
 import { findPackage } from "@/lib/payments/packages";
 import { getPaymentProvider } from "@/lib/payments";
 
-export type ActionState = { error: string | null; ok?: string | null };
+export type ActionState = { error: string | null; ok?: string | null; /** One-time secret link or key, shown once after creation. */ link?: string | null };
 
-const sector = z.enum(["genel", "takviye_gida", "estetik_klinik"]);
+const sector = z.enum(SECTOR_IDS);
 
 async function requireUser() {
   const u = await getCurrentUser();

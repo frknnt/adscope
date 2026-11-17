@@ -6,6 +6,10 @@ const SECTOR_CTA: Record<AdInput["sector"], string> = {
   genel: "Detaylar için bize mesaj gönderin.",
   takviye_gida: "İçerik ve kullanım bilgisi için ürün sayfasını inceleyin.",
   estetik_klinik: "Bilgi almak ve ön görüşme planlamak için bize yazın.",
+  kozmetik: "İçerik listesi ve kullanım önerileri ürün sayfasında.",
+  kurs_egitim: "Program içeriği ve kayıt koşulları için bize yazın.",
+  emlak: "Proje bilgileri ve yetki belgesi numarası ilan sayfasında; bilgi almak için bize yazın.",
+  finans: "Ücretler, faiz ve masraflar dahil tüm koşullar için başvuru sayfasını inceleyin.",
 };
 
 function hasCta(text: string) {
@@ -39,7 +43,7 @@ export function buildSafeText(input: AdInput, findings: EngineFinding[], rules: 
   if (hit.has("TR-RY-YZ-KARAKTER")) extras.push("Görseldeki kişi yapay zekâ ile oluşturulmuştur.");
   if (hit.has("TR-RY-INDIRIM-REFERANS") || hit.has("TR-RY-SARTLI-INDIRIM"))
     extras.push("Kampanya koşulları ve tarihleri ürün sayfasındadır.");
-  if (!hasCta(text)) extras.push(SECTOR_CTA[input.sector]);
+  if (!hasCta(text)) extras.push(input.brandVoice?.preferredCta?.trim() || SECTOR_CTA[input.sector]);
   return tidy([text, ...extras].join(" "));
 }
 
@@ -84,7 +88,7 @@ export function buildVariants(input: AdInput, safeText: string, rules: RuleRecor
   const brand = input.brandName?.trim();
   const influencer = /^Reklam \|/.test(safeText);
   const prefix = influencer ? "Reklam | " : "";
-  const cta = SECTOR_CTA[input.sector];
+  const cta = input.brandVoice?.preferredCta?.trim() || SECTOR_CTA[input.sector];
   const offerNote = offer ? `${offer.replace(/!+$/, ".")} Kampanya koşulları ürün sayfasında.` : "";
 
   const raw: Omit<VariantOut, "recheck_red" | "recheck_yellow">[] = [

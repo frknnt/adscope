@@ -52,8 +52,10 @@ export default function PricingPage() {
 
       <section className="mt-8 flex flex-col gap-2 rounded-2xl border border-dashed border-line-strong px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-bold">Ajans <span className="ml-2 rounded-full bg-paper-2 px-2 py-0.5 text-[0.75rem] font-semibold text-muted">Yakında</span></h2>
-          <p className="mt-1 text-[0.92rem] text-ink-soft">Çoklu marka çalışma alanı, ekip üyeleri ve müşteri bazlı raporlar. Henüz kullanılabilir değil.</p>
+          <h2 className="font-bold">Ajanslar için</h2>
+          <p className="mt-1 text-[0.92rem] text-ink-soft">
+            Her pakette çoklu marka, 10 kişiye kadar salt okunur ekip, avukat inceleme bağlantısı, logolu PDF ve API anahtarı var. Krediler hesap sahibinden düşer.
+          </p>
         </div>
       </section>
 

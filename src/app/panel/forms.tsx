@@ -1,5 +1,6 @@
 "use client";
 
+import { SECTOR_IDS, SECTOR_INFO } from "@/lib/sectors";
 import { useActionState, useRef, useState } from "react";
 import { Button, Field, inputClass } from "@/components/ui";
 import type { Brand, Profile } from "@/lib/data/types";
@@ -20,11 +21,7 @@ export function ActionMessage({ state }: { state: ActionState }) {
   return null;
 }
 
-export const SECTOR_OPTIONS = [
-  { value: "genel", label: "Genel e-ticaret / hizmet" },
-  { value: "takviye_gida", label: "Takviye gıda" },
-  { value: "estetik_klinik", label: "Estetik / klinik" },
-] as const;
+export const SECTOR_OPTIONS = SECTOR_IDS.map((s) => ({ value: s, label: SECTOR_INFO[s].long }));
 
 export function OnboardingForm({ profile }: { profile: Profile | null }) {
   const [state, action, pending] = useActionState(completeOnboardingAction, initial);

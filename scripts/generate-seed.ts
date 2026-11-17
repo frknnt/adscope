@@ -4,6 +4,7 @@
  */
 import { writeFileSync } from "node:fs";
 import { RULE_CATALOG } from "../src/lib/rules/catalog";
+import { rulePlatform } from "../src/lib/platforms";
 
 const q = (v: string | null | undefined) => (v === null || v === undefined ? "null" : `'${String(v).replace(/'/g, "''")}'`);
 const arr = (a: string[]) => (a.length ? `array[${a.map(q).join(", ")}]::text[]` : "'{}'::text[]");
@@ -17,8 +18,8 @@ const lines: string[] = [
 ];
 for (const r of RULE_CATALOG) {
   lines.push(
-    `insert into public.rule_cards (id, domain, category, sector) values (${q(r.id)}, ${q(r.domain)}, ${q(r.category)}, ${q(r.sector)})`,
-    `  on conflict (id) do update set domain = excluded.domain, category = excluded.category, sector = excluded.sector;`,
+    `insert into public.rule_cards (id, domain, category, sector, platform) values (${q(r.id)}, ${q(r.domain)}, ${q(r.category)}, ${q(r.sector)}, ${q(rulePlatform(r))})`,
+    `  on conflict (id) do update set domain = excluded.domain, category = excluded.category, sector = excluded.sector, platform = excluded.platform;`,
   );
   lines.push(
     `insert into public.rule_versions (rule_card_id, version, status, risk_level, title, description, risky_examples, match_patterns, safe_replacements, flag_trigger, safe_fix, source_org, source_title, source_url, source_reference, effective_date, last_verified_at, verification_note, legal_review_status) values (` +

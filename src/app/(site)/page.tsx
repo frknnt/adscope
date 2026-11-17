@@ -182,7 +182,8 @@ export default async function HomePage() {
               {[
                 ["Video ve Reels analizi", "Video cihazından çıkmaz; tarayıcı birkaç kare alır. Kareler, dış ses metni ve format (9:16, süre, çözünürlük) incelenir."],
                 ["Açılış sayfası taraması", "Reklamdaki indirim, fiyat ve marka sayfada da aynı mı? Sayfa bir kez okunur, içeriği saklanmaz."],
-                ["Türk sezon takvimi", "Özel günler için hazırlık ve incelemeye gönderme tarihleri, dönemin uyum hatırlatmaları ve takvime ekleme."],
+                ["Ajans modu", "Markaya özel ton ve yasaklı kelimeler, salt okunur ekip üyeleri, avukata inceleme bağlantısı ve logolu PDF rapor."],
+                ["Google Ads ve TikTok", "Aynı metni platformun politika başlıklarına göre kontrol et. Bu kartlar doğrulama bekler, yalnızca bilgilendirir."],
               ].map(([t, d]) => (
                 <li key={t} className="border-b border-paper/10 pb-3">
                   <span className="flex items-center justify-between gap-3">
@@ -196,7 +197,7 @@ export default async function HomePage() {
             <p className="mt-6 font-semibold">Yakında</p>
             <p className="mt-1 text-sm text-paper/75">Bu özellikler henüz çalışmıyor.</p>
             <ul className="mt-4 space-y-2.5 text-[0.95rem] text-paper/90">
-              {["AB rakip ilham panosu (Meta Ad Library)", "Ajans çalışma alanları ve ekip", "Meta reklam hesabı bağlama", "Google Ads ve TikTok politikaları"].map((x) => (
+              {["Meta reklam hesabı bağlama", "Kartla online ödeme", "ikas ve Ticimax entegrasyonu"].map((x) => (
                 <li key={x} className="flex items-center justify-between gap-3 border-b border-paper/10 pb-2.5">
                   <span>{x}</span>
                   <span className="rounded-full bg-paper/10 px-2 py-0.5 text-[0.7rem] font-semibold uppercase tracking-wide">Yakında</span>

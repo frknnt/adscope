@@ -5,6 +5,12 @@ const nextConfig: NextConfig = {
   // session handling simple and avoid caching user data.
   cacheComponents: false,
   poweredByHeader: false,
+  // pdfkit reads its own font metrics from node_modules at runtime; the report fonts ship in assets/fonts.
+  serverExternalPackages: ["pdfkit"],
+  outputFileTracingIncludes: {
+    "/api/analyses/[id]/export": ["./assets/fonts/**/*"],
+    "/inceleme/[token]/pdf": ["./assets/fonts/**/*"],
+  },
   // The analysis upload can carry still frames, a short 16 kHz audio clip and a landing screenshot.
   experimental: { proxyClientMaxBodySize: "16mb" },
   // Lets the end-to-end suite run an isolated demo-mode server next to a dev server.

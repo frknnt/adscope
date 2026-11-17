@@ -28,7 +28,7 @@ test("rule cards list official sources", async ({ page }) => {
   await page.goto("/kurallar");
   const links = page.getByRole("link", { name: /Resmî kaynak/ });
   expect(await links.count()).toBeGreaterThan(10);
-  for (const href of await links.evaluateAll((els) => els.map((e) => e.getAttribute("href")))) expect(href).toMatch(/^https:\/\/(transparency\.meta\.com|ticaret\.gov\.tr|www\.resmigazete\.gov\.tr|www\.mevzuat\.gov\.tr|www\.saglik\.gov\.tr)/);
+  for (const href of await links.evaluateAll((els) => els.map((e) => e.getAttribute("href")))) expect(href).toMatch(/^https:\/\/(transparency\.meta\.com|ticaret\.gov\.tr|www\.resmigazete\.gov\.tr|www\.mevzuat\.gov\.tr|www\.saglik\.gov\.tr|support\.google\.com|ads\.tiktok\.com|www\.titck\.gov\.tr)/);
 });
 
 test("keyboard: skip link and sign-in form are reachable without a mouse", async ({ page, isMobile }) => {

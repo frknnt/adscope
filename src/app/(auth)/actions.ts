@@ -31,6 +31,7 @@ async function limited(scope: string, email: string) {
 function safeNext(raw: FormDataEntryValue | null) {
   const v = typeof raw === "string" ? raw : "";
   // Only same-site relative paths into the panel.
+  if (/^\/panel\/ekip\/katil\?davet=[A-Za-z0-9_-]{20,120}$/.test(v)) return v; // team invite link
   return /^\/panel(\/[A-Za-z0-9\-/]*)?$/.test(v) ? v : "/panel";
 }
 

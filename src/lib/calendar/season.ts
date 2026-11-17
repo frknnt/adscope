@@ -10,7 +10,7 @@
  *
  * Compliance reminders link to rule cards; they are checklists for the ad, not findings.
  */
-import type { Sector } from "@/lib/rules/catalog";
+import { SECTOR_IDS, type Sector } from "@/lib/sectors";
 
 export type EventKind = "sabit" | "hesaplanan" | "dini" | "sezon";
 
@@ -55,7 +55,7 @@ export interface SeasonEvent {
   reminders: Reminder[];
 }
 
-const ALL: Sector[] = ["genel", "takviye_gida", "estetik_klinik"];
+const ALL: Sector[] = [...SECTOR_IDS];
 const DAY = 86_400_000;
 
 export const utc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d));
@@ -123,12 +123,12 @@ const INFLUENCER: Reminder = {
 const BODY: Reminder = {
   text: "Beden, kilo veya görünüş üzerinden olumsuz hitap etme; belirli sürede kesin sonuç vaat etme.",
   ruleIds: ["META-PHA-NEGATIVE-SELF", "META-UO-TIMEFRAME"],
-  sectors: ["takviye_gida", "estetik_klinik"],
+  sectors: ["takviye_gida", "estetik_klinik", "kozmetik"],
 };
 const BEFORE_AFTER: Reminder = {
   text: "Önce/sonra görselleri ve hasta beyanları hem Meta’da hem sağlık hizmeti reklamlarında risklidir.",
   ruleIds: ["META-PHA-BEFORE-AFTER", "TR-ESTETIK-ONCE-SONRA"],
-  sectors: ["estetik_klinik"],
+  sectors: ["estetik_klinik", "kozmetik"],
 };
 const CLINIC_PRICE: Reminder = {
   text: "Sağlık hizmetlerinde fiyat ve kampanya duyurusu kısıtlıdır; bayram/özel gün indirimi ilanı vermeden önce kontrol et.",
@@ -139,6 +139,26 @@ const SUPPLEMENT: Reminder = {
   text: "Takviye gıdada hastalık önleme/tedavi veya “beslenmenin yerine geçer” izlenimi verme.",
   ruleIds: ["TR-RY-TAKVIYE-BESLENME", "TR-RY-SAGLIK-BEYANI"],
   sectors: ["takviye_gida"],
+};
+const COSMETIC: Reminder = {
+  text: "Kozmetikte “tedavi eder”, “iyileştirir” gibi tıbbi etki iddiası kurma; “klinik olarak kanıtlandı” diyorsan çalışmayı saklı tut.",
+  ruleIds: ["TR-KOZMETIK-TIBBI", "TR-KOZMETIK-KANIT"],
+  sectors: ["kozmetik"],
+};
+const EDUCATION: Reminder = {
+  text: "Kurs ve eğitim reklamlarında “sınavı garanti geç”, “iş garantisi” gibi kesin sonuç vaatleri verme; sertifikanın kim tarafından verildiğini açık yaz.",
+  ruleIds: ["TR-EGITIM-BASARI-GARANTI", "TR-EGITIM-IS-GARANTI", "TR-EGITIM-SERTIFIKA"],
+  sectors: ["kurs_egitim"],
+};
+const FINANCE: Reminder = {
+  text: "Finans ve kredi kampanyalarında getiri vaadi verme, toplam maliyeti ve yetki bilgisini yaz; Meta’da bu reklamlar özel kategori olarak işaretlenmeli.",
+  ruleIds: ["TR-FINANS-GETIRI", "TR-KREDI-MALIYET", "META-OZEL-KAT-KREDI"],
+  sectors: ["finans"],
+};
+const REAL_ESTATE: Reminder = {
+  text: "Konut kampanyalarında yetki belgesi numarasını yaz, kira getirisi veya değer artışı garantisi verme; Meta’da konut özel kategorisini seç.",
+  ruleIds: ["TR-EMLAK-YETKI-BELGESI", "TR-EMLAK-GETIRI", "META-OZEL-KAT-KONUT"],
+  sectors: ["emlak"],
 };
 
 const EVENTS: EventDef[] = [
@@ -154,7 +174,7 @@ const EVENTS: EventDef[] = [
       "Hediye paketi, kişiye özel not gibi küçük ekleri öne çıkaran varyantlar dene.",
       "Yeni yıl hedefi mesajlarında (spor, beslenme) sonuç vaadi yerine süreci anlat.",
     ],
-    reminders: [DISCOUNT, CONDITIONS, BODY, SUPPLEMENT],
+    reminders: [DISCOUNT, CONDITIONS, BODY, SUPPLEMENT, COSMETIC, FINANCE, REAL_ESTATE],
     dates: fixed(1, 1, "Her yıl 1 Ocak."),
   },
   {
@@ -162,13 +182,13 @@ const EVENTS: EventDef[] = [
     name: "Sevgililer Günü",
     kind: "sabit",
     leadDays: 14,
-    sectors: ["genel", "estetik_klinik"],
+    sectors: ["genel", "estetik_klinik", "kozmetik"],
     summary: "Hediye, deneyim ve bakım kategorilerinde talep 14 Şubat’tan önceki iki haftada yoğunlaşır.",
     tips: [
       "Fiyat aralığına göre hediye rehberi (“500 TL altı”) formatı tıklanma için iyi çalışır.",
       "Son teslim tarihini ve mağazadan teslim seçeneğini görselde göster.",
     ],
-    reminders: [DISCOUNT, CONDITIONS, CLINIC_PRICE],
+    reminders: [DISCOUNT, CONDITIONS, CLINIC_PRICE, COSMETIC],
     dates: fixed(2, 14, "Her yıl 14 Şubat."),
   },
   {
@@ -233,7 +253,7 @@ const EVENTS: EventDef[] = [
       "Hediye kartı ve son dakika dijital hediye seçeneklerini son 3 günde öne çıkar.",
       "Duygusal hikâye anlatan video kreatifleri bu dönemde iyi performans gösterir; ilk 3 saniyede ürünü göster.",
     ],
-    reminders: [DISCOUNT, CONDITIONS, INFLUENCER, BEFORE_AFTER, CLINIC_PRICE],
+    reminders: [DISCOUNT, CONDITIONS, INFLUENCER, BEFORE_AFTER, CLINIC_PRICE, COSMETIC],
     dates: (y) => {
       const d = nthWeekday(y, 5, 0, 2);
       return { start: d, end: d, rule: "Mayıs ayının ikinci pazarı.", verified: true };
@@ -258,13 +278,13 @@ const EVENTS: EventDef[] = [
     name: "Yaz sezonu öncesi",
     kind: "sezon",
     leadDays: 30,
-    sectors: ["takviye_gida", "estetik_klinik"],
+    sectors: ["takviye_gida", "estetik_klinik", "kozmetik"],
     summary: "Haziran öncesi form, cilt bakımı ve güneş koruma talepleri artar; vaat odaklı reklamlar da en çok bu dönemde reddedilir.",
     tips: [
       "“X günde Y kilo” gibi vaatler yerine rutin, içerik ve kullanım şeklini anlat.",
       "Uzman görüşü kullanıyorsan unvanın doğru ve doğrulanabilir olduğundan emin ol.",
     ],
-    reminders: [BODY, BEFORE_AFTER, SUPPLEMENT, { text: "Kilo verme ve kozmetik işlem reklamlarında yaş hedeflemesi ve kısıtları kontrol et.", ruleIds: ["META-HW-RESTRICTED"] }],
+    reminders: [BODY, BEFORE_AFTER, SUPPLEMENT, COSMETIC, { text: "Kilo verme ve kozmetik işlem reklamlarında yaş hedeflemesi ve kısıtları kontrol et.", ruleIds: ["META-HW-RESTRICTED"] }],
     dates: fixed(6, 1, "Haziran başı (sezon başlangıcı, sabit bir gün değil)."),
   },
   {
@@ -286,7 +306,7 @@ const EVENTS: EventDef[] = [
     name: "Okula dönüş",
     kind: "sezon",
     leadDays: 21,
-    sectors: ["genel", "takviye_gida"],
+    sectors: ["genel", "takviye_gida", "kurs_egitim"],
     summary: "Kırtasiye, çanta, giyim, elektronik ve kurs kayıtları için ağustos sonundan eylül ortasına uzanan dönem. Velilere yönelik kampanyalar artar.",
     tips: [
       "Liste odaklı kreatifler (sınıfa göre ihtiyaç listesi) ve paket fiyatlar iyi çalışır; paketin içeriğini açıkça yaz.",
@@ -298,6 +318,7 @@ const EVENTS: EventDef[] = [
       CONDITIONS,
       { text: "Çocuklara yönelik reklamlarda onların deneyimsizliğinden yararlanan veya doğrudan satın almaya yönelten ifadeler kullanma.", ruleIds: ["TR-RY-COCUK-DOGRUDAN"] },
       SUPPLEMENT,
+      EDUCATION,
     ],
     dates: (y) => {
       const d = nthWeekday(y, 9, 1, 2);

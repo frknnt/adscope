@@ -13,7 +13,20 @@ MVP sonrası eklenenler:
 - **Video / Reels analizi (2 kredi).** Video dosyası sunucuya gönderilmez. Tarayıcı videodan 6 kare alır (üçü ilk 3 saniyeden: kanca), süreyi ve çözünürlüğü ölçer, sesi çözüp sesin ne zaman başladığını ve ne kadarının sessiz olduğunu hesaplar; yalnızca kareler ve ölçümler yüklenir. Yapay zekâ açıksa kareler kanca gücü (0–10), ekran yazısı/altyazı, sessiz izlemede anlaşılırlık ve güvenli alan için incelenir. `SPEECH_TO_TEXT_API_KEY` tanımlıysa ve kullanıcı onay verirse ilk 90 saniyelik ses (16 kHz mono WAV) bir kez konuşma tanıma hizmetine gönderilir; çıkan metin kural kartlarıyla taranır, ilk 3 saniyede ne söylendiği raporda gösterilir. Ses saklanmaz.
 - **Açılış sayfası taraması.** Reklamın bağlantısı sunucudan bir kez, SSRF korumasıyla okunur (yalnızca herkese açık http/https; özel/yerel ağ adresleri, kimlik bilgili ve standart dışı portlu adresler reddedilir; her yönlendirme ve DNS çözümlemesi bağlantı anında yeniden denetlenir; 8 sn, 1,5 MB, yalnızca HTML). Reklamdaki indirim oranı, fiyat, marka, konu ve kampanya koşulları sayfayla karşılaştırılır; sayfa metni kural kartlarıyla da taranır. Sayfa içeriği saklanmaz, raporda yalnızca kontrol sonuçları tutulur. İçeriği JavaScript ile yüklenen (neredeyse boş HTML dönen) sayfalar tespit edilir ve karşılaştırma yapılmadığı açıkça yazılır. Sayfa okunamıyorsa kullanıcı bir ekran görüntüsü ekleyebilir: görüntü saklanır, yapay zekâ açıksa metni okunup aynı kontrollere girer.
 - **Türk sezon takvimi** (`/panel/takvim`). Önümüzdeki 12 ayın özel günleri; her biri için hazırlığa başlama, incelemeye gönderme ve yayın tarihleri, kreatif önerileri ve kural kartlarına bağlı uyum hatırlatmaları. Sektöre göre süzülür, `.ics` olarak takvime eklenir. Her dönem için kural motorundan geçen kampanya metni şablonları (`/panel/yeni?sablon=...`), "Okula dönüş" dönemi, analiz sırasında döneme denk gelen reklamlar için bilgi notu ve isteğe bağlı e-posta hatırlatması (`/api/cron/season-reminders`, Resend) vardır. Dini bayram tarihleri ve okulların açılış günü resmî takvimle doğrulanmadı; arayüzde bu açıkça yazar.
-- **Kural kartları 40.** 16 aktif, 23 doğrulama bekleyen (yalnızca bilgilendirme), 1 taslak. 17.11.2026'da eklenen 17 kartın resmî metni okunmadığı için hepsi `requires_review`.
+- **Kural kartları 63.** 16 aktif, 46 doğrulama bekleyen (yalnızca bilgilendirme), 1 taslak. 17.11.2026'da eklenen kartların resmî metni okunmadığı için hepsi `requires_review`.
+- **Sektör paketleri.** Genel, takviye gıda ve estetik/klinik yanına kozmetik, kurs/eğitim, emlak ve finans eklendi; her birinin kural kartları, çağrı cümlesi, DM soruları ve sezon hatırlatmaları var.
+- **Platformlar.** Analiz Meta, Google Ads veya TikTok için yapılabilir. Türk mevzuatı kartları her platformda geçerlidir; Google Ads ve TikTok kartları doğrulama beklediği için yalnızca bilgilendirir.
+- **WhatsApp / DM şablonu.** İlk mesaj, sık sorulara hazır yanıt soruları, karşılama ve mesai dışı mesajı; kural motorundan tekrar geçer.
+- **Dışa aktarma.** Varyantlar ve DM metinleri CSV (Excel uyumlu, formül enjeksiyonuna karşı korumalı) olarak; rapor, sunucuda üretilen markalı PDF olarak indirilir. Her PDF sayfasının altında uyarı yazar.
+- **Ajans modu.** Markalar (`/panel/markalar`: ton, yasaklı kelimeler, tercih edilen çağrı cümlesi, marka sesi notu, logo), salt okunur ekip üyeleri (`/panel/ekip`, tek kullanımlık e-posta daveti, en fazla 10 kişi), avukata salt okunur inceleme bağlantısı (`/inceleme/<anahtar>`, 1–30 gün, iptal edilebilir, sayaçlı).
+- **Uyarı geri bildirimi.** Her bulgunun altında "Yararlı / Anlaşılmadı / Yanlış uyarı" seçenekleri; yanlış uyarı nedeni ve notu kural sürümüyle birlikte saklanır.
+- **Ücretsiz kontrol** (`/reklamim-reddedilir-mi`). Üyeliksiz, yalnızca metin; kural motoruyla çalışır, hiçbir şey saklanmaz, IP özeti başına 10 dakikada 10 kontrol.
+- **Kurumsal API** (`/api/v1/analyses`). `ads_live_…` anahtarıyla JSON + base64 görsel gönderilir, rapor JSON döner; anahtar başına dakikada 30 istek, panelle aynı kredi kuralları. Belgeler `/panel/api`.
+- **Aylık mevzuat bülteni.** Ayarlardan açılır; son 30 günde doğrulanan veya güncellenen kural kartlarını sektöre göre listeler (`/api/cron/newsletter`).
+- **İlham panosu** (`/panel/ilham`). Meta Reklam Kütüphanesi'nde AB'de gösterilen reklamları arar, metinleri AdScope kurallarıyla tarar, beğenilenleri panoya kaydeder. `META_AD_LIBRARY_TOKEN` yoksa kurulum adımlarını gösterir; örnek ya da uydurma reklam göstermez.
+- **Tarayıcı eklentisi** (`extension/`). Chrome/Edge için sağ tık menüsü: seçili metni veya sayfanın adresini sihirbaza taşır. Veri göndermez; metin adresin `#` kısmında taşınır. Kurulum: [extension/README.md](extension/README.md).
+
+Bilerek yapılmayanlar: **Meta reklam hesabı bağlama** (Meta uygulama incelemesi ve işletme doğrulaması gerekir), **iyzico** (şirket kaydı gerekir), **ikas / Ticimax** entegrasyonu (iş ortağı/uygulama mağazası hesabı gerekir). Hesaplar açılınca adaptör olarak eklenebilir.
 
 > Risk değerlendirmesidir, hukuki görüş değildir. Ürün hiçbir çıktısında onay, hukuki uygunluk veya reddedilmeme garantisi vermez.
 
@@ -55,7 +68,9 @@ npm run db:seed:generate && npx supabase db reset
 
 ## Veritabanı ve güvenlik modeli
 
-- `supabase/migrations/`: 13 tablo (profiles, brands, analyses, analysis_assets, findings, rule_cards, rule_versions, generated_variants, appeal_drafts, credit_ledger, purchase_events, ai_runs, user_consents), RLS politikaları, kredi fonksiyonları, `creatives` storage bucket'ı.
+- `supabase/migrations/`: 21 tablo (profiles, brands, analyses, analysis_assets, findings, rule_cards, rule_versions, generated_variants, appeal_drafts, credit_ledger, purchase_events, ai_runs, user_consents, season_reminder_log, team_members, team_invites, finding_feedback, review_shares, newsletter_log, api_keys, inspiration_pins), RLS politikaları, kredi fonksiyonları, `creatives` storage bucket'ı.
+- İstemci rollerine (`anon`, `authenticated`) yetkiler tablo ve sütun bazında açıkça verilir; Supabase'in yeni tablolara otomatik verdiği tüm yetkiler kaldırıldı. Örneğin API anahtarı ve inceleme bağlantısında kullanıcı yalnızca `revoked_at` sütununu değiştirebilir, marka logosu yolunu yalnızca sunucu yazar.
+- Ekip üyeleri sahibin verisini tek bir "sahip veya ekip" SELECT politikasıyla salt okunur görür; yazma, silme ve kredi işlemleri yalnızca sahibe açıktır. Davet, inceleme bağlantısı ve API anahtarı rastgele 32 bayttır; veritabanında yalnızca SHA-256 özeti tutulur.
 - Tüm `public` tablolarında RLS açık. Politikalar `(select auth.uid()) = user_id` ile satır sahipliğini kontrol eder; UPDATE politikalarında hem `USING` hem `WITH CHECK` var. Bulgular, varyantlar, kredi defteri gibi tablolar istemciden yazılamaz.
 - Storage politikaları aynı sahiplik modelini kullanır: dosya yolu `<user_id>/...` ile başlamalıdır.
 - Kredi: bakiye `credit_ledger` toplamıdır. Defter yalnızca eklemeye açıktır (tetikleyiciyle korunur). Kredi yalnızca `complete_analysis` içinde, sonuçlarla aynı işlemde düşer; başarısız analiz kredi harcamaz. Kayıt hediyesi, analiz düşümü ve satın alma, benzersiz `idempotency_key` ile korunur; çift tıklama ve çift webhook bir kez işlenir.
@@ -106,14 +121,17 @@ Demo e2e sunucusu `LANDING_SCAN_ALLOW_PRIVATE=true` ile açılır; böylece aç�
 3. Önizlemeyi **gizli** tutun: Vercel → Settings → Deployment Protection → Vercel Authentication (veya parola koruması) açık olsun. Uygulama ayrıca `noindex` gönderir.
 4. Günlük saklama temizliği: Vercel Cron ile `/api/cron/retention` uç noktasını `Authorization: Bearer $CRON_SECRET` başlığıyla çağırın.
 5. Sezon hatırlatmaları: `RESEND_API_KEY` ve `EMAIL_FROM` girin, `/api/cron/season-reminders` uç noktasını günde bir kez aynı başlıkla çağırın. Her kullanıcıya her dönem için en fazla bir e-posta gider (`season_reminder_log`).
+6. Mevzuat bülteni: `/api/cron/newsletter` uç noktasını ayın ilk günü aynı başlıkla çağırın. Her kullanıcıya ayda en fazla bir bülten gider (`newsletter_log`).
+7. İlham panosu: Meta for Developers'ta uygulama açıp Reklam Kütüphanesi API kimlik doğrulamasını tamamlayın, uzun ömürlü erişim anahtarını `META_AD_LIBRARY_TOKEN` olarak girin.
 
 ## Proje yapısı
 
 ```
 src/app/(site)        pazarlama, kural kartları, yasal sayfalar
 src/app/(auth)        giriş, kayıt, sunucu eylemleri
-src/app/panel         panel, sihirbaz, rapor, itiraz, geçmiş, krediler, ayarlar, sezon takvimi
-src/app/api           analiz, görsel, webhook, cron uç noktaları
+src/app/panel         panel, sihirbaz, rapor, itiraz, geçmiş, krediler, ayarlar, sezon takvimi, markalar, ekip, API, ilham panosu
+src/app/inceleme      avukat için salt okunur rapor bağlantısı
+src/app/api           analiz, görsel, dışa aktarma, kurumsal API (v1), webhook, cron uç noktaları
 src/lib/engine        kural motoru, skorlama, güvenli metin, varyantlar, itiraz, video ve açılış sayfası kontrolleri
 src/lib/landing       açılış sayfasını SSRF korumalı okuyan sunucu modülü
 src/lib/video         tarayıcıda videodan kare çıkarma, ses ölçümü ve WAV üretimi
@@ -121,9 +139,13 @@ src/lib/speech        konuşmayı yazıya dökme adaptörü (OpenAI uyumlu)
 src/lib/email         e-posta adaptörü (Resend) ve demo kutusu
 src/lib/calendar      sezon takvimi tarihleri, .ics, kampanya şablonları, hatırlatma e-postası
 src/lib/rules         kural kartı kataloğu (tek doğru kaynak)
+src/lib/export        CSV ve PDF (pdfkit, gömülü Manrope/Fraunces)
+src/lib/ads-library   Meta Reklam Kütüphanesi adaptörü
+src/lib/api           kurumsal API kimlik doğrulama ve yanıt biçimi
 src/lib/ai            sağlayıcıdan bağımsız yapay zekâ katmanı + Anthropic adaptörü
 src/lib/data          DataRepo arayüzü: Supabase ve bellek içi uygulamaları
 src/lib/payments      PaymentProvider arayüzü, Lemon Squeezy, Shopier iskeleti
 supabase/             migration'lar, seed, config
+extension/            Chrome/Edge eklentisi (Manifest V3)
 tests/                birim, entegrasyon, uçtan uca
 ```

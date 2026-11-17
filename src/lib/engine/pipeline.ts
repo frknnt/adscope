@@ -1,5 +1,8 @@
 import type { AiProvider, AiResult } from "@/lib/ai/provider";
 import { buildAppeal } from "./appeal";
+import { brandVoiceFindings, stripBannedWords } from "./brand-voice";
+import { buildDmKit } from "./dm";
+import { ruleAppliesTo } from "@/lib/platforms";
 import { landingChecks } from "./landing";
 import { seasonFindings } from "./season-notes";
 import { buildVideoReview, videoFindings } from "./video";
@@ -70,7 +73,8 @@ export async function runPipeline(params: {
 }): Promise<PipelineOutput> {
   const { input } = params;
   // Never let draft/retired rules into the engine.
-  const rules = params.rules.filter((r) => r.status === "active" || r.status === "requires_review");
+  const platform = input.platform ?? "meta";
+  const rules = params.rules.filter((r) => (r.status === "active" || r.status === "requires_review") && ruleAppliesTo(r, platform));
 
   let findings = runRuleEngine(input, rules);
 
@@ -100,7 +104,7 @@ export async function runPipeline(params: {
     landingReport = lc.report;
     findings = [...findings, ...lc.findings];
   }
-  findings = [...findings, ...seasonFindings(input)];
+  findings = [...findings, ...seasonFindings(input), ...brandVoiceFindings(input)];
 
   const order = { red: 0, yellow: 1, info: 2 } as const;
   findings.sort((a, b) => order[a.severity] - order[b.severity]);
@@ -118,6 +122,17 @@ export async function runPipeline(params: {
 
   const { breakdown, meta, legal, creative } = buildBreakdown(input, findings, visual, landingReport);
   breakdown.video = videoReview;
+  const banned = input.brandVoice?.bannedWords ?? [];
+  const dm = buildDmKit(input, rules);
+  breakdown.dm = banned.length
+    ? {
+        ...dm,
+        first_message: stripBannedWords(dm.first_message, banned),
+        auto_greeting: stripBannedWords(dm.auto_greeting, banned),
+        away_message: stripBannedWords(dm.away_message, banned),
+        starter_questions: dm.starter_questions.map((q) => stripBannedWords(q, banned)),
+      }
+    : dm;
 
   // Safe text: deterministic by default; AI text accepted only if it passes the rule re-check.
   const activeRules = rules.filter((r) => r.status === "active");
@@ -128,6 +143,7 @@ export async function runPipeline(params: {
     if (!recheck.some((f) => f.severity !== "info")) safeText = candidate;
   }
 
+  safeText = stripBannedWords(safeText, banned);
   let variants: VariantOut[] = buildVariants(input, safeText, rules);
   if (ai?.ok) {
     variants = variants.map((fallback, idx) => {
@@ -151,6 +167,7 @@ export async function runPipeline(params: {
       };
     });
   }
+  variants = variants.map((v) => ({ ...v, headline: stripBannedWords(v.headline, banned), primary_text: stripBannedWords(v.primary_text, banned), description: stripBannedWords(v.description, banned) }));
   const safeVariant: VariantOut = {
     kind: "safe",
     position: 0,

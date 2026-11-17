@@ -13,6 +13,10 @@ const SECTOR_BASE: Record<AdInput["sector"], { points: number; reason: string }>
     points: 15,
     reason: "Estetik/klinik: kozmetik işlem ve görünüm iddiaları nedeniyle hassas kategori (sezgisel başlangıç puanı).",
   },
+  kozmetik: { points: 10, reason: "Kozmetik: görünüm ve etki iddiaları nedeniyle orta hassasiyette kategori (sezgisel başlangıç puanı)." },
+  kurs_egitim: { points: 10, reason: "Kurs/eğitim: başarı ve iş garantisi iddiaları nedeniyle orta hassasiyette kategori; iş ilanı içeriyorsa özel reklam kategorisi gerekebilir (sezgisel)." },
+  emlak: { points: 10, reason: "Emlak: konut reklamları Meta'da özel reklam kategorisine girer ve hedefleme kısıtlıdır (sezgisel başlangıç puanı)." },
+  finans: { points: 20, reason: "Finans: kredi ve yatırım reklamları özel kategori, izin ve lisans gerektirebilir; en hassas kategorilerden (sezgisel başlangıç puanı)." },
 };
 
 export const META_POINTS = { red: 40, yellow: 20, info: 8 } as const;

@@ -30,7 +30,10 @@ export async function proxy(request: NextRequest) {
   }
 
   response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  // Pages whose URL carries a secret token (review link, team invite) never leak it via Referer.
+  const tokenPage = request.nextUrl.pathname.startsWith("/inceleme/") || request.nextUrl.pathname.startsWith("/panel/ekip/katil");
+  response.headers.set("Referrer-Policy", tokenPage ? "no-referrer" : "strict-origin-when-cross-origin");
+  if (tokenPage) response.headers.set("X-Robots-Tag", "noindex, nofollow");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   return response;

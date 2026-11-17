@@ -8,7 +8,8 @@ import { Button, Field, inputClass } from "@/components/ui";
 import { creditCostFor } from "@/lib/analysis/cost";
 import { analyzeAudio, extractVideoFrames, VIDEO_MIME, videoErrorMessage, type AudioInfo, type ExtractedVideo } from "@/lib/video/extract-frames";
 
-type Sector = "genel" | "takviye_gida" | "estetik_klinik";
+import { SECTOR_IDS, SECTOR_INFO, type Sector } from "@/lib/sectors";
+import { isPlatform, PLATFORM_IDS, PLATFORM_INFO, type Platform } from "@/lib/platforms";
 type BrandOpt = { id: string; name: string; sector: Sector };
 
 const STEPS = ["Kreatif", "Metin", "Sektör", "Beyanlar", "Ret mesajı", "Kontrol"] as const;
@@ -19,16 +20,12 @@ const MAX_VIDEO_SECONDS = 600;
 const MAX_BYTES = 5 * 1024 * 1024;
 const MIME = ["image/jpeg", "image/png", "image/webp"];
 
-const SECTORS: { value: Sector; label: string; note: string }[] = [
-  { value: "genel", label: "Genel", note: "E-ticaret, hizmet, perakende" },
-  { value: "takviye_gida", label: "Takviye gıda", note: "Vitamin, mineral, bitkisel ürün" },
-  { value: "estetik_klinik", label: "Estetik / klinik", note: "Medikal estetik, güzellik merkezi" },
-];
+const SECTORS: { value: Sector; label: string; note: string }[] = SECTOR_IDS.map((s) => ({ value: s, label: SECTOR_INFO[s].label, note: SECTOR_INFO[s].note }));
 
 type ImageState = { file: File; url: string; width: number; height: number } | null;
 type VideoState = (ExtractedVideo & { name: string; audio: AudioInfo; wav: Blob | null }) | null;
 type ShotState = { file: File; url: string } | null;
-export type WizardInitial = { headline?: string; primaryText?: string; description?: string; sector?: Sector; templateTitle?: string };
+export type WizardInitial = { headline?: string; primaryText?: string; description?: string; sector?: Sector; templateTitle?: string; platform?: Platform; landingUrl?: string };
 type Media = "image" | "video";
 
 /** Accepts "ornek.com/kampanya" as well as full URLs; returns null when it cannot be a public web address. */
@@ -90,7 +87,7 @@ export function AnalysisWizard({
   const [video, setVideo] = useState<VideoState>(null);
   const [videoBusy, setVideoBusy] = useState(false);
   const [transcript, setTranscript] = useState("");
-  const [landingUrl, setLandingUrl] = useState("");
+  const [landingUrl, setLandingUrl] = useState(initial?.landingUrl ?? "");
   const [landingError, setLandingError] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -99,6 +96,7 @@ export function AnalysisWizard({
   const [description, setDescription] = useState(initial?.description ?? "");
   const [textError, setTextError] = useState<string | null>(null);
   const [sector, setSector] = useState<Sector>(initial?.sector ?? defaultSector);
+  const [platform, setPlatform] = useState<Platform>(initial?.platform ?? "meta");
   const [speechOptIn, setSpeechOptIn] = useState(false);
   const [shot, setShot] = useState<ShotState>(null);
   const [shotError, setShotError] = useState<string | null>(null);
@@ -108,6 +106,29 @@ export function AnalysisWizard({
   const [phase, setPhase] = useState<Phase>({ kind: "editing" });
   // One id per attempt: a double click or network retry of the same attempt reuses it (idempotent server side).
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+
+  // Prefill from the URL fragment (#metin=…&baslik=…&url=…&platform=…), used by the browser
+  // extension and the inspiration board. A fragment never reaches the server, so ad text does not
+  // end up in request logs; it is removed from the address bar right after reading.
+  const [fromLink, setFromLink] = useState(false);
+  useEffect(() => {
+    if (initial?.templateTitle || !window.location.hash.startsWith("#")) return;
+    const hp = new URLSearchParams(window.location.hash.slice(1));
+    const clean = (k: string, max: number) => (hp.get(k) ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").trim().slice(0, max);
+    const text = clean("metin", 2200);
+    const head = clean("baslik", 255);
+    const url = clean("url", 2048);
+    const plat = hp.get("platform");
+    if (!text && !head && !url && !isPlatform(plat)) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- one-time read of browser-only state */
+    if (text) setPrimaryText(text);
+    if (head) setHeadline(head);
+    if (/^https?:\/\//i.test(url)) setLandingUrl(url);
+    if (isPlatform(plat)) setPlatform(plat);
+    setFromLink(Boolean(text || head || url));
+    /* eslint-enable react-hooks/set-state-in-effect */
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }, [initial?.templateTitle]);
 
   useEffect(() => {
     // Move focus only when the step actually changes (not on mount, not on StrictMode re-runs).
@@ -219,6 +240,7 @@ export function AnalysisWizard({
         clientRequestId: requestId,
         brandId: brandId || null,
         sector,
+        platform,
         headline,
         primaryText,
         description,
@@ -281,6 +303,11 @@ export function AnalysisWizard({
 
   return (
     <div className="mt-8">
+      {fromLink ? (
+        <p className="mb-6 max-w-3xl rounded-xl bg-info-tint px-4 py-3 text-[0.9rem] text-info">
+          Metin tarayıcı eklentisinden veya ilham panosundan geldi. Göndermeden önce kontrol et; görseli ilk adımda sen ekleyeceksin.
+        </p>
+      ) : null}
       <ol className="flex flex-wrap gap-x-1 gap-y-2 text-[0.8rem] font-semibold" aria-label="Adımlar">
         {STEPS.map((s, i) => (
           <li key={s} className="flex items-center gap-1">
@@ -452,6 +479,20 @@ export function AnalysisWizard({
         {step === 2 ? (
           <div className="mt-5 grid gap-6">
             <fieldset>
+              <legend className="text-sm font-semibold">Platform</legend>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {PLATFORM_IDS.map((p) => (
+                  <label key={p} className="flex cursor-pointer gap-3 rounded-xl border border-line-strong bg-white/60 px-4 py-3 has-[:checked]:border-ink has-[:checked]:bg-white has-[:checked]:shadow-[0_0_0_1px_var(--ink)]">
+                    <input type="radio" name="platform" value={p} checked={platform === p} onChange={() => setPlatform(p)} className="mt-1 accent-ink" />
+                    <span>
+                      <span className="block text-[0.95rem] font-semibold">{PLATFORM_INFO[p].label}</span>
+                      <span className="block text-[0.82rem] text-muted">{PLATFORM_INFO[p].note}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset>
               <legend className="text-sm font-semibold">Sektör</legend>
               <div className="mt-3 grid gap-2 sm:grid-cols-3">
                 {SECTORS.map((s) => (
@@ -524,6 +565,7 @@ export function AnalysisWizard({
                   "Görsel"
                 )}
               </dd>
+              <dt className="text-muted">Platform</dt><dd>{PLATFORM_INFO[platform].label}</dd>
               <dt className="text-muted">Sektör</dt><dd>{SECTORS.find((s) => s.value === sector)?.label}</dd>
               <dt className="text-muted">Başlık</dt><dd className="break-words">{headline || "—"}</dd>
               <dt className="text-muted">Ana metin</dt><dd className="line-clamp-4 break-words">{primaryText}</dd>

@@ -6,11 +6,11 @@ export const metadata: Metadata = { title: "Nasıl çalışır? · AdScope" };
 const STEPS = [
   { t: "Görseli veya videoyu seç", d: "Görsel: JPG, PNG veya WebP, en fazla 5 MB; dosya türü dosyanın kendi imzasından kontrol edilir. Video/Reels: MP4, MOV veya WebM; video cihazından çıkmaz; tarayıcın altı kare alır (üçü ilk 3 saniyeden) ve sesi ölçer, yalnızca kareler ve ölçümler gönderilir. Video analizi 2 kredidir." },
   { t: "Metni gir", d: "Ana metin, başlık ve açıklama. Videoda dış ses ve ekran yazılarını da yazabilirsin. İstersen açılış sayfası bağlantısını ekle; indirim, fiyat ve marka tutarlılığı kontrol edilir." },
-  { t: "Sektörü seç", d: "Genel, takviye gıda veya estetik/klinik. Sektör paketi ilgili kural kartlarını ekler." },
+  { t: "Platformu ve sektörü seç", d: "Meta, Google Ads veya TikTok; genel, takviye gıda, estetik/klinik, kozmetik, kurs/eğitim, emlak veya finans. Sektör paketi ilgili kural kartlarını ekler. Google Ads ve TikTok kartları henüz doğrulanmadı, bilgi amaçlıdır." },
   { t: "Beyanlarını işaretle", d: "Etkileyici paylaşımı mı, yapay zekâ ile üretilmiş insan karakteri var mı? Bu bilgiler görselden çıkarılamadığı için senden alınır." },
   { t: "Ret mesajı varsa yapıştır", d: "Daha önce reddedildiyse Meta'nın mesajını ekle; itiraz taslağı da hazırlansın." },
   { t: "Analizi başlat", d: "Kural motoru çalışır, yapay zekâ anahtarı tanımlıysa görsel ve metin ayrıca değerlendirilir. Kredi yalnızca rapor tamamlanınca düşer." },
-  { t: "Raporu kullan", d: "Bulguları düzelt, güvenli metni veya varyantlardan birini kopyala, raporu PDF olarak kaydet." },
+  { t: "Raporu kullan", d: "Bulguları düzelt, güvenli metni, varyantları veya WhatsApp/DM şablonlarını kopyala; varyantları CSV, raporu markalı PDF olarak indir ya da avukatına salt okunur bağlantıyla gönder." },
 ];
 
 export default function HowItWorksPage() {

@@ -277,3 +277,103 @@ describe.skipIf(!reachable)("Supabase: auth, RLS, storage, credits", () => {
     expect((await admin().from("analysis_assets").insert({ ...shot, storage_path: `${b.id}/${run.analysis_id}/${randomUUID()}.png`, kind: "landing_screenshot", frame_index: 0 })).error).not.toBeNull();
   });
 });
+
+describe.skipIf(!reachable)("Supabase: agency mode, feedback, review links, API keys, inspiration board", () => {
+  let owner: Awaited<ReturnType<typeof newUser>>;
+  let viewer: Awaited<ReturnType<typeof newUser>>;
+  let stranger: Awaited<ReturnType<typeof newUser>>;
+  let analysisId: string;
+  let findingId: string;
+  const hex = () => randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
+
+  beforeAll(async () => {
+    [owner, viewer, stranger] = await Promise.all([newUser(), newUser(), newUser()]);
+    const s = await startAnalysis(owner.id);
+    await admin().rpc("complete_analysis", { p_analysis_id: s.analysis_id, p_result: await engineResult() });
+    analysisId = s.analysis_id;
+    const { data } = await owner.client.from("findings").select("id").eq("analysis_id", analysisId).not("rule_version_id", "is", null).limit(1).single();
+    findingId = data!.id;
+    // Membership is created by the server when an invite is accepted; clients cannot insert it.
+    const self = await viewer.client.from("team_members").insert({ owner_id: owner.id, member_id: viewer.id, member_email: viewer.email });
+    expect(self.error).not.toBeNull();
+    const { error } = await admin().from("team_members").insert({ owner_id: owner.id, member_id: viewer.id, member_email: viewer.email });
+    expect(error).toBeNull();
+  });
+
+  it("team viewers read the owner's analyses and findings but cannot change them", async () => {
+    const seen = await viewer.client.from("analyses").select("id").eq("id", analysisId);
+    expect(seen.data).toHaveLength(1);
+    const f = await viewer.client.from("findings").select("id").eq("analysis_id", analysisId);
+    expect((f.data ?? []).length).toBeGreaterThan(0);
+    const upd = await viewer.client.from("analyses").update({ headline: "x" }).eq("id", analysisId).select();
+    expect(upd.data ?? []).toHaveLength(0);
+    const none = await stranger.client.from("analyses").select("id").eq("id", analysisId);
+    expect(none.data).toHaveLength(0);
+  });
+
+  it("feedback: only the finding's owner can leave it, and the rule version is filled in", async () => {
+    const mine = await owner.client.from("finding_feedback").insert({ analysis_id: analysisId, finding_id: findingId, verdict: "wrong", reason: "context_ok" }).select("rule_version_id").single();
+    expect(mine.error).toBeNull();
+    expect(mine.data?.rule_version_id).toBeTruthy();
+    const team = await viewer.client.from("finding_feedback").insert({ analysis_id: analysisId, finding_id: findingId, verdict: "helpful" });
+    expect(team.error).not.toBeNull();
+    // Column grants: finding_id / user_id cannot be rewritten.
+    const move = await owner.client.from("finding_feedback").update({ user_id: stranger.id }).eq("finding_id", findingId);
+    expect(move.error).not.toBeNull();
+    const ok = await owner.client.from("finding_feedback").update({ verdict: "unclear" }).eq("finding_id", findingId).select("verdict");
+    expect(ok.data?.[0]?.verdict).toBe("unclear");
+  });
+
+  it("review links: owner-only, completed analyses only, and only revoked_at can change", async () => {
+    const expires = new Date(Date.now() + 7 * 864e5).toISOString();
+    const own = await owner.client.from("review_shares").insert({ analysis_id: analysisId, token_hash: hex(), expires_at: expires }).select("id").single();
+    expect(own.error).toBeNull();
+    const other = await viewer.client.from("review_shares").insert({ analysis_id: analysisId, token_hash: hex(), expires_at: expires });
+    expect(other.error).not.toBeNull();
+    const tooLong = await owner.client.from("review_shares").insert({ analysis_id: analysisId, token_hash: hex(), expires_at: new Date(Date.now() + 60 * 864e5).toISOString() });
+    expect(tooLong.error).not.toBeNull();
+    const bump = await owner.client.from("review_shares").update({ view_count: 99 }).eq("id", own.data!.id);
+    expect(bump.error).not.toBeNull();
+    const anon = await createClient(URL_, PUB, opts).from("review_shares").select("id");
+    expect(anon.data ?? []).toHaveLength(0);
+  });
+
+  it("API keys are private to their owner and the hash cannot be rewritten", async () => {
+    const k = await owner.client.from("api_keys").insert({ name: "CRM", key_prefix: "ads_live_abcd", key_hash: hex() }).select("id").single();
+    expect(k.error).toBeNull();
+    const peek = await stranger.client.from("api_keys").select("id").eq("id", k.data!.id);
+    expect(peek.data).toHaveLength(0);
+    const swap = await owner.client.from("api_keys").update({ key_hash: hex() }).eq("id", k.data!.id);
+    expect(swap.error).not.toBeNull();
+  });
+
+  it("brand logo paths are written by the server only", async () => {
+    const bad = await owner.client.from("brands").insert({ user_id: owner.id, name: "Marka", sector: "genel", logo_path: `${stranger.id}/brand-logos/x.png` });
+    expect(bad.error).not.toBeNull();
+    const good = await owner.client.from("brands").insert({ user_id: owner.id, name: "Marka", sector: "kozmetik", banned_words: ["ucuz"] }).select("id").single();
+    expect(good.error).toBeNull();
+    const viewerSees = await viewer.client.from("brands").select("id").eq("id", good.data!.id);
+    expect(viewerSees.data).toHaveLength(1);
+  });
+
+  it("inspiration pins are private and validated", async () => {
+    const pin = await owner.client.from("inspiration_pins").insert({ ad_archive_id: "123456789", page_name: "Örnek", body: "Metin", country: "DE" }).select("id").single();
+    expect(pin.error).toBeNull();
+    const dup = await owner.client.from("inspiration_pins").insert({ ad_archive_id: "123456789", country: "DE" });
+    expect(dup.error?.code).toBe("23505");
+    const bad = await owner.client.from("inspiration_pins").insert({ ad_archive_id: "abc", country: "DE" });
+    expect(bad.error).not.toBeNull();
+    const other = await viewer.client.from("inspiration_pins").select("id");
+    expect(other.data ?? []).toHaveLength(0);
+  });
+});
+
+describe.skipIf(!reachable)("Supabase: client role privileges", () => {
+  it("client roles have no blanket privileges on newer tables", async () => {
+    const anon = createClient(URL_, PUB, opts);
+    for (const t of ["team_members", "team_invites", "finding_feedback", "review_shares", "newsletter_log", "api_keys", "inspiration_pins", "season_reminder_log"]) {
+      const r = await anon.from(t).select("*").limit(1);
+      expect(r.error?.code, t).toBe("42501");
+    }
+  });
+});

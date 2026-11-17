@@ -91,3 +91,15 @@ export const IconLink = (p: SVGProps<SVGSVGElement>) => (
 export const IconCalendar = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><rect x="3.5" y="5" width="17" height="15.5" rx="2" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>
 );
+export const IconTag = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M3.5 12.5V4.5a1 1 0 0 1 1-1h8l8 8-9 9Z" /><circle cx="8.5" cy="8.5" r="1.5" /></svg>
+);
+export const IconUsers = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><circle cx="9" cy="8.5" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 5.2a3.5 3.5 0 0 1 0 6.6M18 14.2a6.5 6.5 0 0 1 3.5 5.8" /></svg>
+);
+export const IconBoard = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><rect x="3.5" y="3.5" width="7" height="9" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="5" rx="1.5" /><rect x="13.5" y="11.5" width="7" height="9" rx="1.5" /><rect x="3.5" y="15.5" width="7" height="5" rx="1.5" /></svg>
+);
+export const IconKey = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><circle cx="8" cy="15" r="4" /><path d="m11 12 8.5-8.5M16 7l2.5 2.5M14 9l2 2" /></svg>
+);

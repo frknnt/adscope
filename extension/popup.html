@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AdScope ön kontrol</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <h1>AdScope ön kontrol</h1>
+      <form id="check">
+        <label for="text">Reklam metni</label>
+        <textarea id="text" rows="6" maxlength="2200" placeholder="Metni yapıştır ya da sayfada seçip sağ tıkla."></textarea>
+        <label for="headline">Başlık (isteğe bağlı)</label>
+        <input id="headline" maxlength="255" />
+        <button type="submit">Kontrol et</button>
+        <p id="check-msg" class="msg" role="status"></p>
+      </form>
+      <details id="settings">
+        <summary>Ayarlar</summary>
+        <form id="site-form">
+          <label for="site">AdScope adresi</label>
+          <input id="site" type="url" required placeholder="https://adscope.ornek.com" />
+          <p class="hint">Yalnızca https adresleri; geliştirme için http://localhost da kabul edilir.</p>
+          <button type="submit" class="ghost">Kaydet</button>
+          <p id="site-msg" class="msg" role="status"></p>
+        </form>
+      </details>
+      <p class="fine">Eklenti hiçbir veri göndermez; yalnızca AdScope panelini yeni sekmede açar. Metin adres çubuğunun # kısmında taşınır ve sunucu kayıtlarına girmez. Risk değerlendirmesidir, hukuki görüş değildir.</p>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

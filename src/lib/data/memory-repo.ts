@@ -5,16 +5,27 @@ import { cookies } from "next/headers";
 import { demoSessionSecret, retentionDefaultDays } from "@/lib/env";
 import type { AnalysisResult, AppealOut, ImageMeta, RuleRecord, VideoMeta } from "@/lib/engine/types";
 import { RULE_CATALOG, type Sector } from "@/lib/rules/catalog";
+import type { Platform } from "@/lib/platforms";
 import { findPackage } from "@/lib/payments/packages";
+import { API_KEY_LIMIT, PIN_LIMIT, TEAM_LIMIT } from "./limits";
 import type {
   AdminRepo,
   AiRunRecord,
   AnalysisDetail,
   AnalysisSummary,
   AssetUploadOptions,
+  ApiKeyView,
+  InspirationPin,
+  InspirationPinInput,
   AuthResult,
   Brand,
+  BrandInput,
   DataRepo,
+  FindingFeedback,
+  ReportBranding,
+  ReviewShare,
+  SharedReview,
+  TeamState,
   LedgerEntry,
   Profile,
   PurchaseRecord,
@@ -65,6 +76,7 @@ interface StoredAnalysis {
   creditCost?: number;
   speechTranscript?: string | null;
   landingScreenshot?: StoredAsset | null;
+  platform?: Platform;
 }
 interface StoredAsset {
   id: string;
@@ -84,6 +96,37 @@ interface Store {
   consents: { userId: string; type: string; version: string; granted: boolean; createdAt: string }[];
   aiRuns: (AiRunRecord & { userId: string; createdAt: string })[];
   reminderLog?: { userId: string; eventKey: string; sentAt: string }[];
+  logos?: Record<string, { mime: string; dataB64: string }>;
+  team?: { ownerId: string; memberId: string; email: string; createdAt: string }[];
+  invites?: { id: string; ownerId: string; email: string; tokenHash: string; expiresAt: string; acceptedAt: string | null; createdAt: string }[];
+  feedback?: (FindingFeedback & { userId: string; analysisId: string; createdAt: string })[];
+  shares?: (ReviewShare & { userId: string; tokenHash: string })[];
+  newsletterLog?: { userId: string; period: string; sentAt: string }[];
+  apiKeys?: (ApiKeyView & { userId: string; keyHash: string })[];
+  pins?: (InspirationPin & { userId: string })[];
+}
+
+type StoredBrand = Store["brands"][number];
+function brandView(b: StoredBrand): Brand {
+  return {
+    id: b.id,
+    name: b.name,
+    sector: b.sector,
+    tone: b.tone,
+    bannedWords: b.bannedWords ?? [],
+    voiceNotes: b.voiceNotes ?? null,
+    preferredCta: b.preferredCta ?? null,
+    hasLogo: Boolean(store().logos?.[b.id]),
+  };
+}
+
+function isTeamViewer(ownerId: string, userId: string) {
+  return (store().team ?? []).some((m) => m.ownerId === ownerId && m.memberId === userId);
+}
+
+function latestMarketing(userId: string) {
+  const rows = store().consents.filter((c) => c.userId === userId && c.type === "marketing_email");
+  return rows.length ? rows[rows.length - 1].granted : false;
 }
 
 const COOKIE = "adscope_demo_session";
@@ -162,7 +205,7 @@ export function catalogRules(): RuleRecord[] {
   return RULE_CATALOG.map((r) => ({ ...r, versionId: `demo-${r.id}-v${r.version}` }));
 }
 
-function summary(a: StoredAnalysis): AnalysisSummary {
+function summary(a: StoredAnalysis, viewerId?: string): AnalysisSummary {
   return {
     id: a.id,
     status: a.status,
@@ -176,15 +219,21 @@ function summary(a: StoredAnalysis): AnalysisSummary {
     legalFindingCount: a.result?.legal_finding_count ?? null,
     creativeScore: a.result?.creative_score ?? null,
     mediaType: a.mediaType ?? "image",
+    platform: a.platform ?? "meta",
     createdAt: a.createdAt,
     expiresAt: a.expiresAt,
+    ownedByMe: viewerId === undefined || viewerId === a.userId,
   };
 }
 
 export class MemoryRepo implements DataRepo {
   readonly backend = "memory" as const;
 
+  /** acting: act as this user without a cookie session (enterprise API). */
+  constructor(private readonly acting: SessionUser | null = null) {}
+
   async getUser(): Promise<SessionUser | null> {
+    if (this.acting) return this.acting;
     const raw = (await cookies()).get(COOKIE)?.value;
     if (!raw) return null;
     const [id, sig] = raw.split(".");
@@ -220,7 +269,7 @@ export class MemoryRepo implements DataRepo {
     const user: StoredUser = { id: randomUUID(), email, salt, passwordHash: hashPassword(input.password, salt), createdAt: new Date().toISOString() };
     s.users.push(user);
     // Mirrors the auth.users trigger: profile + one-time bonus (idempotency key prevents a second grant).
-    s.profiles[user.id] = { id: user.id, displayName: null, companyName: null, defaultSector: null, onboardingCompletedAt: null, retentionDays: retentionDefaultDays(), seasonReminders: false };
+    s.profiles[user.id] = { id: user.id, displayName: null, companyName: null, defaultSector: null, onboardingCompletedAt: null, retentionDays: retentionDefaultDays(), seasonReminders: false, newsletter: false };
     insertLedger({ userId: user.id, delta: 3, reason: "signup_bonus", note: "Kayıt hediyesi: 3 ücretsiz analiz", analysisId: null, idempotencyKey: `signup_bonus:${user.id}` });
     const now = new Date().toISOString();
     s.consents.push(
@@ -255,7 +304,15 @@ export class MemoryRepo implements DataRepo {
 
   async getProfile() {
     const u = await this.getUser();
-    return u ? (store().profiles[u.id] ?? null) : null;
+    const p = u ? store().profiles[u.id] : null;
+    return p && u ? { ...p, newsletter: latestMarketing(u.id) } : null;
+  }
+
+  async setNewsletter(enabled: boolean, documentVersion: string) {
+    const u = await this.requireUser();
+    store().consents.push({ userId: u.id, type: "marketing_email", version: documentVersion, granted: enabled, createdAt: new Date().toISOString() });
+    persist();
+    return true;
   }
 
   async updateProfile(patch: Parameters<DataRepo["updateProfile"]>[0]) {
@@ -270,17 +327,80 @@ export class MemoryRepo implements DataRepo {
 
   async listBrands() {
     const u = await this.requireUser();
-    return store().brands.filter((b) => b.userId === u.id).map(({ userId: _ignored, ...b }) => b);
+    return store().brands.filter((b) => b.userId === u.id).map(brandView);
   }
 
-  async createBrand(input: Omit<Brand, "id">) {
+  async createBrand(input: BrandInput) {
     const u = await this.requireUser();
     const s = store();
     if (s.brands.some((b) => b.userId === u.id && b.name === input.name)) return null;
-    const b = { ...input, id: randomUUID(), userId: u.id };
+    const b: StoredBrand = {
+      id: randomUUID(),
+      userId: u.id,
+      name: input.name,
+      sector: input.sector,
+      tone: input.tone,
+      bannedWords: input.bannedWords ?? [],
+      voiceNotes: input.voiceNotes ?? null,
+      preferredCta: input.preferredCta ?? null,
+      hasLogo: false,
+    };
     s.brands.push(b);
     persist();
-    return { id: b.id, name: b.name, sector: b.sector, tone: b.tone };
+    return brandView(b);
+  }
+
+  async updateBrand(id: string, patch: Partial<BrandInput>) {
+    const u = await this.requireUser();
+    const s = store();
+    const b = s.brands.find((x) => x.id === id && x.userId === u.id);
+    if (!b) return false;
+    if (patch.name && s.brands.some((x) => x.userId === u.id && x.id !== id && x.name === patch.name)) return false;
+    for (const k of ["name", "sector", "tone", "bannedWords", "voiceNotes", "preferredCta"] as const) {
+      if (patch[k] !== undefined) (b as unknown as Record<string, unknown>)[k] = patch[k];
+    }
+    persist();
+    return true;
+  }
+
+  async deleteBrand(id: string) {
+    const u = await this.requireUser();
+    const s = store();
+    const idx = s.brands.findIndex((x) => x.id === id && x.userId === u.id);
+    if (idx < 0) return false;
+    s.brands.splice(idx, 1);
+    if (s.logos) delete s.logos[id];
+    for (const a of s.analyses) if (a.brandId === id) a.brandId = null;
+    persist();
+    return true;
+  }
+
+  async setBrandLogo(id: string, logo: { bytes: Uint8Array; mime: string; ext: string } | null) {
+    const u = await this.requireUser();
+    const s = store();
+    if (!s.brands.some((x) => x.id === id && x.userId === u.id)) return false;
+    s.logos ??= {};
+    if (logo) s.logos[id] = { mime: logo.mime, dataB64: Buffer.from(logo.bytes).toString("base64") };
+    else delete s.logos[id];
+    persist();
+    return true;
+  }
+
+  async getBrandLogo(id: string) {
+    const u = await this.getUser();
+    if (!u) return null;
+    const b = store().brands.find((x) => x.id === id);
+    if (!b || (b.userId !== u.id && !isTeamViewer(b.userId, u.id))) return null;
+    const l = store().logos?.[id];
+    return l ? { bytes: new Uint8Array(Buffer.from(l.dataB64, "base64")), mime: l.mime } : null;
+  }
+
+  async getReportBranding(analysisId: string): Promise<ReportBranding | null> {
+    const u = await this.getUser();
+    if (!u) return null;
+    const a = this.visible(analysisId, u.id);
+    if (!a) return null;
+    return brandingFor(a);
   }
 
   async getRules(sector: Sector) {
@@ -349,6 +469,7 @@ export class MemoryRepo implements DataRepo {
         landingUrl: p.landingUrl,
         frames: [],
         creditCost: p.creditCost,
+        platform: p.platform ?? "meta",
       };
       s.analyses.push(a);
       persist();
@@ -358,6 +479,16 @@ export class MemoryRepo implements DataRepo {
 
   private own(id: string, userId: string) {
     return store().analyses.find((a) => a.id === id && a.userId === userId) ?? null;
+  }
+
+  /** Own analyses and those of teams the user views. */
+  private visible(id: string, userId: string) {
+    const a = store().analyses.find((x) => x.id === id) ?? null;
+    if (!a) return null;
+    if (a.userId === userId) return a;
+    // An API-key repo acts only on its own data.
+    if (!this.acting && isTeamViewer(a.userId, userId)) return a;
+    return null;
   }
 
   async uploadAsset(analysisId: string, bytes: Uint8Array, meta: ImageMeta, _ext?: string, _sha?: string, opts: AssetUploadOptions = { kind: "creative" }) {
@@ -428,18 +559,293 @@ export class MemoryRepo implements DataRepo {
       .analyses.filter((a) => a.userId === u.id)
       .sort((x, y) => y.createdAt.localeCompare(x.createdAt))
       .slice(0, limit)
-      .map(summary);
+      .map((a) => summary(a));
+  }
+
+  async listTeamAnalyses(limit = 100) {
+    const u = await this.requireUser();
+    const s = store();
+    const owners = new Set((s.team ?? []).filter((m) => m.memberId === u.id).map((m) => m.ownerId));
+    return s.analyses
+      .filter((a) => owners.has(a.userId))
+      .sort((x, y) => y.createdAt.localeCompare(x.createdAt))
+      .slice(0, limit)
+      .map((a) => ({ ...summary(a, u.id), ownerLabel: ownerLabel(a.userId) }));
   }
 
   async getAnalysis(id: string): Promise<AnalysisDetail | null> {
     const u = await this.getUser();
     if (!u) return null;
-    const a = this.own(id, u.id);
+    const a = this.visible(id, u.id);
     if (!a) return null;
+    return detailOf(a, u.id);
+  }
+
+  async getAssetBytes(analysisId: string, which?: number | "screenshot") {
+    const u = await this.getUser();
+    if (!u) return null;
+    const a = this.visible(analysisId, u.id);
+    if (!a) return null;
+    const asset = which === undefined ? a.asset : which === "screenshot" ? a.landingScreenshot : (a.frames ?? []).find((f) => f.index === which);
+    if (!asset) return null;
+    return { bytes: new Uint8Array(Buffer.from(asset.dataB64, "base64")), mime: asset.mime };
+  }
+
+  async listFindingFeedback(analysisId: string) {
+    const u = await this.requireUser();
+    return (store().feedback ?? [])
+      .filter((f) => f.userId === u.id && f.analysisId === analysisId)
+      .map(({ findingId, verdict, reason, note }) => ({ findingId, verdict, reason, note }));
+  }
+
+  async saveFindingFeedback(analysisId: string, fb: FindingFeedback) {
+    const u = await this.requireUser();
+    const a = this.own(analysisId, u.id);
+    if (!a || a.status !== "completed") return false;
+    const idx = Number(fb.findingId.slice(a.id.length + 1));
+    if (!fb.findingId.startsWith(`${a.id}-`) || !Number.isInteger(idx) || !a.result?.findings[idx]) return false;
+    const s = store();
+    s.feedback ??= [];
+    const existing = s.feedback.find((f) => f.userId === u.id && f.findingId === fb.findingId);
+    if (existing) Object.assign(existing, { verdict: fb.verdict, reason: fb.reason, note: fb.note });
+    else s.feedback.push({ ...fb, userId: u.id, analysisId, createdAt: new Date().toISOString() });
+    persist();
+    return true;
+  }
+
+  async getTeam(): Promise<TeamState> {
+    const u = await this.requireUser();
+    const s = store();
+    const now = Date.now();
+    return {
+      members: (s.team ?? []).filter((m) => m.ownerId === u.id).map((m) => ({ memberId: m.memberId, email: m.email, createdAt: m.createdAt })),
+      invites: (s.invites ?? [])
+        .filter((i) => i.ownerId === u.id && !i.acceptedAt && Date.parse(i.expiresAt) > now)
+        .map((i) => ({ id: i.id, email: i.email, expiresAt: i.expiresAt })),
+      memberships: (s.team ?? []).filter((m) => m.memberId === u.id).map((m) => ({ ownerId: m.ownerId, ownerLabel: ownerLabel(m.ownerId), createdAt: m.createdAt })),
+    };
+  }
+
+  async createTeamInvite(email: string, tokenHash: string, expiresAt: string) {
+    const u = await this.requireUser();
+    const s = store();
+    const e = email.trim().toLowerCase();
+    if (e === u.email.toLowerCase()) return "self" as const;
+    s.team ??= [];
+    s.invites ??= [];
+    if (s.team.some((m) => m.ownerId === u.id && m.email === e)) return "exists" as const;
+    const open = s.invites.filter((i) => i.ownerId === u.id && !i.acceptedAt && Date.parse(i.expiresAt) > Date.now());
+    if (s.team.filter((m) => m.ownerId === u.id).length + open.length >= TEAM_LIMIT) return "limit" as const;
+    s.invites = s.invites.filter((i) => !(i.ownerId === u.id && i.email === e && !i.acceptedAt));
+    s.invites.push({ id: randomUUID(), ownerId: u.id, email: e, tokenHash, expiresAt, acceptedAt: null, createdAt: new Date().toISOString() });
+    persist();
+    return "ok" as const;
+  }
+
+  async deleteTeamInvite(id: string) {
+    const u = await this.requireUser();
+    const s = store();
+    const before = (s.invites ?? []).length;
+    s.invites = (s.invites ?? []).filter((i) => !(i.id === id && i.ownerId === u.id));
+    persist();
+    return s.invites.length < before;
+  }
+
+  async removeTeamMember(memberId: string) {
+    const u = await this.requireUser();
+    const s = store();
+    const before = (s.team ?? []).length;
+    s.team = (s.team ?? []).filter((m) => !(m.ownerId === u.id && m.memberId === memberId));
+    persist();
+    return s.team.length < before;
+  }
+
+  async leaveTeam(ownerId: string) {
+    const u = await this.requireUser();
+    const s = store();
+    const before = (s.team ?? []).length;
+    s.team = (s.team ?? []).filter((m) => !(m.ownerId === ownerId && m.memberId === u.id));
+    persist();
+    return s.team.length < before;
+  }
+
+  async acceptTeamInvite(tokenHash: string) {
+    const u = await this.requireUser();
+    const s = store();
+    const inv = (s.invites ?? []).find((i) => i.tokenHash === tokenHash && !i.acceptedAt && Date.parse(i.expiresAt) > Date.now());
+    if (!inv) return "invalid" as const;
+    if (inv.ownerId === u.id) return "self" as const;
+    if (inv.email !== u.email.toLowerCase()) return "wrong_email" as const;
+    s.team ??= [];
+    if (!s.team.some((m) => m.ownerId === inv.ownerId && m.memberId === u.id))
+      s.team.push({ ownerId: inv.ownerId, memberId: u.id, email: inv.email, createdAt: new Date().toISOString() });
+    inv.acceptedAt = new Date().toISOString();
+    persist();
+    return "ok" as const;
+  }
+
+  async createReviewShare(analysisId: string, tokenHash: string, expiresAt: string, note: string | null) {
+    const u = await this.requireUser();
+    const a = this.own(analysisId, u.id);
+    if (!a || a.status !== "completed") return false;
+    const s = store();
+    s.shares ??= [];
+    s.shares.push({ id: randomUUID(), userId: u.id, analysisId, tokenHash, note, expiresAt, revokedAt: null, viewCount: 0, createdAt: new Date().toISOString() });
+    persist();
+    return true;
+  }
+
+  async listReviewShares(analysisId: string) {
+    const u = await this.requireUser();
+    return (store().shares ?? [])
+      .filter((x) => x.userId === u.id && x.analysisId === analysisId)
+      .map(({ userId: _u, tokenHash: _t, ...x }) => x)
+      .reverse();
+  }
+
+  async revokeReviewShare(id: string) {
+    const u = await this.requireUser();
+    const sh = (store().shares ?? []).find((x) => x.id === id && x.userId === u.id);
+    if (!sh) return false;
+    sh.revokedAt ??= new Date().toISOString();
+    persist();
+    return true;
+  }
+
+  async listApiKeys() {
+    const u = await this.requireUser();
+    return (store().apiKeys ?? []).filter((k) => k.userId === u.id).map(({ userId: _u, keyHash: _h, ...k }) => k).reverse();
+  }
+
+  async createApiKey(name: string, prefix: string, keyHash: string) {
+    const u = await this.requireUser();
+    const s = store();
+    s.apiKeys ??= [];
+    if (s.apiKeys.filter((k) => k.userId === u.id && !k.revokedAt).length >= API_KEY_LIMIT) return "limit" as const;
+    s.apiKeys.push({ id: randomUUID(), userId: u.id, name, prefix, keyHash, createdAt: new Date().toISOString(), lastUsedAt: null, revokedAt: null });
+    persist();
+    return "ok" as const;
+  }
+
+  async revokeApiKey(id: string) {
+    const u = await this.requireUser();
+    const k = (store().apiKeys ?? []).find((x) => x.id === id && x.userId === u.id);
+    if (!k) return false;
+    k.revokedAt ??= new Date().toISOString();
+    persist();
+    return true;
+  }
+
+  async listPins() {
+    const u = await this.requireUser();
+    return (store().pins ?? []).filter((p) => p.userId === u.id).map(({ userId: _u, ...p }) => p).reverse();
+  }
+
+  async savePin(pin: InspirationPinInput) {
+    const u = await this.requireUser();
+    const s = store();
+    s.pins ??= [];
+    const mine = s.pins.filter((p) => p.userId === u.id);
+    if (mine.some((p) => p.adArchiveId === pin.adArchiveId)) return "exists" as const;
+    if (mine.length >= PIN_LIMIT) return "limit" as const;
+    s.pins.push({ ...pin, id: randomUUID(), userId: u.id, createdAt: new Date().toISOString() });
+    persist();
+    return "ok" as const;
+  }
+
+  async deletePin(id: string) {
+    const u = await this.requireUser();
+    const s = store();
+    const before = (s.pins ?? []).length;
+    s.pins = (s.pins ?? []).filter((p) => !(p.id === id && p.userId === u.id));
+    persist();
+    return s.pins.length < before;
+  }
+
+  async setSpeechTranscript(analysisId: string, text: string) {
+    const u = await this.requireUser();
+    const a = this.own(analysisId, u.id);
+    if (!a || a.status !== "processing") return false;
+    a.speechTranscript = text.slice(0, 6000);
+    persist();
+    return true;
+  }
+
+  async deleteAnalysis(id: string) {
+    const u = await this.requireUser();
+    const s = store();
+    const idx = s.analyses.findIndex((a) => a.id === id && a.userId === u.id);
+    if (idx < 0) return false;
+    s.analyses.splice(idx, 1);
+    for (const l of s.ledger) if (l.analysisId === id) l.analysisId = null; // FK set null, ledger row kept
+    s.feedback = (s.feedback ?? []).filter((f) => f.analysisId !== id);
+    s.shares = (s.shares ?? []).filter((x) => x.analysisId !== id);
+    persist();
+    return true;
+  }
+
+  async saveAppeal(analysisId: string, appeal: AppealOut) {
+    const u = await this.requireUser();
+    const a = this.own(analysisId, u.id);
+    if (!a || a.status !== "completed") return false;
+    a.appeal = { ...appeal, createdAt: new Date().toISOString() };
+    persist();
+    return true;
+  }
+
+  async applyDemoPurchase(packageId: string, eventId: string) {
+    const u = await this.requireUser();
+    const pkg = findPackage(packageId);
+    if (!pkg) return { applied: false };
+    return new MemoryAdminRepo().applyPurchase({ provider: "demo", eventId, orderId: eventId, userId: u.id, packageId: pkg.id, credits: pkg.credits, amountMinor: 0, currency: pkg.currency, isDemo: true });
+  }
+
+  async deleteAccount() {
+    const u = await this.requireUser();
+    const s = store();
+    s.users = s.users.filter((x) => x.id !== u.id);
+    delete s.profiles[u.id];
+    s.brands = s.brands.filter((x) => x.userId !== u.id);
+    s.analyses = s.analyses.filter((x) => x.userId !== u.id);
+    s.ledger = s.ledger.filter((x) => x.userId !== u.id);
+    s.consents = s.consents.filter((x) => x.userId !== u.id);
+    s.aiRuns = s.aiRuns.filter((x) => x.userId !== u.id);
+    s.team = (s.team ?? []).filter((x) => x.ownerId !== u.id && x.memberId !== u.id);
+    s.invites = (s.invites ?? []).filter((x) => x.ownerId !== u.id);
+    s.feedback = (s.feedback ?? []).filter((x) => x.userId !== u.id);
+    s.shares = (s.shares ?? []).filter((x) => x.userId !== u.id);
+    s.apiKeys = (s.apiKeys ?? []).filter((x) => x.userId !== u.id);
+    s.pins = (s.pins ?? []).filter((x) => x.userId !== u.id);
+    for (const p of s.purchases) if (p.userId === u.id) p.userId = null;
+    persist();
+    await this.signOut();
+    return true;
+  }
+}
+
+
+function ownerLabel(ownerId: string) {
+  const s = store();
+  const p = s.profiles[ownerId];
+  return p?.companyName || p?.displayName || s.users.find((x) => x.id === ownerId)?.email || "Ekip";
+}
+
+function brandingFor(a: StoredAnalysis): ReportBranding {
+  const s = store();
+  const brand = a.brandId ? s.brands.find((b) => b.id === a.brandId) : null;
+  const logo = brand ? s.logos?.[brand.id] : null;
+  return {
+    brandName: brand?.name ?? null,
+    agencyName: s.profiles[a.userId]?.companyName ?? null,
+    logo: logo ? { bytes: new Uint8Array(Buffer.from(logo.dataB64, "base64")), mime: logo.mime } : null,
+  };
+}
+
+function detailOf(a: StoredAnalysis, viewerId: string): AnalysisDetail {
     const rules = new Map(catalogRules().map((r) => [r.versionId, r]));
     const r = a.result;
     return {
-      ...summary(a),
+      ...summary(a, viewerId),
       description: a.description,
       rejectionMessage: a.rejectionMessage,
       safeText: r?.safe_text ?? null,
@@ -495,70 +901,8 @@ export class MemoryRepo implements DataRepo {
       speechTranscript: a.speechTranscript ?? null,
       hasLandingScreenshot: Boolean(a.landingScreenshot),
       creditCost: a.creditCost ?? 1,
+      brandId: a.brandId,
     };
-  }
-
-  async getAssetBytes(analysisId: string, which?: number | "screenshot") {
-    const u = await this.getUser();
-    if (!u) return null;
-    const a = this.own(analysisId, u.id);
-    if (!a) return null;
-    const asset = which === undefined ? a.asset : which === "screenshot" ? a.landingScreenshot : (a.frames ?? []).find((f) => f.index === which);
-    if (!asset) return null;
-    return { bytes: new Uint8Array(Buffer.from(asset.dataB64, "base64")), mime: asset.mime };
-  }
-
-  async setSpeechTranscript(analysisId: string, text: string) {
-    const u = await this.requireUser();
-    const a = this.own(analysisId, u.id);
-    if (!a || a.status !== "processing") return false;
-    a.speechTranscript = text.slice(0, 6000);
-    persist();
-    return true;
-  }
-
-  async deleteAnalysis(id: string) {
-    const u = await this.requireUser();
-    const s = store();
-    const idx = s.analyses.findIndex((a) => a.id === id && a.userId === u.id);
-    if (idx < 0) return false;
-    s.analyses.splice(idx, 1);
-    for (const l of s.ledger) if (l.analysisId === id) l.analysisId = null; // FK set null, ledger row kept
-    persist();
-    return true;
-  }
-
-  async saveAppeal(analysisId: string, appeal: AppealOut) {
-    const u = await this.requireUser();
-    const a = this.own(analysisId, u.id);
-    if (!a || a.status !== "completed") return false;
-    a.appeal = { ...appeal, createdAt: new Date().toISOString() };
-    persist();
-    return true;
-  }
-
-  async applyDemoPurchase(packageId: string, eventId: string) {
-    const u = await this.requireUser();
-    const pkg = findPackage(packageId);
-    if (!pkg) return { applied: false };
-    return new MemoryAdminRepo().applyPurchase({ provider: "demo", eventId, orderId: eventId, userId: u.id, packageId: pkg.id, credits: pkg.credits, amountMinor: 0, currency: pkg.currency, isDemo: true });
-  }
-
-  async deleteAccount() {
-    const u = await this.requireUser();
-    const s = store();
-    s.users = s.users.filter((x) => x.id !== u.id);
-    delete s.profiles[u.id];
-    s.brands = s.brands.filter((x) => x.userId !== u.id);
-    s.analyses = s.analyses.filter((x) => x.userId !== u.id);
-    s.ledger = s.ledger.filter((x) => x.userId !== u.id);
-    s.consents = s.consents.filter((x) => x.userId !== u.id);
-    s.aiRuns = s.aiRuns.filter((x) => x.userId !== u.id);
-    for (const p of s.purchases) if (p.userId === u.id) p.userId = null;
-    persist();
-    await this.signOut();
-    return true;
-  }
 }
 
 export class MemoryAdminRepo implements AdminRepo {
@@ -625,6 +969,62 @@ export class MemoryAdminRepo implements AdminRepo {
     const s = store();
     s.reminderLog = (s.reminderLog ?? []).filter((r) => !(r.userId === userId && r.eventKey === eventKey));
     persist();
+  }
+
+  async listNewsletterRecipients() {
+    const s = store();
+    return s.users
+      .filter((u) => latestMarketing(u.id))
+      .map((u) => ({ userId: u.id, email: u.email, displayName: s.profiles[u.id]?.displayName ?? null, sector: s.profiles[u.id]?.defaultSector ?? null }));
+  }
+
+  async claimNewsletter(userId: string, period: string) {
+    const s = store();
+    s.newsletterLog ??= [];
+    if (s.newsletterLog.some((r) => r.userId === userId && r.period === period)) return false;
+    s.newsletterLog.push({ userId, period, sentAt: new Date().toISOString() });
+    persist();
+    return true;
+  }
+
+  async releaseNewsletter(userId: string, period: string) {
+    const s = store();
+    s.newsletterLog = (s.newsletterLog ?? []).filter((r) => !(r.userId === userId && r.period === period));
+    persist();
+  }
+
+  async getSharedReview(tokenHash: string): Promise<SharedReview | null> {
+    const s = store();
+    const sh = (s.shares ?? []).find((x) => x.tokenHash === tokenHash);
+    if (!sh || sh.revokedAt || Date.parse(sh.expiresAt) <= Date.now()) return null;
+    const a = s.analyses.find((x) => x.id === sh.analysisId && x.userId === sh.userId && x.status === "completed");
+    if (!a) return null;
+    sh.viewCount += 1;
+    persist();
+    return { analysis: detailOf(a, sh.userId), branding: brandingFor(a), note: sh.note, expiresAt: sh.expiresAt };
+  }
+
+  async getSharedAssetBytes(tokenHash: string, which?: number | "screenshot") {
+    const s = store();
+    const sh = (s.shares ?? []).find((x) => x.tokenHash === tokenHash);
+    if (!sh || sh.revokedAt || Date.parse(sh.expiresAt) <= Date.now()) return null;
+    const u = s.users.find((x) => x.id === sh.userId);
+    return u ? new MemoryRepo({ id: u.id, email: u.email }).getAssetBytes(sh.analysisId, which) : null;
+  }
+
+  async resolveApiKey(keyHash: string) {
+    const s = store();
+    const k = (s.apiKeys ?? []).find((x) => x.keyHash === keyHash && !x.revokedAt);
+    if (!k) return null;
+    const u = s.users.find((x) => x.id === k.userId);
+    if (!u) return null;
+    k.lastUsedAt = new Date().toISOString();
+    persist();
+    return { id: u.id, email: u.email };
+  }
+
+  repoForUser(user: SessionUser): DataRepo {
+    return new MemoryRepo(user);
   }
 }
 

@@ -13,7 +13,8 @@
 | Shopier ödeme | **Yalnızca iskelet.** Resmî callback belgesi okunamadı; kapalı. |
 | Demo satın alma | **Demo.** Yalnızca `APP_MODE=demo` iken görünür, kayıtlarda "Demo (ödeme alınmadı)" yazar. |
 | Bellek içi veri katmanı | **Demo.** Supabase değişkenleri yokken kullanılır; aynı kredi ve sahiplik kurallarını taklit eder, süreç yeniden başlayınca silinir. |
-| PDF rapor | Tarayıcının "PDF olarak kaydet" yazdırma akışı (yazdırmaya özel stil). Sunucu tarafı PDF üretimi yok. |
+| PDF rapor | **Gerçek, sunucuda.** pdfkit ile üretilir, Manrope/Fraunces gömülü (Türkçe karakterler tam), marka logosu başlıkta, her sayfada uyarı ve sayfa numarası. Tarayıcıdan yazdırma da duruyor. |
+| CSV dışa aktarma | **Gerçek.** Varyantlar ve DM metinleri; UTF-8 BOM, `;` ayraç (Excel Türkçe), formül enjeksiyonuna karşı hücre koruması, her satırda uyarı. |
 | Video / Reels analizi | **Gerçek.** 6 kare (3'ü ilk 3 saniyeden) tarayıcıda çıkarılır, sunucuda imzasından doğrulanır, özel depoda saklanır. Ses tarayıcıda ölçülür (başlangıç anı, sessiz oran). 2 kredi; maliyet her analizde `credit_cost` olarak saklanır ve `complete_analysis` tam o kadar düşer. Tarayıcının açamadığı formatlar (çoğu zaman MOV/HEVC) için MP4 (H.264) önerilir. |
 | Video kanca incelemesi (kanca puanı, altyazı, sessiz izleme, güvenli alan) | **Yapay zekâ gerekir.** Anthropic adaptöründen şemayla istenir; anahtar yokken raporda "Değerlendirilmedi" yazar. Gerçek API ile denenmedi. |
 | Konuşmayı yazıya dökme | **Adaptör hazır, anahtar yok.** OpenAI uyumlu `/v1/audio/transcriptions`; yerel sahte sunucuyla birim ve uçtan uca test edildi, gerçek hizmetle denenmedi. Kullanıcı onayı olmadan ses gönderilmez. |
@@ -21,6 +22,16 @@
 | Sezon hatırlatma e-postaları | **Adaptör hazır, hesap yok.** Resend adaptörü sahte sunucuyla test edildi; anahtar yokken demo modunda bellek kutusuna yazar, production'da göndermez. Zamanlayıcı kurulmadı. |
 | Kampanya şablonları ve analizde sezon notu | **Gerçek.** Her şablon testte kural motorundan kırmızı/sarı bayraksız geçer. Sezon notu yalnızca bilgilendirmedir, skoru değiştirmez. |
 | Sezon takvimi | **Hesaplanan.** Sabit ve kurala bağlı günler koddan hesaplanır. Ramazan ve Kurban Bayramı 2026–2027 tarihleri ikincil kaynaklardan alındı, **Diyanet'le doğrulanmadı**; 2028 ve sonrası eklenmedi. "Okula dönüş" eylülün ikinci pazartesi varsayılır, **MEB takvimiyle doğrulanmadı**. |
+| Sektör paketleri (kozmetik, kurs/eğitim, emlak, finans) | **Gerçek, kartlar doğrulanmadı.** Kartların hepsi `requires_review`; yalnızca bilgilendirir. |
+| Google Ads ve TikTok | **Gerçek, kartlar doğrulanmadı.** Platform seçimi, platforma göre kural süzme ve etiketler çalışır; 10 platform kartının hepsi `requires_review`. Platformların kendi inceleme sistemleriyle kalibre edilmedi. |
+| WhatsApp / DM şablonu | **Gerçek, deterministik.** Kural motorundan tekrar geçer; marka yasaklı kelimeleri çıkarılır. |
+| Ajans modu (markalar, ekip, avukat bağlantısı, logolu PDF) | **Gerçek.** Yerel Supabase'te RLS ve yetki testleri, tarayıcıda uçtan uca test edildi. Davet e-postası Resend tanımlıysa gider; yoksa bağlantı ekranda bir kez gösterilir. |
+| Uyarı geri bildirimi | **Gerçek.** Kural sürümüyle birlikte saklanır. Geri bildirimleri okuyacak bir yönetim ekranı yok; veritabanından sorgulanır. |
+| Ücretsiz kontrol sayfası | **Gerçek.** Kural motoru, yapay zekâ yok, saklama yok. Hız sınırı bellek içidir (tek sunucu). |
+| Kurumsal API | **Gerçek.** Anahtar özeti veritabanında; anahtar başına dakikada 30 istek (bellek içi). OpenAPI belgesi yok, `/panel/api` sayfasında örnek var. |
+| Aylık mevzuat bülteni | **Adaptör hazır, hesap yok.** İçerik katalogdaki `lastVerifiedAt` tarihlerinden üretilir; Resend ve zamanlayıcı kurulmadı. |
+| Meta Reklam Kütüphanesi ilham panosu | **Adaptör hazır, anahtar yok.** Sahte Graph API sunucusuyla birim ve uçtan uca test edildi; gerçek API ile denenmedi. Ticari reklamlar API'de yalnızca AB için açık. |
+| Tarayıcı eklentisi | **Gerçek, mağazada değil.** Geliştirici modunda yüklenir; Chrome Web Mağazası hesabı gerekir. Yardımcı işlevleri birim testli; eklentinin kendisi tarayıcıda otomatik test edilmedi. |
 | Saklama süresi temizliği | `/api/cron/retention` uç noktası hazır; zamanlayıcı (ör. Vercel Cron) kurulmadı. |
 
 ## Kabul kriterleri ve test karşılığı
@@ -48,10 +59,16 @@
 | Ses yalnızca onayla gönderilir; konuşma metni kurallarla taranır | e2e (sahte konuşma sunucusu), birim (WAV doğrulama, adaptör) |
 | JavaScript sayfası tespiti, ekran görüntüsü yedeği ve sahipliği | birim, e2e (başka kullanıcıya 404) |
 | Şablonlar, sezon notu, hatırlatma e-postası ve tekrar göndermeme | birim, bellek testi, entegrasyon (`season_reminder_log` RLS), e2e |
+| Sektör paketleri, DM şablonu, marka sesi, platform kural setleri, CSV kaçışları, PDF (gömülü yazı tipi) | `tests/unit/agency-export.test.ts` |
+| Ekip salt okunur, geri bildirim yalnızca sahibine, inceleme bağlantısı süresi ve sütun yetkileri, API anahtarı gizliliği, logo yolu, ilham panosu | entegrasyon (yerel Supabase) |
+| İstemci rollerinin yeni tablolarda genel yetkisi yok | entegrasyon |
+| Ücretsiz kontrol, CSV/PDF indirme, DM bölümü, avukat bağlantısı oturumsuz, markalar, ekip daveti, API anahtarı ile JSON, ilham panosu (anahtar başlıkta, `ad_snapshot_url` sızmıyor), sihirbaza `#` ile metin taşıma | e2e `agency.spec.ts` (demo masaüstü, demo mobil, Supabase) |
+| Meta Reklam Kütüphanesi adaptörü (alan süzme, AB ülkesi, hata eşleme, önbellek ve hız sınırı) | `tests/unit/ad-library.test.ts` |
+| Eklenti: yalnızca https adres, metin `#` içinde, en az izin | `tests/unit/extension.test.ts` |
 | Production build | `next build` temiz (uyarı yok) |
-| Veritabanı danışmanı | `supabase db advisors`: güvenlik/performans sorunu yok; yalnızca yeni veritabanında kullanılmamış indeks bilgileri |
+| Veritabanı danışmanı | `supabase db advisors --level warn`: sorun yok. Ekip politikaları sahip politikasıyla birleştirildi (tek SELECT politikası); yalnızca yeni veritabanında kullanılmamış indeks bilgileri kalıyor. |
 
-Son çalıştırma (17.11.2026, video kanca analizi, sezon şablonları ve 40 kural kartından sonra): birim + entegrasyon 93/93, uçtan uca 69 geçti + 1 bilerek atlandı (demo masaüstü, demo mobil, Supabase masaüstü); yalnızca axe'nin sayfa başlığı yüklenmeden çalıştığı bir zamanlama hatası çıktı, test başlığı bekleyecek şekilde düzeltildi ve ilgili dosya iki kez tekrarlanarak 36/36 geçti. `next build` temiz, `supabase db advisors` sorun bulmadı. E2E projeleri ayrı `X-Forwarded-For` adresleriyle kaydolur; böylece IP başına kayıt sınırı projeler arasında paylaşılmaz.
+Son çalıştırma (17.11.2026, ajans modu, platformlar, API, ilham panosu ve eklentiden sonra): tip denetimi ve lint temiz, birim + entegrasyon 118/118, uçtan uca 77 geçti + 1 bilerek atlandı (demo masaüstü, demo mobil, Supabase masaüstü). `next build` temiz, `supabase db advisors --level warn` sorun bulmadı. Bu turda entegrasyon testi gerçek bir açık buldu: Supabase'in varsayılan yetkileri yüzünden yeni tablolarda kullanıcı API anahtarının özetini ve inceleme bağlantısının sayacını değiştirebiliyordu; yetkiler tablo ve sütun bazında yeniden verildi ve test eklendi. E2E projeleri ayrı `X-Forwarded-For` adresleriyle kaydolur; böylece IP başına kayıt sınırı projeler arasında paylaşılmaz.
 
 ## Varsayımlar (doğrulanmalı)
 
@@ -62,7 +79,9 @@ Son çalıştırma (17.11.2026, video kanca analizi, sezon şablonları ve 40 ku
 5. Saklama süresi varsayılanı 90 gün; kullanıcı 7–365 gün arası seçebilir.
 6. Görsel metni (OCR) yapay zekâ kapalıyken okunmaz; görseldeki ifadeler yalnızca yapay zekâ açıkken değerlendirilir. Aynısı video kareleri için de geçerli.
 7. Video için 6 kare (3'ü ilk 3 saniyeden), en uzun video 10 dakika, video analizi 2 kredi, konuşma çevirisi için ilk 90 saniye ürün kararıdır.
-8. Sezon takviminde hazırlık (yayından 14 gün önce), incelemeye gönderme (yayından 3 gün önce) ve dönem başına yayın süresi ürün varsayımıdır; Meta'nın inceleme süresi taahhüdü değildir.
+8. Ajans modunda ekip üyeleri yalnızca görüntüleyicidir (analiz başlatamaz); ekip başına 10 üye, kullanıcı başına 5 API anahtarı ve 200 pano kaydı ürün kararıdır.
+9. Ücretsiz kontrol 10 dakikada 10 istek, API dakikada 30 istek sınırı ürün kararıdır.
+10. Sezon takviminde hazırlık (yayından 14 gün önce), incelemeye gönderme (yayından 3 gün önce) ve dönem başına yayın süresi ürün varsayımıdır; Meta'nın inceleme süresi taahhüdü değildir.
 
 ## Üretime geçmeden önce
 
@@ -81,14 +100,27 @@ Son çalıştırma (17.11.2026, video kanca analizi, sezon şablonları ve 40 ku
 13. Açılış sayfası taraması sunucunun ağından çıkar; üretimde çıkış trafiği bir egress proxy veya ayrı ağ üzerinden sınırlandırılabilir.
 14. Konuşma tanıma sağlayıcısı seçilip `SPEECH_TO_TEXT_API_KEY` girilsin; Türkçe doğruluğu örnek videolarla ölçülsün, veri işleme sözleşmesi KVKK metnine eklensin.
 15. Resend hesabı açılıp alan adı doğrulansın, `RESEND_API_KEY`/`EMAIL_FROM` girilsin ve `/api/cron/season-reminders` günlük zamanlansın.
-16. 17.11.2026'da eklenen 17 kural kartının resmî metinleri okunup doğrulananlar `active` yapılsın.
+16. 17.11.2026'da eklenen kural kartlarının (genel 17, sektör paketleri 13, Google Ads 5, TikTok 5) resmî metinleri okunup doğrulananlar `active` yapılsın.
+17. `META_AD_LIBRARY_TOKEN` alınsın (Meta geliştirici uygulaması + kimlik doğrulaması); uzun ömürlü anahtar yaklaşık 60 günde yenilenmeli.
+18. `/api/cron/newsletter` ayda bir zamanlansın; bülten metni bir hukukçuya gösterilsin.
+19. Ücretsiz kontrol ve API hız sınırları bellek içidir; çok örnekli dağıtımda paylaşımlı depoya taşınsın. Ücretsiz kontrol için bot koruması (ör. Cloudflare Turnstile) değerlendirilsin.
+20. Tarayıcı eklentisi mağazada yayımlanacaksa geliştirici hesabı açılsın, gizlilik politikası bağlantısı eklensin.
+21. Uyarı geri bildirimleri için kural sahibinin okuyacağı bir yönetim görünümü eklensin.
 
 ## Bitti
+
+17.11.2026 (2): sektör paketleri (kozmetik, kurs/eğitim, emlak, finans), WhatsApp/DM şablonu, varyantları CSV olarak dışa aktarma, sunucu tarafı markalı PDF, uyarı geri bildirimi, ajans modu (markalar, ekip, avukat inceleme bağlantısı), Google Ads ve TikTok kural setleri, kurumsal API, ücretsiz "Reklamım reddedilir mi?" sayfası, aylık mevzuat bülteni, Meta Reklam Kütüphanesi ilham panosu, tarayıcı eklentisi. Yeni tablolarda istemci rollerinin genel yetkileri kaldırıldı.
 
 17.11.2026: video kanca analizi (6 kare, ses ölçümü, onaylı konuşma çevirisi, kanca/altyazı/güvenli alan incelemesi), video 2 kredi, açılış sayfası ekran görüntüsü yedeği ve JavaScript sayfası tespiti, sezon takviminde kampanya şablonları, okula dönüş, analizde sezon notu ve e-posta hatırlatmaları, kural kartları 23'ten 40'a.
 
 Video/Reels analizi, açılış sayfası taraması ve sezon takvimi (MVP sonrası). Pazarlama sitesi (ana sayfa, nasıl çalışır, fiyatlandırma, kural kartları), giriş/kayıt ve onaylar, başlangıç ayarı, pano, 7 adımlı analiz sihirbazı, sonuç sayfası (3 skor, bulgular, kaynak bağlantıları, skor dökümü, güvenli metin, 5 varyant), yazdırılabilir rapor, itiraz asistanı, geçmiş ve silme, krediler ve defter, ayarlar ve hesap silme, gizlilik/KVKK/koşullar taslakları, demo modu, ödeme adaptörleri, webhook ve saklama uç noktaları.
 
-## Sonraya (backlog, arayüzde "Yakında")
+## Sonraya (backlog)
 
-Meta Reklam Kütüphanesi panosu, ajans çalışma alanı ve ekipler, Meta hesabı bağlama, gerçek kampanya verisi, Google Ads ve TikTok desteği, sunucu tarafı PDF, varyantları CSV olarak dışa aktarma, şifre sıfırlama ekranı.
+Bilerek yapılmayanlar, çünkü şirket veya dış hesap gerektiriyor:
+
+- **Meta reklam hesabı bağlama ve gerçek kampanya verisi:** Meta geliştirici uygulaması, `ads_read` izni için uygulama incelemesi ve işletme doğrulaması gerekir.
+- **iyzico ile ödeme:** şirket kaydı ve iyzico üye iş yeri hesabı gerekir. Ödeme katmanı `PaymentProvider` arayüzüyle eklenebilir.
+- **ikas ve Ticimax entegrasyonu:** iş ortağı / uygulama mağazası hesabı ve API anahtarları gerekir.
+
+Diğer: şifre sıfırlama ekranı, uyarı geri bildirimleri için yönetim görünümü, API için OpenAPI belgesi.

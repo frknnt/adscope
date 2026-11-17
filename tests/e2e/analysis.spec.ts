@@ -37,7 +37,7 @@ test("signup → wizard → result → report → appeal, charging exactly one c
   await expect(page.getByText("Kırmızı bayrak").first()).toBeVisible();
   await expect(page.getByRole("link", { name: /META-UO-TIMEFRAME/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Güvenli metin önerisi" })).toBeVisible();
-  await expect(page.locator("#varyantlar + ol > li")).toHaveCount(5);
+  await expect(page.locator("section[aria-labelledby=varyantlar] > ol > li")).toHaveCount(5);
   await expect(page.getByRole("heading", { name: "İtiraz asistanı" })).toBeVisible();
   await expect(page.getByText(/Öneri: itiraz yerine/)).toBeVisible();
   await expect(page.getByText(DISCLAIMER).first()).toBeVisible();

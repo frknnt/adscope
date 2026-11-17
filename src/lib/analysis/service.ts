@@ -1,9 +1,12 @@
 import "server-only";
+import { SECTOR_IDS } from "@/lib/sectors";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { AnthropicProvider } from "@/lib/ai/anthropic";
 import type { AiProvider } from "@/lib/ai/provider";
 import { getRepo } from "@/lib/data";
+import type { DataRepo } from "@/lib/data/types";
+import { PLATFORM_IDS } from "@/lib/platforms";
 import { buildAppeal } from "@/lib/engine/appeal";
 import { runPipeline } from "@/lib/engine/pipeline";
 import type { AdInput, EngineFinding, ImageMeta, LandingSnapshot, VideoMeta } from "@/lib/engine/types";
@@ -44,7 +47,8 @@ const VideoSchema = z.object({
 export const AnalysisFormSchema = z.object({
   clientRequestId: z.uuid(),
   brandId: z.uuid().nullable(),
-  sector: z.enum(["genel", "takviye_gida", "estetik_klinik"]),
+  sector: z.enum(SECTOR_IDS),
+  platform: z.enum(PLATFORM_IDS).default("meta"),
   headline: z.string().trim().max(255),
   primaryText: z.string().trim().min(1, "Reklam ana metni gerekli.").max(2200, "Ana metin en fazla 2200 karakter olabilir."),
   description: z.string().trim().max(255),
@@ -94,6 +98,8 @@ export type MediaUpload =
 export interface UploadExtras {
   /** Screenshot of the landing page; read by the AI when the page cannot be fetched or renders with JavaScript. */
   landingScreenshot?: { bytes: Uint8Array; mime: string } | null;
+  /** Data access to use instead of the session repo (enterprise API acts for a key's owner). */
+  repo?: DataRepo;
 }
 
 export function speechToTextAvailable() {
@@ -157,7 +163,7 @@ export async function runAnalysisRequest(form: AnalysisForm, media: MediaUpload,
       : null;
   const transcript = media.kind === "video" ? form.transcript || null : null;
 
-  const repo = getRepo();
+  const repo = extras.repo ?? getRepo();
   const brands = form.brandId ? await repo.listBrands() : [];
   const brand = brands.find((b) => b.id === form.brandId) ?? null;
 
@@ -176,6 +182,7 @@ export async function runAnalysisRequest(form: AnalysisForm, media: MediaUpload,
     transcript,
     landingUrl,
     creditCost: creditCostFor(media.kind),
+    platform: form.platform,
   });
   if (!started.ok) {
     const status = started.code === "insufficient_credits" ? 402 : started.code === "rate_limited" ? 429 : started.code === "brand_not_found" ? 400 : 500;
@@ -257,10 +264,12 @@ export async function runAnalysisRequest(form: AnalysisForm, media: MediaUpload,
     const rules = await repo.getRules(form.sector);
     const input: AdInput = {
       sector: form.sector,
+      platform: form.platform,
       headline: form.headline,
       primaryText: form.primaryText,
       description: form.description,
       brandName: brand?.name ?? null,
+      brandVoice: brand ? { bannedWords: brand.bannedWords, preferredCta: brand.preferredCta, voiceNotes: brand.voiceNotes } : null,
       tone: brand?.tone,
       rejectionMessage: form.rejectionMessage,
       flags: form.flags,

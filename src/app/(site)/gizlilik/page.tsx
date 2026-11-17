@@ -15,6 +15,15 @@ export default function PrivacyPage() {
         <li><strong>Açılış sayfası ekran görüntüsü:</strong> eklerseniz görüntü raporla birlikte özel depoda saklanır ve saklama süresi sonunda silinir. Yapay zekâ açıksa görüntüdeki metin okunur.</li>
         <li><strong>Sezon hatırlatmaları (isteğe bağlı):</strong> açarsanız e-posta adresiniz ve varsayılan sektörünüz hatırlatma e-postası göndermek için kullanılır; hangi dönem için e-posta gönderildiği kaydedilir. Ayarlar sayfasından istediğiniz zaman kapatabilirsiniz.</li>
         <li><strong>Açılış sayfası bağlantısı:</strong> bağlantı verirseniz sayfa sunucumuzdan bir kez okunur. Sayfa metni yalnızca kontrol için kullanılır, saklanmaz; raporda bağlantı, sayfa başlığı ve kontrol sonuçları tutulur.</li>
+        <li><strong>Markalar:</strong> marka adı, sektör, ton, yasaklı kelimeler, tercih edilen çağrı cümlesi, marka sesi notu ve isteğe bağlı logo. Logo özel depoda saklanır ve yalnızca raporlarınızda ve sizin oluşturduğunuz inceleme bağlantılarında gösterilir.</li>
+        <li><strong>Ekip (ajans modu):</strong> davet ettiğiniz kişinin e-posta adresi, davetin özeti ve süresi; davet kabul edilince üyelik kaydı. Ekip üyeleri analizlerinizi, raporlarınızı ve markalarınızı salt okunur görür. Davet bağlantısının kendisi saklanmaz.</li>
+        <li><strong>Avukat inceleme bağlantıları:</strong> bağlantının özeti, süresi, isteğe bağlı notunuz ve kaç kez açıldığı. Bağlantıya sahip olan herkes o tek raporu süre dolana veya siz iptal edene kadar görebilir; bağlantıyı yalnızca güvendiğiniz kişiyle paylaşın.</li>
+        <li><strong>Uyarı geri bildirimi:</strong> bir uyarıyı yararlı, anlaşılmadı veya yanlış olarak işaretlerseniz seçiminiz, nedeniniz ve isteğe bağlı notunuz kural kalitesini iyileştirmek için saklanır.</li>
+        <li><strong>API anahtarları:</strong> anahtarın adı, ilk karakterleri, özeti ve son kullanım zamanı. Anahtarın kendisi saklanmaz.</li>
+        <li><strong>İlham panosu:</strong> kaydettiğiniz Meta Reklam Kütüphanesi reklamlarının kimliği, sayfa adı ve metni. Arama terimleriniz saklanmaz; arama, sunucumuzun Meta erişim anahtarıyla yapılır.</li>
+        <li><strong>Mevzuat bülteni (isteğe bağlı):</strong> açarsanız e-posta adresiniz ayda bir bülten göndermek için kullanılır ve hangi ay gönderildiği kaydedilir.</li>
+        <li><strong>Ücretsiz hızlı kontrol:</strong> üyeliksiz kontrol sayfasına yazdığınız metin yalnızca o yanıt için işlenir, saklanmaz ve kayıtlara yazılmaz. Kötüye kullanımı önlemek için IP adresinizin tek yönlü özeti 10 dakika boyunca bellekte tutulur.</li>
+        <li><strong>Tarayıcı eklentisi:</strong> eklenti veri göndermez; seçtiğiniz metni AdScope sihirbazına adresin <code>#</code> kısmında taşır, bu kısım sunucuya ulaşmaz.</li>
         <li><strong>Kredi ve ödeme kayıtları:</strong> kredi hareketleri ve ödeme sağlayıcısından gelen sipariş numarası, paket ve tutar. Kart bilgileri AdScope&apos;a ulaşmaz.</li>
         <li><strong>Onay kayıtları:</strong> hangi metnin hangi sürümünü ne zaman onayladığınız.</li>
         <li><strong>Teknik kayıtlar:</strong> hata kodları ve süre ölçümleri. Bu kayıtlarda reklam içeriği, kişisel veri veya gizli anahtar tutulmaz.</li>
@@ -30,7 +39,8 @@ export default function PrivacyPage() {
         <li>Barındırma ve veritabanı: Supabase (kimlik doğrulama, veritabanı, dosya depolama) ve uygulamanın yayınlandığı barındırma sağlayıcısı.</li>
         <li>Yapay zekâ değerlendirmesi (açıksa): Anthropic.</li>
         <li>Konuşmayı yazıya dökme (açıksa ve onay verdiyseniz): OpenAI uyumlu bir konuşma tanıma hizmeti.</li>
-        <li>Hatırlatma e-postaları (açtıysanız): e-posta gönderim sağlayıcısı (Resend).</li>
+        <li>Hatırlatma, bülten ve ekip daveti e-postaları: e-posta gönderim sağlayıcısı (Resend).</li>
+        <li>İlham panosu araması: Meta Platforms (Reklam Kütüphanesi API). Yalnızca arama terimi ve ülke gönderilir.</li>
         <li>Ödeme (aktifleştirildiğinde): seçilen ödeme sağlayıcısı.</li>
       </ul>
       <p>Bu sağlayıcıların bir kısmı yurt dışında veri işleyebilir. Yurt dışına aktarım koşulları KVKK aydınlatma metninde açıklanır.</p>

@@ -7,7 +7,7 @@ import { AnalysisWizard } from "./wizard";
 
 export const metadata = { title: "Yeni analiz" };
 
-export default async function NewAnalysisPage({ searchParams }: { searchParams: Promise<{ sablon?: string }> }) {
+export default async function NewAnalysisPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requirePanelUser();
   const repo = getRepo();
   const [profile, brands, balance, sp] = await Promise.all([repo.getProfile(), repo.listBrands(), repo.getBalance(), searchParams]);

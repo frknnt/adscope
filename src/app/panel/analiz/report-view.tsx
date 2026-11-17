@@ -4,7 +4,10 @@ import { IconAlert, IconCheck, IconExternal, IconInfo, IconLink } from "@/compon
 import { LevelPill, SEVERITY_LABEL, ScaleBar } from "@/components/risk";
 import { DOMAIN_LABEL, RULE_STATUS_LABEL, SECTOR_LABEL, formatDateTimeTr, formatDateTr } from "@/components/rule-status";
 import { Disclaimer } from "@/components/ui";
-import type { AnalysisDetail, FindingView } from "@/lib/data/types";
+import type { AnalysisDetail, FindingFeedback, FindingView } from "@/lib/data/types";
+import type { DmKit } from "@/lib/engine/dm";
+import { PLATFORM_INFO, PLATFORM_SHORT, type Platform } from "@/lib/platforms";
+import { FindingFeedbackForm } from "../agency-forms";
 import type { LandingReport, VideoReview } from "@/lib/engine/types";
 import { aspectLabel } from "@/lib/engine/video";
 import { CopyButton } from "../forms";
@@ -23,20 +26,20 @@ const FIELD_LABEL: Record<string, string> = {
 
 const sec = (n: number) => n.toLocaleString("tr-TR", { maximumFractionDigits: 1 });
 
-function CreativeMedia({ a }: { a: AnalysisDetail }) {
+function CreativeMedia({ a, base }: { a: AnalysisDetail; base: string }) {
   if (a.mediaType === "video") {
     if (!a.frames.length) return <div className="grid aspect-[9/16] place-items-center rounded-xl border border-dashed border-line text-sm text-muted">Video kareleri silinmiş</div>;
     const [first, ...rest] = a.frames;
     return (
       <figure className="flex flex-col gap-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`/api/analyses/${a.id}/asset?frame=${first.index}`} alt={`Videonun ${sec(first.timeMs / 1000)}. saniyesindeki kare`} className="w-full rounded-xl border border-line bg-ink object-contain" width={first.width ?? undefined} height={first.height ?? undefined} />
+        <img src={`${base}?frame=${first.index}`} alt={`Videonun ${sec(first.timeMs / 1000)}. saniyesindeki kare`} className="w-full rounded-xl border border-line bg-ink object-contain" width={first.width ?? undefined} height={first.height ?? undefined} />
         {rest.length ? (
           <ul className={`grid gap-1.5 ${rest.length === 5 ? "grid-cols-5" : "grid-cols-4"}`} aria-label="Diğer video kareleri">
             {rest.map((f) => (
               <li key={f.index} className="flex flex-col items-center gap-0.5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/analyses/${a.id}/asset?frame=${f.index}`} alt={`${sec(f.timeMs / 1000)}. saniye`} loading="lazy" className="aspect-[9/16] w-full rounded-md border border-line bg-ink object-cover" />
+                <img src={`${base}?frame=${f.index}`} alt={`${sec(f.timeMs / 1000)}. saniye`} loading="lazy" className="aspect-[9/16] w-full rounded-md border border-line bg-ink object-cover" />
                 <span className="text-[0.7rem] text-muted tabular">{sec(f.timeMs / 1000)} sn</span>
               </li>
             ))}
@@ -48,7 +51,7 @@ function CreativeMedia({ a }: { a: AnalysisDetail }) {
   }
   if (a.asset) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={`/api/analyses/${a.id}/asset`} alt="İncelenen reklam görseli" className="w-full rounded-xl border border-line bg-white object-contain" width={a.asset.width ?? undefined} height={a.asset.height ?? undefined} />;
+    return <img src={`${base}`} alt="İncelenen reklam görseli" className="w-full rounded-xl border border-line bg-white object-contain" width={a.asset.width ?? undefined} height={a.asset.height ?? undefined} />;
   }
   return <div className="grid aspect-square place-items-center rounded-xl border border-dashed border-line text-sm text-muted">Görsel silinmiş</div>;
 }
@@ -70,7 +73,7 @@ const LANDING_SOURCE: Record<NonNullable<LandingReport["source"]>, string> = {
   "fetch+screenshot": "Sayfa ve ekran görüntüsü birlikte okundu",
 };
 
-function LandingSection({ report, analysisId, hasScreenshot }: { report: LandingReport; analysisId: string; hasScreenshot: boolean }) {
+function LandingSection({ report, base, hasScreenshot }: { report: LandingReport; base: string; hasScreenshot: boolean }) {
   const applicable = report.checks.filter((c) => c.ok !== null);
   const passed = applicable.filter((c) => c.ok).length;
   const fromShot = report.source === "screenshot" || report.source === "fetch+screenshot";
@@ -85,9 +88,9 @@ function LandingSection({ report, analysisId, hasScreenshot }: { report: Landing
       </div>
       <div className={hasScreenshot ? "mt-3 grid gap-4 sm:grid-cols-[9rem_1fr]" : ""}>
         {hasScreenshot ? (
-          <a href={`/api/analyses/${analysisId}/asset?screenshot=1`} target="_blank" rel="noopener noreferrer" className="block self-start">
+          <a href={`${base}?screenshot=1`} target="_blank" rel="noopener noreferrer" className="block self-start">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/api/analyses/${analysisId}/asset?screenshot=1`} alt="Yüklenen açılış sayfası ekran görüntüsü" loading="lazy" className="max-h-56 w-full rounded-lg border border-line bg-white object-cover object-top" />
+            <img src={`${base}?screenshot=1`} alt="Yüklenen açılış sayfası ekran görüntüsü" loading="lazy" className="max-h-56 w-full rounded-lg border border-line bg-white object-cover object-top" />
             <span className="sr-only">(yeni sekmede açılır)</span>
           </a>
         ) : null}
@@ -128,7 +131,7 @@ function yesNo(v: boolean | null, yes: string, no: string) {
   return v === null ? "Değerlendirilmedi" : v ? yes : no;
 }
 
-function VideoReviewSection({ review, analysisId }: { review: VideoReview; analysisId: string }) {
+function VideoReviewSection({ review, base }: { review: VideoReview; base: string }) {
   const a = review.audio;
   const visual: { label: string; value: string; warn?: boolean }[] = review.reviewedByAi
     ? [
@@ -180,7 +183,7 @@ function VideoReviewSection({ review, analysisId }: { review: VideoReview; analy
             {review.frameNotes.map((n) => (
               <li key={n.frame} className="flex gap-3 rounded-xl bg-paper/70 p-2.5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/analyses/${analysisId}/asset?frame=${n.frame - 1}`} alt="" loading="lazy" className="aspect-[9/16] w-10 shrink-0 rounded border border-line bg-ink object-cover" />
+                <img src={`${base}?frame=${n.frame - 1}`} alt="" loading="lazy" className="aspect-[9/16] w-10 shrink-0 rounded border border-line bg-ink object-cover" />
                 <span className="text-[0.86rem]"><span className="font-semibold">Kare {n.frame}.</span> {n.note}</span>
               </li>
             ))}
@@ -198,7 +201,7 @@ const SEV_STYLE = {
   info: { dot: "bg-info", ring: "border-info/30", text: "text-info", tint: "bg-info-tint" },
 } as const;
 
-function FindingItem({ f }: { f: FindingView }) {
+function FindingItem({ f, platform, feedback }: { f: FindingView; platform: Platform; feedback?: { analysisId: string; current: FindingFeedback | null } }) {
   const s = SEV_STYLE[f.severity];
   const unverified = f.rule && f.rule.status !== "active";
   return (
@@ -208,7 +211,7 @@ function FindingItem({ f }: { f: FindingView }) {
           <span className={`size-1.5 rounded-full ${s.dot}`} aria-hidden />
           {SEVERITY_LABEL[f.severity]}
         </span>
-        <span className="text-muted">{DOMAIN_LABEL[f.domain]}</span>
+        <span className="text-muted">{f.domain === "meta_policy" ? PLATFORM_INFO[platform].policy : DOMAIN_LABEL[f.domain]}</span>
         {f.field ? <span className="text-muted">· {FIELD_LABEL[f.field] ?? f.field}</span> : null}
         {f.origin === "ai" ? <span className="text-muted">· yapay zekâ tespiti</span> : null}
       </div>
@@ -231,11 +234,64 @@ function FindingItem({ f }: { f: FindingView }) {
       {unverified ? (
         <p className="mt-2 flex items-start gap-1.5 text-[0.8rem] text-muted"><IconInfo className="mt-0.5 size-3.5 shrink-0" /> Bu kural resmî kaynakta henüz doğrulanmadı; ihlal olarak sayılmaz ve risk seviyesini değiştirmez.</p>
       ) : null}
+      {feedback ? <FindingFeedbackForm analysisId={feedback.analysisId} findingId={f.id} current={feedback.current} /> : null}
     </li>
   );
 }
 
-export function ReportView({ a, print = false }: { a: AnalysisDetail; print?: boolean }) {
+function DmSection({ dm, print }: { dm: DmKit; print: boolean }) {
+  const blocks: [string, string, string][] = [
+    ["Müşterinin ilk mesajı", "Mesaj gönder reklamında hazır gelen metin. Müşteri tek dokunuşla gönderir.", dm.first_message],
+    ["Otomatik karşılama", "WhatsApp Business veya Instagram'da ilk yanıt olarak ayarla.", dm.auto_greeting],
+    ["Mesai dışı yanıt", "Çalışma saatleri dışında gelen mesajlara.", dm.away_message],
+  ];
+  return (
+    <section aria-labelledby="dm-h" className="break-inside-avoid">
+      <h2 id="dm-h" className="font-display text-2xl font-semibold">WhatsApp / DM şablonları</h2>
+      <p className="mt-1 text-[0.92rem] text-ink-soft">Reklamdaki vaatlerle uyumlu, aynı kural kartlarıyla yeniden taranmış öneriler: {dm.recheck_red} kırmızı, {dm.recheck_yellow} sarı bayrak.</p>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        {blocks.map(([title, hint, text]) => (
+          <div key={title} className="flex flex-col rounded-2xl border border-line bg-card p-5">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-bold">{title}</h3>
+              {!print ? <CopyButton text={text} /> : null}
+            </div>
+            <p className="mt-1 text-[0.78rem] text-muted">{hint}</p>
+            <p className="mt-3 whitespace-pre-line text-[0.92rem] leading-relaxed">{text}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 rounded-2xl border border-line bg-card p-5">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-bold">Hazır sorular (sohbet başlatıcı)</h3>
+          {!print ? <CopyButton text={dm.starter_questions.join("\n")} /> : null}
+        </div>
+        <ul className="mt-2 flex flex-wrap gap-2">
+          {dm.starter_questions.map((q) => <li key={q} className="rounded-full bg-paper px-3 py-1 text-[0.88rem]">{q}</li>)}
+        </ul>
+      </div>
+      <ul className="mt-3 grid gap-1 text-[0.82rem] text-muted">
+        {dm.notes.map((n) => <li key={n} className="flex gap-1.5"><IconInfo className="mt-0.5 size-3.5 shrink-0" />{n}</li>)}
+      </ul>
+    </section>
+  );
+}
+
+export function ReportView({
+  a,
+  print = false,
+  feedback,
+  assetBase,
+}: {
+  a: AnalysisDetail;
+  print?: boolean;
+  /** Feedback already given by the viewer; pass to show the "bu uyarı yanlış mı?" controls. */
+  feedback?: FindingFeedback[];
+  /** Where creative files are served from (the review link page uses its own route). */
+  assetBase?: string;
+}) {
+  const base = assetBase ?? `/api/analyses/${a.id}/asset`;
+  const fbMap = feedback ? new Map(feedback.map((x) => [x.findingId, x])) : null;
   const groups = (["red", "yellow", "info"] as const).map((sev) => ({ sev, items: a.findings.filter((f) => f.severity === sev) }));
   const marks = a.findings.map((f) => ({ text: f.matchedText, severity: f.severity }));
   const bd = a.scoreBreakdown;
@@ -248,9 +304,9 @@ export function ReportView({ a, print = false }: { a: AnalysisDetail; print?: bo
       <section aria-labelledby="skorlar" className="grid gap-4 md:grid-cols-3">
         <h2 id="skorlar" className="sr-only">Skorlar</h2>
         <div className="rounded-2xl border border-line bg-card p-5 break-inside-avoid">
-          <p className="text-[0.8rem] font-semibold text-muted">Meta ret riski</p>
+          <p className="text-[0.8rem] font-semibold text-muted">{PLATFORM_SHORT[a.platform]} ret riski</p>
           <p className="mt-1 flex items-baseline gap-3"><span className="font-display text-5xl font-semibold tabular">{a.metaRiskScore}</span><LevelPill level={a.metaRiskLevel} /></p>
-          <ScaleBar value={a.metaRiskScore ?? 0} label="Meta ret riski skoru" />
+          <ScaleBar value={a.metaRiskScore ?? 0} label={`${PLATFORM_SHORT[a.platform]} ret riski skoru`} />
         </div>
         <div className="rounded-2xl border border-line bg-card p-5 break-inside-avoid">
           <p className="text-[0.8rem] font-semibold text-muted">Türk mevzuatı riski</p>
@@ -268,7 +324,7 @@ export function ReportView({ a, print = false }: { a: AnalysisDetail; print?: bo
       {/* Creative and text */}
       <section aria-labelledby="reklam" className="grid gap-6 md:grid-cols-[minmax(0,15rem)_1fr]">
         <h2 id="reklam" className="sr-only">İncelenen reklam</h2>
-        <CreativeMedia a={a} />
+        <CreativeMedia a={a} base={base} />
         <div className="sheet rounded-2xl border border-line p-5">
           {a.headline ? <p className="text-lg font-bold"><HighlightedText text={a.headline} marks={marks} /></p> : null}
           <p className="mt-2 whitespace-pre-line leading-relaxed"><HighlightedText text={a.primaryText} marks={marks} /></p>
@@ -287,6 +343,7 @@ export function ReportView({ a, print = false }: { a: AnalysisDetail; print?: bo
           ) : null}
           <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-dashed border-line pt-3 text-[0.8rem] text-muted">
             <span>{SECTOR_LABEL[a.sector]}</span>
+            <span>{PLATFORM_INFO[a.platform].label}</span>
             {a.mediaType === "video" && a.videoMeta ? (
               <span className="tabular">
                 Video · {sec(a.videoMeta.durationSec)} sn · {a.videoMeta.width}×{a.videoMeta.height} px ({aspectLabel(a.videoMeta.width, a.videoMeta.height)})
@@ -311,14 +368,18 @@ export function ReportView({ a, print = false }: { a: AnalysisDetail; print?: bo
                 {g.sev === "info" ? <IconInfo className="size-4" /> : <IconAlert className="size-4" />}
                 {SEVERITY_LABEL[g.sev]} · {g.items.length}
               </h3>
-              <ul className="mt-3 grid gap-3">{g.items.map((f) => <FindingItem key={f.id} f={f} />)}</ul>
+              <ul className="mt-3 grid gap-3">
+                {g.items.map((f) => (
+                  <FindingItem key={f.id} f={f} platform={a.platform} feedback={fbMap && !print ? { analysisId: a.id, current: fbMap.get(f.id) ?? null } : undefined} />
+                ))}
+              </ul>
             </div>
           ))
         )}
       </section>
 
-      {bd?.video ? <VideoReviewSection review={bd.video} analysisId={a.id} /> : null}
-      {bd?.landing ? <LandingSection report={bd.landing} analysisId={a.id} hasScreenshot={a.hasLandingScreenshot} /> : null}
+      {bd?.video ? <VideoReviewSection review={bd.video} base={base} /> : null}
+      {bd?.landing ? <LandingSection report={bd.landing} base={base} hasScreenshot={a.hasLandingScreenshot} /> : null}
 
       {/* Score breakdown */}
       {bd ? (
@@ -326,7 +387,7 @@ export function ReportView({ a, print = false }: { a: AnalysisDetail; print?: bo
           <h2 id="skor-detay" className="font-display text-xl font-semibold">Skorlar nasıl oluştu?</h2>
           <div className="mt-4 grid gap-8 md:grid-cols-2">
             <div>
-              <h3 className="text-sm font-bold">Meta ret riski</h3>
+              <h3 className="text-sm font-bold">{PLATFORM_SHORT[a.platform]} ret riski</h3>
               <table className="mt-2 w-full text-[0.88rem]">
                 <tbody className="divide-y divide-line">
                   <tr><td className="py-1.5 pr-3 text-ink-soft">{bd.meta.baseReason}</td><td className="py-1.5 text-right font-semibold tabular">+{bd.meta.base}</td></tr>
@@ -373,7 +434,14 @@ export function ReportView({ a, print = false }: { a: AnalysisDetail; print?: bo
       {/* Variants */}
       {variants.length ? (
         <section aria-labelledby="varyantlar" className={print ? "print-break" : ""}>
-          <h2 id="varyantlar" className="font-display text-2xl font-semibold">Beş Türkçe varyant</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="varyantlar" className="font-display text-2xl font-semibold">Beş Türkçe varyant</h2>
+            {!print && !assetBase ? (
+              <a href={`/api/analyses/${a.id}/export?format=csv`} className="no-print inline-flex items-center gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-[0.82rem] font-semibold text-ink hover:bg-paper-2" download>
+                Tablo olarak indir (CSV)
+              </a>
+            ) : null}
+          </div>
           <ol className="mt-4 grid gap-3 md:grid-cols-2">
             {variants.map((v) => (
               <li key={v.position} className="flex flex-col rounded-2xl border border-line bg-card p-5 break-inside-avoid">
@@ -392,6 +460,8 @@ export function ReportView({ a, print = false }: { a: AnalysisDetail; print?: bo
           </ol>
         </section>
       ) : null}
+
+      {bd?.dm ? <DmSection dm={bd.dm} print={print} /> : null}
 
       {/* Appeal */}
       {a.appeal ? (

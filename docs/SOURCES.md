@@ -81,6 +81,60 @@ Takviye gıdalarda karşılaştırmalı reklam: Bakanlık duyurusu sağlık beya
 
 17.11.2026'da eklenen 17 kartın hiçbirinin resmî metni bu güncellemede okunmadı; madde numaraları "teyit edilmedi" olarak işaretli. Hepsi yalnızca bilgilendirme üretir, risk seviyesini değiştirmez.
 
+## Sektör paketleri ve Google Ads / TikTok kartları (17.11.2026)
+
+Kozmetik, kurs/eğitim, emlak ve finans sektör paketleri ile Google Ads ve TikTok politika kartları eklendi. **Hepsi `requires_review`:** yalnızca bilgilendirme üretirler, skoru değiştirmezler, ihlal olarak gösterilmezler.
+
+Google ve TikTok politika sayfaları bu ortamdaki vekil sunucudan okunamadı (403). Adreslerin doğru ve güncel olduğu arama sonuçlarıyla teyit edildi; kuralların özü genel bilinen politika başlıklarından yazıldı ve her kartta "bölüm teyit edilmedi" notu var.
+
+| Kaynak | Adres |
+|---|---|
+| Google Ads: Misrepresentation | https://support.google.com/adspolicy/answer/6020955 |
+| Google Ads: Unreliable claims | https://support.google.com/adspolicy/answer/15936857 |
+| Google Ads: Healthcare and medicines | https://support.google.com/adspolicy/answer/176031 |
+| Google Ads: Editorial | https://support.google.com/adspolicy/answer/6021546 |
+| Google Ads: Financial services | https://support.google.com/adspolicy/answer/2464998 |
+| TikTok Advertising Policies | https://ads.tiktok.com/help/article/tiktok-advertising-policies |
+| TikTok: Weight management | https://ads.tiktok.com/help/article/tiktok-ads-policy-weight-management |
+| TikTok: Misleading and false content | https://ads.tiktok.com/help/article/tiktok-ads-policy-misleading-and-false-content |
+| TikTok: Healthcare and pharmaceuticals | https://ads.tiktok.com/help/article/tiktok-ads-policy-healthcare-and-pharmaceuticals |
+
+| Kimlik | Durum | Kaynak | Atıf | Sektör / platform |
+|---|---|---|---|---|
+| META-OZEL-KAT-KONUT | requires_review | Meta Platforms | Special ad categories: housing (bölüm teyit edilmedi) | emlak |
+| META-OZEL-KAT-KREDI | requires_review | Meta Platforms | Special ad categories: credit / financial products (bölüm teyit edilmedi) | finans |
+| META-OZEL-KAT-ISTIHDAM | requires_review | Meta Platforms | Special ad categories: employment (bölüm teyit edilmedi) | genel |
+| TR-EGITIM-BASARI-GARANTI | requires_review | T.C. Resmî Gazete | Ticari Reklam Yönetmeliği, aldatıcı reklam (madde numarası teyit edilmedi) | kurs_egitim |
+| TR-EGITIM-IS-GARANTI | requires_review | T.C. Resmî Gazete | Ticari Reklam Yönetmeliği, aldatıcı reklam (madde numarası teyit edilmedi) | kurs_egitim |
+| TR-EGITIM-SERTIFIKA | requires_review | T.C. Resmî Gazete | Yönetmelik eki haksız ticari uygulamalar listesi (onay iddiası; teyit edilmedi) | kurs_egitim |
+| TR-EMLAK-YETKI-BELGESI | requires_review | T.C. Mevzuat Bilgi Sistemi | Taşınmaz Ticareti Hakkında Yönetmelik (madde numarası teyit edilmedi) | emlak |
+| TR-EMLAK-GETIRI | requires_review | T.C. Resmî Gazete | Ticari Reklam Yönetmeliği, aldatıcı reklam (madde numarası teyit edilmedi) | emlak |
+| TR-KOZMETIK-TIBBI | requires_review | T.C. Sağlık Bakanlığı Türkiye İlaç ve Tıbbi Cihaz Kurumu | Kozmetik Yönetmeliği, ürün iddiaları (madde numarası teyit edilmedi) | kozmetik |
+| TR-KOZMETIK-KANIT | requires_review | T.C. Sağlık Bakanlığı Türkiye İlaç ve Tıbbi Cihaz Kurumu | Kozmetik ürün iddiaları (teyit edilmedi) | kozmetik |
+| TR-FINANS-GETIRI | requires_review | T.C. Mevzuat Bilgi Sistemi | 6362 s. Kanun ve SPK reklam düzenlemeleri (madde numarası teyit edilmedi) | finans |
+| TR-FINANS-LISANS | requires_review | T.C. Mevzuat Bilgi Sistemi | 6362 s. Kanun, izinsiz sermaye piyasası faaliyeti (teyit edilmedi) | finans |
+| TR-KREDI-MALIYET | requires_review | T.C. Mevzuat Bilgi Sistemi | Tüketici Kredisi Sözleşmeleri Yönetmeliği, reklam (madde numarası teyit edilmedi) | finans |
+| GADS-GUVENILMEZ-IDDIA | requires_review | Google | Misrepresentation → Unreliable claims (bölüm teyit edilmedi) | genel / google_ads |
+| GADS-EDITORYAL-NOKTALAMA | requires_review | Google | Editorial → Punctuation and symbols (bölüm teyit edilmedi) | genel / google_ads |
+| GADS-SAGLIK-ILAC | requires_review | Google | Healthcare and medicines (ülke tablosu teyit edilmedi) | takviye_gida / google_ads |
+| GADS-FINANSAL-HIZMET | requires_review | Google | Financial services → country-specific requirements (Türkiye teyit edilmedi) | finans / google_ads |
+| GADS-KISISEL-HITAP | requires_review | Google | Personalized advertising → sensitive categories (bölüm teyit edilmedi) | genel / google_ads |
+| TT-KILO-YONETIMI | requires_review | TikTok | Weight Management (2026 güncellemesi teyit edilmedi) | takviye_gida / tiktok |
+| TT-ONCE-SONRA | requires_review | TikTok | Weight Management / body image (bölüm teyit edilmedi) | genel / tiktok |
+| TT-YANILTICI-IDDIA | requires_review | TikTok | Misleading and false content (bölüm teyit edilmedi) | genel / tiktok |
+| TT-ESTETIK-ISLEM | requires_review | TikTok | Healthcare and Pharmaceuticals → cosmetic procedures (bölüm teyit edilmedi) | estetik_klinik / tiktok |
+| TT-FINANSAL-HIZMET | requires_review | TikTok | Financial services (ülke tablosu teyit edilmedi) | finans / tiktok |
+
+Toplam kart sayısı: 63.
+
+## Meta Reklam Kütüphanesi API (17.11.2026)
+
+İlham panosu Graph API `ads_archive` uç noktasını kullanır. Meta, siyasi olmayan (ticari) reklamları API üzerinden yalnızca AB'de gösterilmiş olanlar için açar; bu yüzden ülke listesi AB ülkeleriyle sınırlıdır ve Türkiye'ye özel reklamlar aranamaz. Erişim anahtarı için Meta geliştirici uygulaması ve kimlik doğrulaması gerekir. Gerçek API ile denenmedi; testler sahte sunucuyla yapıldı. `ad_snapshot_url` alanı erişim anahtarını içerdiği için hiç istenmez.
+
+## Yazı tipleri
+
+PDF raporda Manrope ve Fraunces gömülüdür. İkisi de SIL Open Font License 1.1 ile lisanslıdır; lisans metinleri `assets/fonts/OFL-Manrope.txt` ve `assets/fonts/OFL-Fraunces.txt` dosyalarındadır.
+
 ## Sezon takvimi tarihleri (16.11.2026)
 
 | Tarih | Kaynak | Durum |

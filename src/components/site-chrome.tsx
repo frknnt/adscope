@@ -4,6 +4,7 @@ import { ButtonLink } from "./ui";
 import { getCurrentUser } from "@/lib/data";
 
 const NAV = [
+  { href: "/reklamim-reddedilir-mi", label: "Ücretsiz kontrol" },
   { href: "/nasil-calisir", label: "Nasıl çalışır?" },
   { href: "/fiyatlandirma", label: "Fiyatlandırma" },
   { href: "/kurallar", label: "Kural kartları" },

@@ -1,3 +1,5 @@
+import type { Platform } from "@/lib/platforms";
+import type { DmKit } from "./dm";
 import type { RuleCardDef, Sector } from "@/lib/rules/catalog";
 
 export type Severity = "red" | "yellow" | "info";
@@ -11,6 +13,10 @@ export interface RuleRecord extends RuleCardDef {
 
 export interface AdInput {
   sector: Sector;
+  /** Ad platform the copy is checked against (default Meta). */
+  platform?: Platform;
+  /** Brand voice: banned words and preferred call to action (agency mode). */
+  brandVoice?: { bannedWords: string[]; preferredCta?: string | null; voiceNotes?: string | null } | null;
   headline: string;
   primaryText: string;
   description: string;
@@ -156,6 +162,8 @@ export interface ScoreBreakdown {
   media?: "image" | "video";
   landing?: LandingReport | null;
   video?: VideoReview | null;
+  /** WhatsApp / DM first-message and auto-greeting templates (re-checked with the rule cards). */
+  dm?: DmKit | null;
 }
 
 export interface VariantOut {

@@ -1,5 +1,6 @@
 import type { AnalysisResult, AppealOut, ImageMeta, Level, RuleRecord, VideoMeta } from "@/lib/engine/types";
 import type { Sector } from "@/lib/rules/catalog";
+import type { Platform } from "@/lib/platforms";
 
 export interface SessionUser {
   id: string;
@@ -15,6 +16,8 @@ export interface Profile {
   retentionDays: number;
   /** Opt-in: e-mail before season events (Sezon takvimi). */
   seasonReminders: boolean;
+  /** Monthly regulation newsletter (latest marketing e-mail consent). */
+  newsletter: boolean;
 }
 
 export interface Brand {
@@ -22,7 +25,69 @@ export interface Brand {
   name: string;
   sector: Sector;
   tone: "samimi" | "kurumsal" | "genc";
+  bannedWords: string[];
+  voiceNotes: string | null;
+  preferredCta: string | null;
+  hasLogo: boolean;
 }
+
+export type BrandInput = Pick<Brand, "name" | "sector" | "tone"> & Partial<Pick<Brand, "bannedWords" | "voiceNotes" | "preferredCta">>;
+
+export interface ReportBranding {
+  brandName: string | null;
+  /** Company name of the account that owns the analysis (agency name). */
+  agencyName: string | null;
+  logo: { bytes: Uint8Array; mime: string } | null;
+}
+
+export type FeedbackVerdict = "wrong" | "unclear" | "helpful";
+export type FeedbackReason = "not_in_ad" | "context_ok" | "rule_outdated" | "other";
+export interface FindingFeedback {
+  findingId: string;
+  verdict: FeedbackVerdict;
+  reason: FeedbackReason | null;
+  note: string | null;
+}
+
+export interface TeamState {
+  members: { memberId: string; email: string; createdAt: string }[];
+  invites: { id: string; email: string; expiresAt: string }[];
+  /** Teams the user belongs to as a viewer. */
+  memberships: { ownerId: string; ownerLabel: string; createdAt: string }[];
+}
+
+export interface ReviewShare {
+  id: string;
+  analysisId: string;
+  note: string | null;
+  expiresAt: string;
+  revokedAt: string | null;
+  viewCount: number;
+  createdAt: string;
+}
+
+export interface ApiKeyView {
+  id: string;
+  name: string;
+  prefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+}
+
+/** An ad saved from the Meta Ad Library to the inspiration board. */
+export interface InspirationPin {
+  id: string;
+  adArchiveId: string;
+  pageName: string;
+  title: string;
+  body: string;
+  country: string;
+  deliveryStart: string | null;
+  note: string;
+  createdAt: string;
+}
+export type InspirationPinInput = Omit<InspirationPin, "id" | "createdAt">;
 
 export interface LedgerEntry {
   id: string;
@@ -58,8 +123,11 @@ export interface AnalysisSummary {
   legalFindingCount: number | null;
   creativeScore: number | null;
   mediaType: "image" | "video";
+  platform: Platform;
   createdAt: string;
   expiresAt: string | null;
+  /** False when a team member is viewing someone else's analysis. */
+  ownedByMe: boolean;
 }
 
 export interface FindingView {
@@ -119,6 +187,7 @@ export interface AnalysisDetail extends AnalysisSummary {
   speechTranscript: string | null;
   hasLandingScreenshot: boolean;
   creditCost: number;
+  brandId: string | null;
 }
 
 export interface FrameView {
@@ -150,6 +219,8 @@ export interface StartAnalysisParams {
   landingUrl: string | null;
   /** Credits this analysis consumes on completion (video = 2). */
   creditCost: number;
+  /** Default Meta. */
+  platform?: Platform;
 }
 
 export type StartAnalysisResult =
@@ -186,8 +257,18 @@ export interface DataRepo {
 
   getProfile(): Promise<Profile | null>;
   updateProfile(patch: Partial<Pick<Profile, "displayName" | "companyName" | "defaultSector" | "onboardingCompletedAt" | "retentionDays" | "seasonReminders">>): Promise<boolean>;
+  /** Records a new marketing e-mail consent row (monthly regulation newsletter). */
+  setNewsletter(enabled: boolean, documentVersion: string): Promise<boolean>;
+  /** The user's own brands. */
   listBrands(): Promise<Brand[]>;
-  createBrand(input: Omit<Brand, "id">): Promise<Brand | null>;
+  createBrand(input: BrandInput): Promise<Brand | null>;
+  updateBrand(id: string, patch: Partial<BrandInput>): Promise<boolean>;
+  deleteBrand(id: string): Promise<boolean>;
+  /** Stores a validated logo image for one of the user's brands (null removes it). */
+  setBrandLogo(id: string, logo: { bytes: Uint8Array; mime: string; ext: string } | null): Promise<boolean>;
+  getBrandLogo(id: string): Promise<{ bytes: Uint8Array; mime: string } | null>;
+  /** Brand and agency details for report headers and the PDF (analysis must be visible to the user). */
+  getReportBranding(analysisId: string): Promise<ReportBranding | null>;
 
   getRules(sector: Sector): Promise<RuleRecord[]>;
   listAllRules(): Promise<RuleRecord[]>;
@@ -202,7 +283,10 @@ export interface DataRepo {
   failAnalysis(analysisId: string, code: string): Promise<void>;
   recordAiRun(run: AiRunRecord): Promise<void>;
 
+  /** The user's own analyses. */
   listAnalyses(limit?: number): Promise<AnalysisSummary[]>;
+  /** Analyses of the teams the user is a viewer of. */
+  listTeamAnalyses(limit?: number): Promise<(AnalysisSummary & { ownerLabel: string })[]>;
   getAnalysis(id: string): Promise<AnalysisDetail | null>;
   /** The creative image, one video frame (frame index) or the landing page screenshot. */
   getAssetBytes(analysisId: string, which?: number | "screenshot"): Promise<{ bytes: Uint8Array; mime: string } | null>;
@@ -211,8 +295,39 @@ export interface DataRepo {
   deleteAnalysis(id: string): Promise<boolean>;
   saveAppeal(analysisId: string, appeal: AppealOut): Promise<boolean>;
 
+  listFindingFeedback(analysisId: string): Promise<FindingFeedback[]>;
+  saveFindingFeedback(analysisId: string, fb: FindingFeedback): Promise<boolean>;
+
+  getTeam(): Promise<TeamState>;
+  /** Stores the SHA-256 of an invite token for an e-mail address. */
+  createTeamInvite(email: string, tokenHash: string, expiresAt: string): Promise<"ok" | "limit" | "self" | "exists" | "error">;
+  deleteTeamInvite(id: string): Promise<boolean>;
+  removeTeamMember(memberId: string): Promise<boolean>;
+  leaveTeam(ownerId: string): Promise<boolean>;
+  /** Accepts an invite addressed to the signed-in user's e-mail. */
+  acceptTeamInvite(tokenHash: string): Promise<"ok" | "invalid" | "wrong_email" | "self" | "error">;
+
+  createReviewShare(analysisId: string, tokenHash: string, expiresAt: string, note: string | null): Promise<boolean>;
+  listReviewShares(analysisId: string): Promise<ReviewShare[]>;
+  revokeReviewShare(id: string): Promise<boolean>;
+
+  listApiKeys(): Promise<ApiKeyView[]>;
+  createApiKey(name: string, prefix: string, keyHash: string): Promise<"ok" | "limit" | "error">;
+  revokeApiKey(id: string): Promise<boolean>;
+
+  listPins(): Promise<InspirationPin[]>;
+  savePin(pin: InspirationPinInput): Promise<"ok" | "exists" | "limit" | "error">;
+  deletePin(id: string): Promise<boolean>;
+
   applyDemoPurchase(packageId: string, eventId: string): Promise<{ applied: boolean }>;
   deleteAccount(): Promise<boolean>;
+}
+
+export interface SharedReview {
+  analysis: AnalysisDetail;
+  branding: ReportBranding;
+  note: string | null;
+  expiresAt: string;
 }
 
 /** Privileged operations not tied to a signed-in session (webhooks, cron). Server-only. */
@@ -235,4 +350,16 @@ export interface AdminRepo {
   claimSeasonReminder(userId: string, eventKey: string): Promise<boolean>;
   /** Releases a claim after a failed send so the next run retries. */
   releaseSeasonReminder(userId: string, eventKey: string): Promise<void>;
+  /** Users whose latest marketing e-mail consent is granted (confirmed e-mail addresses only). */
+  listNewsletterRecipients(): Promise<{ userId: string; email: string; displayName: string | null; sector: Sector | null }[]>;
+  claimNewsletter(userId: string, period: string): Promise<boolean>;
+  releaseNewsletter(userId: string, period: string): Promise<void>;
+  /** Lawyer review link: valid, unrevoked, unexpired token → read-only report (counts the view). */
+  getSharedReview(tokenHash: string): Promise<SharedReview | null>;
+  /** Creative / frame / screenshot bytes behind a valid review link (does not count a view). */
+  getSharedAssetBytes(tokenHash: string, which?: number | "screenshot"): Promise<{ bytes: Uint8Array; mime: string } | null>;
+  /** API key → the key owner (touches last_used_at). Null when unknown or revoked. */
+  resolveApiKey(keyHash: string): Promise<SessionUser | null>;
+  /** A data repo acting as this user without a browser session (enterprise API). */
+  repoForUser(user: SessionUser): DataRepo;
 }

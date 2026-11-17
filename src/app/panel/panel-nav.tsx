@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconAppeal, IconCalendar, IconCoin, IconHistory, IconHome, IconPlus, IconSettings } from "@/components/icons";
+import { IconAppeal, IconBoard, IconCalendar, IconCoin, IconHistory, IconHome, IconPlus, IconSettings, IconTag, IconUsers } from "@/components/icons";
 
 const ITEMS = [
   { href: "/panel", label: "Pano", Icon: IconHome, exact: true },
@@ -10,6 +10,9 @@ const ITEMS = [
   { href: "/panel/gecmis", label: "Geçmiş", Icon: IconHistory, also: "/panel/analiz" },
   { href: "/panel/itiraz", label: "İtiraz asistanı", Icon: IconAppeal },
   { href: "/panel/takvim", label: "Sezon takvimi", Icon: IconCalendar },
+  { href: "/panel/ilham", label: "İlham panosu", Icon: IconBoard },
+  { href: "/panel/markalar", label: "Markalar", Icon: IconTag },
+  { href: "/panel/ekip", label: "Ekip", Icon: IconUsers },
   { href: "/panel/krediler", label: "Krediler", Icon: IconCoin },
   { href: "/panel/ayarlar", label: "Ayarlar", Icon: IconSettings },
 ];

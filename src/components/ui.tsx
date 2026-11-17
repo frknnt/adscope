@@ -36,15 +36,17 @@ export function Field({
   error,
   children,
   htmlFor,
+  className = "",
 }: {
   label: string;
   hint?: ReactNode;
   error?: string | null;
   children: ReactNode;
   htmlFor: string;
+  className?: string;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={`flex flex-col gap-1.5 ${className}`}>
       <label htmlFor={htmlFor} className="text-sm font-semibold text-ink">
         {label}
       </label>

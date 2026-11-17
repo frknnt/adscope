@@ -18,7 +18,7 @@ export function RuleStatusPill({ status }: { status: RuleStatus }) {
   return <span className={`rounded-full px-2 py-0.5 text-[0.75rem] font-semibold ${STYLE[status]}`}>{RULE_STATUS_LABEL[status]}</span>;
 }
 
-export const SECTOR_LABEL = { genel: "Genel", takviye_gida: "Takviye gıda", estetik_klinik: "Estetik / klinik" } as const;
+export { SECTOR_LABEL } from "@/lib/sectors";
 export const DOMAIN_LABEL = { meta_policy: "Meta Reklam Standartları", tr_law: "Türk reklam mevzuatı", creative_quality: "Kreatif kalite" } as const;
 
 export function formatDateTr(iso: string | null | undefined) {
