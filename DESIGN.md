@@ -66,7 +66,7 @@ Her renk bir CSS değişkeni ve aynı adlı Tailwind sınıfıdır (`bg-card`, `
 | `EmptyState` | ui.tsx | Boş liste: ne eksik, neden önemli, tek sonraki adım |
 | `Skeleton` | ui.tsx | `ilham` ve `gecmis` sayfalarının `loading.tsx` dosyaları kullanır. `notFound()` çağıran sayfalara yükleme sınırı koyma: yanıt akışla gider ve 404 yerine 200 döner |
 | `Stepper` | ui.tsx | Analiz sihirbazı; `aria-current="step"` |
-| `DataTable` | ui.tsx | Kaydırılabilir, klavyeyle odaklanabilir tablo çerçevesi |
+| `DataTable` | ui.tsx | Kaydırılabilir, klavyeyle odaklanabilir tablo çerçevesi; `relative` olduğu için içindeki `sr-only` metinler sayfayı yana taşırmaz |
 | `Disclaimer` | ui.tsx | Her raporda zorunlu hukuki uyarı |
 | `LevelPill`, `ScaleBar` | risk.tsx | Risk düzeyi ve 0-100 ölçek |
 | `Tabs` | interactive.tsx | Ok tuşları, Home/End; landing "ihtiyaç" bölümünde kullanılıyor |
@@ -75,6 +75,11 @@ Her renk bir CSS değişkeni ve aynı adlı Tailwind sınıfıdır (`bg-card`, `
 | `ToastProvider`, `useToast` | interactive.tsx | Panelde kurulu; kısa durum mesajları, tek `aria-live` bölgesi |
 | `PanelShell` | app/panel/shell.tsx | Panel çerçevesi: gruplu sol menü (lg+), üst çubuk (konum izi, kredi çipi, Yeni analiz), mobil açılır menü ve alt çubuk |
 | `CommandPalette` | app/panel/shell.tsx | Ctrl/Cmd+K; combobox + listbox, ok tuşları ve Enter |
+| `KpiCard` | panel-ui.tsx | Pano özet kartı; yalnızca gerçek sayı, veri yoksa "—" |
+| `RiskBadge` | panel-ui.tsx | Renk + sayı + düzey adı; renk tek başına anlam taşımaz |
+| `SegmentedLinks` | panel-ui.tsx | Izgara/liste gibi birbirini dışlayan bağlantılar (URL parametresi) |
+| `AdThumb` | panel-client.tsx | Kreatif ya da videonun ilk karesi; yüklenemezse sade simge |
+| `Menu` | panel-client.tsx | Üç nokta menüsü; ok tuşları, Home/End, Esc; ekranın altına taşacaksa yukarı açılır. Kaydırılan tablo içinde kullanma (kırpılır), satır içi düğme koy |
 
 Yeni bir bileşen yazmadan önce bu listeye bak; benzer bir şey varsa onu genişlet.
 

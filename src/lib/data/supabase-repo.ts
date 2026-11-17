@@ -90,6 +90,7 @@ function toSummary(r: Row, viewerId?: string): AnalysisSummary {
     creativeScore: (r.creative_score as number) ?? null,
     mediaType: r.media_type === "video" ? "video" : "image",
     platform: ((r.platform as Platform) ?? "meta"),
+    brandId: (r.brand_id as string) ?? null,
     createdAt: r.created_at as string,
     expiresAt: (r.expires_at as string) ?? null,
     ownedByMe: viewerId === undefined || viewerId === r.user_id,
@@ -97,7 +98,7 @@ function toSummary(r: Row, viewerId?: string): AnalysisSummary {
 }
 
 const SUMMARY_COLS =
-  "id,user_id,status,failure_code,sector,headline,primary_text,meta_risk_score,meta_risk_level,legal_risk_level,legal_finding_count,creative_score,media_type,platform,created_at,expires_at";
+  "id,user_id,status,failure_code,sector,headline,primary_text,meta_risk_score,meta_risk_level,legal_risk_level,legal_finding_count,creative_score,media_type,platform,brand_id,created_at,expires_at";
 
 export function ruleFromRow(v: Row, card: Row): RuleRecord {
   return {

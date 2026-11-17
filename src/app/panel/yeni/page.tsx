@@ -33,7 +33,13 @@ export default async function NewAnalysisPage({ searchParams }: { searchParams: 
           defaultSector={profile?.defaultSector ?? "genel"}
           balance={balance}
           speechEnabled={speechToTextAvailable()}
-          initial={template ? { headline: template.headline, primaryText: template.primaryText, description: template.description, sector: template.sector, templateTitle: template.title } : undefined}
+          initial={
+            template
+              ? { headline: template.headline, primaryText: template.primaryText, description: template.description, sector: template.sector, templateTitle: template.title }
+              : sp.tur === "video"
+                ? { media: "video" }
+                : undefined
+          }
         />
       )}
     </div>

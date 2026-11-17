@@ -124,6 +124,7 @@ export interface AnalysisSummary {
   creativeScore: number | null;
   mediaType: "image" | "video";
   platform: Platform;
+  brandId: string | null;
   createdAt: string;
   expiresAt: string | null;
   /** False when a team member is viewing someone else's analysis. */

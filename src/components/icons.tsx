@@ -79,6 +79,18 @@ export const IconMenu = (p: SVGProps<SVGSVGElement>) => (
 export const IconClose = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><path d="M6 6l12 12M18 6L6 18" /></svg>
 );
+export const IconDots = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth={3} /></svg>
+);
+export const IconGrid = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" /></svg>
+);
+export const IconList = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" /></svg>
+);
+export const IconSearch = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg>
+);
 export const IconLogout = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><path d="M15 4h4v16h-4" /><path d="M10 8l-4 4 4 4" /><path d="M6 12h10" /></svg>
 );

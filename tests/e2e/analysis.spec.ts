@@ -107,7 +107,9 @@ test("users cannot see each other's analyses or files", async ({ browser }) => {
   const asset = await pb.request.get(url.pathname.replace("/panel/analiz/", "/api/analyses/") + "/asset");
   expect(asset.status()).toBe(404);
   await pb.goto("/panel/gecmis");
-  await expect(pb.getByText("Geçmişin boş.")).toBeVisible();
+  await expect(pb.getByText("Henüz rapor yok.")).toBeVisible();
+  await pb.goto("/panel");
+  await expect(pb.getByRole("heading", { name: "Başlarken" })).toBeVisible();
   await a.close();
   await b.close();
 });
@@ -134,8 +136,12 @@ test("history delete, demo credits, appeal from the assistant and account deleti
   }
 
   await page.goto("/panel/gecmis");
-  await page.getByRole("button", { name: "Analizi ve görselini sil" }).first().click();
-  await expect(page.getByText("Geçmişin boş.")).toBeVisible();
+  await page.getByRole("button", { name: /^İşlemler: / }).first().click();
+  await page.getByRole("menuitem", { name: "Sil" }).click();
+  const dialog = page.getByRole("dialog", { name: "Rapor silinsin mi?" });
+  await expect(dialog).toContainText("Düşülen kredi geri yüklenmez");
+  await dialog.getByRole("button", { name: "Kalıcı olarak sil" }).click();
+  await expect(page.getByText("Henüz rapor yok.")).toBeVisible();
 
   await page.goto("/panel/ayarlar");
   await page.getByLabel("Saklama süresi (gün)").fill("30");
@@ -157,4 +163,51 @@ test("panel pages fit the viewport", async ({ page }) => {
     const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
     expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `${p} ${v.id}`)).toEqual([]);
   }
+});
+
+test("dashboard and reports: real numbers, URL filters, list view, bulk CSV and delete", async ({ page }) => {
+  await signUp(page);
+  await onboard(page);
+  for (const text of ["7 günde 5 kilo ver! Garantili sonuç, %70 indirim.", "Yeni sezon bitki çaylarımız mağazada."]) {
+    await page.goto("/panel/yeni");
+    await page.locator("input[type=file]").setInputFiles("tests/fixtures/ad.png");
+    await page.getByRole("button", { name: "Devam" }).click();
+    await page.getByLabel("Ana metin").fill(text);
+    for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Devam" }).click();
+    await page.getByRole("button", { name: "Atla" }).click();
+    await page.getByRole("button", { name: "Analizi başlat" }).click();
+    await page.waitForURL(/\/panel\/analiz\//, { timeout: 60_000 });
+  }
+
+  await page.goto("/panel");
+  const summary = page.getByRole("region", { name: "Özet" });
+  await expect(summary.getByRole("link", { name: /Kalan kredi\s*1/ })).toBeVisible();
+  await expect(summary).toContainText(/Bu ay yapılan analiz\s*2/);
+  await expect(page.getByRole("heading", { name: "Son raporlar" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Başlarken" })).toHaveCount(0);
+
+  await page.goto("/panel/gecmis?q=bitki");
+  await expect(page.getByText("2 rapordan 1 tanesi süzgece uyuyor.")).toBeVisible();
+  await expect(page.locator("article h3")).toHaveText(["Yeni sezon bitki çaylarımız mağazada."]);
+  await page.goto("/panel/gecmis?platform=tiktok");
+  await expect(page.getByText("Bu süzgece uyan rapor yok.")).toBeVisible();
+  await page.goto("/panel/gecmis?risk=bogus&platform=x");
+  await expect(page.getByText("2 rapor", { exact: true })).toBeVisible();
+
+  await page.getByRole("link", { name: "Liste" }).click();
+  await expect(page).toHaveURL(/gorunum=liste/);
+  await expect(page.getByRole("region", { name: "Raporlar tablosu" }).locator("tbody tr")).toHaveCount(2);
+  await noHorizontalScroll(page);
+  const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
+
+  await page.getByRole("checkbox", { name: "Tümünü seç (2)" }).check();
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Seçilenleri CSV indir" }).click()]);
+  const csv = readFileSync(await download.path(), "utf8");
+  expect(csv.split("\r\n").filter(Boolean)).toHaveLength(3);
+  expect(csv).toContain("Risk değerlendirmesidir, hukuki görüş değildir.");
+
+  await page.getByRole("button", { name: "Seçilenleri sil" }).click();
+  await page.getByRole("dialog", { name: "2 rapor silinsin mi?" }).getByRole("button", { name: "Kalıcı olarak sil" }).click();
+  await expect(page.getByText("Henüz rapor yok.")).toBeVisible();
 });

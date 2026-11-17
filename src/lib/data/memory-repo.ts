@@ -220,6 +220,7 @@ function summary(a: StoredAnalysis, viewerId?: string): AnalysisSummary {
     creativeScore: a.result?.creative_score ?? null,
     mediaType: a.mediaType ?? "image",
     platform: a.platform ?? "meta",
+    brandId: a.brandId ?? null,
     createdAt: a.createdAt,
     expiresAt: a.expiresAt,
     ownedByMe: viewerId === undefined || viewerId === a.userId,

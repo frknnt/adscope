@@ -122,7 +122,7 @@ test("video/Reels analysis: frames only, transcript scanned, landing page checke
   expect((await page.request.get(assetBase)).status()).toBe(404); // a video analysis has no creative image
 
   await page.goto("/panel/gecmis");
-  await expect(page.getByText(/^Video · /).first()).toBeVisible();
+  await expect(page.getByText("Video", { exact: true }).first()).toBeVisible();
   // A video analysis costs 2 credits (3 signup credits - 2).
   expect(await balance(page)).toBe(1);
   await page.goto("/panel/yeni");

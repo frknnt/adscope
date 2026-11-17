@@ -94,6 +94,19 @@ export async function deleteAnalysisAction(form: FormData) {
   if (form.get("from") === "detail") redirect("/panel/gecmis?silindi=1");
 }
 
+/** Deletes several of the user's own analyses (and their images). Returns how many were removed. */
+export async function deleteAnalysesAction(ids: string[]): Promise<{ deleted: number }> {
+  await requireUser();
+  const parsed = z.array(z.uuid()).max(200).safeParse(ids);
+  if (!parsed.success) return { deleted: 0 };
+  const repo = getRepo();
+  let deleted = 0;
+  for (const id of new Set(parsed.data)) if (await repo.deleteAnalysis(id)) deleted++;
+  revalidatePath("/panel/gecmis");
+  revalidatePath("/panel");
+  return { deleted };
+}
+
 export async function deleteAccountAction(_prev: ActionState, form: FormData): Promise<ActionState> {
   await requireUser();
   const confirm = String(form.get("confirm") ?? "").trim().toLocaleUpperCase("tr-TR");

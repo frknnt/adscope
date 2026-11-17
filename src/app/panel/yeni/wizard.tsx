@@ -25,7 +25,7 @@ const SECTORS: { value: Sector; label: string; note: string }[] = SECTOR_IDS.map
 type ImageState = { file: File; url: string; width: number; height: number } | null;
 type VideoState = (ExtractedVideo & { name: string; audio: AudioInfo; wav: Blob | null }) | null;
 type ShotState = { file: File; url: string } | null;
-export type WizardInitial = { headline?: string; primaryText?: string; description?: string; sector?: Sector; templateTitle?: string; platform?: Platform; landingUrl?: string };
+export type WizardInitial = { headline?: string; primaryText?: string; description?: string; sector?: Sector; templateTitle?: string; platform?: Platform; landingUrl?: string; media?: "image" | "video" };
 type Media = "image" | "video";
 
 /** Accepts "ornek.com/kampanya" as well as full URLs; returns null when it cannot be a public web address. */
@@ -82,7 +82,7 @@ export function AnalysisWizard({
   const shownStep = useRef(0);
 
   const [step, setStep] = useState(0);
-  const [media, setMedia] = useState<Media>("image");
+  const [media, setMedia] = useState<Media>(initial?.media ?? "image");
   const [image, setImage] = useState<ImageState>(null);
   const [video, setVideo] = useState<VideoState>(null);
   const [videoBusy, setVideoBusy] = useState(false);

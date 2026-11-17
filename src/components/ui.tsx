@@ -105,7 +105,7 @@ export function Stepper({ steps, current, label = "Adımlar" }: { steps: string[
 /** Scrollable, keyboard-focusable table frame. Pass a <table> whose cells use `px-5 py-3`. */
 export function DataTable({ label, children, className = "" }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <div className={`overflow-x-auto rounded-2xl border border-line bg-card ${className}`} tabIndex={0} role="region" aria-label={label}>
+    <div className={`relative overflow-x-auto rounded-2xl border border-line bg-card ${className}`} tabIndex={0} role="region" aria-label={label}>
       {children}
     </div>
   );
