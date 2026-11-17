@@ -21,6 +21,7 @@ Zorunlu:
 - [ ] **Anthropic API anahtarı**: yapay zekâ destekli analiz. Boşsa deterministik kural motoru çalışır.
 - [ ] **Konuşmayı yazıya dökme anahtarı** (OpenAI uyumlu): videoda konuşma metni çıkarma.
 - [ ] **Meta Reklam Kütüphanesi erişim anahtarı**: ilham panosu.
+- [ ] **Photoroom API anahtarı** (`PHOTOROOM_API_KEY`, https://app.photoroom.com/api-dashboard): arka plan kaldırma, büyütme ve ürün sahnesi. Boşsa bu üç araç kapalıdır; boyutlandırma ve filigran yine çalışır. Fiyat sayfasını (https://www.photoroom.com/api/pricing) okuyup `src/lib/image/costs.ts` içindeki kredi maliyetlerini doğrula.
 
 ## 1. Supabase bulut projesi
 
@@ -128,6 +129,7 @@ Settings → Environment Variables. Gizli değerleri **Sensitive** olarak işare
 | `APP_MODE` | `production` |
 | `EMAIL_FROM` | `AdScope <bildirim@<alan-adın>>` |
 | `ANTHROPIC_MODEL` | Boş bırak (varsayılan kullanılır) ya da model kimliği. |
+| `PHOTOROOM_API_KEY` | İsteğe bağlı. `sandbox_` ile başlayan anahtar filigranlı sonuç verir; üretimde canlı anahtar kullan. |
 | `ANALYSIS_HOURLY_LIMIT` | `20` |
 | `RETENTION_DAYS_DEFAULT` | `90` |
 | `META_GRAPH_VERSION` | Boş bırak. |

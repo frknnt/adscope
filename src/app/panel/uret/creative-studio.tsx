@@ -127,7 +127,7 @@ export async function CreativeStudio({ sp, brands, defaultSector, balance }: { s
                       </div>
                       {warnings.length ? (
                         <ul className="grid gap-1.5" aria-label={`${l.label}: uyarılar`}>
-                          {warnings.map((w) => <li key={w.kind} className="rounded-lg bg-amber-tint px-3 py-2 text-meta text-caution">{w.message}</li>)}
+                          {warnings.map((w) => <li key={w.kind} className="rounded-lg bg-amber-tint px-3 py-2 text-meta text-ink">{w.message}</li>)}
                         </ul>
                       ) : (
                         <p className="text-meta text-green">Taşma, güvenli alan ve kontrast sorunu yok.</p>

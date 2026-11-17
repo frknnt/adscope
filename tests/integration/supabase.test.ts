@@ -425,6 +425,17 @@ describe.skipIf(!reachable)("Supabase: agency mode, feedback, review links, API 
     expect(self.error).not.toBeNull();
   });
 
+  it("generated files: ZIPs fit the private bucket, only the owner reads them", async () => {
+    const path = `${owner.id}/generations/${randomUUID()}-adscope.zip`;
+    const zip = new Uint8Array([0x50, 0x4b, 0x05, 0x06, ...new Array(18).fill(0)]);
+    const up = await owner.client.storage.from("creatives").upload(path, zip, { contentType: "application/zip" });
+    expect(up.error).toBeNull();
+    expect((await stranger.client.storage.from("creatives").download(path)).error).not.toBeNull();
+    expect((await owner.client.storage.from("creatives").download(path)).error).toBeNull();
+    const foreign = await stranger.client.storage.from("creatives").upload(`${owner.id}/generations/${randomUUID()}-x.zip`, zip, { contentType: "application/zip" });
+    expect(foreign.error).not.toBeNull();
+  });
+
   it("audiences: owner adds profiles to own brands only, team reads, ages are checked", async () => {
     const { data: brand } = await owner.client.from("brands").insert({ user_id: owner.id, name: `Kitle ${randomUUID().slice(0, 6)}` }).select("id").single();
     const row = { user_id: owner.id, brand_id: brand!.id, name: "Ev kahvecileri", age_min: 25, age_max: 40, need: "Hızlı sabah kahvesi" };
