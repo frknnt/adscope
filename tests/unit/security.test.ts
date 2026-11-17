@@ -66,3 +66,27 @@ describe("payment webhooks", () => {
     expect(p.parseWebhook("{}", new Headers()).kind).toBe("invalid");
   });
 });
+
+describe("production guards", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("treats a Vercel production deployment as production even without APP_MODE", async () => {
+    const { appMode, demoPurchasesAllowed, dataBackend } = await import("@/lib/env");
+    vi.stubEnv("APP_MODE", "");
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
+    expect(appMode()).toBe("production");
+    expect(demoPurchasesAllowed()).toBe(false);
+    expect(() => dataBackend()).toThrow();
+    vi.stubEnv("APP_MODE", "demo");
+    expect(appMode()).toBe("production");
+  });
+  it("lets previews and local runs stay in demo mode", async () => {
+    const { appMode } = await import("@/lib/env");
+    vi.stubEnv("APP_MODE", "");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    expect(appMode()).toBe("demo");
+    vi.stubEnv("VERCEL_ENV", "");
+    vi.stubEnv("APP_MODE", "production");
+    expect(appMode()).toBe("production");
+  });
+});

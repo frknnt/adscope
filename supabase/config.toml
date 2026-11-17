@@ -249,6 +249,15 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# Türkçe şablonlar. Bulut projesinde aynı içerik Authentication → Email Templates ekranına yapıştırılır (docs/KURULUM.md).
+[auth.email.template.confirmation]
+subject = "AdScope hesabını doğrula"
+content_path = "./supabase/templates/onay.html"
+
+[auth.email.template.email_change]
+subject = "AdScope e-posta değişikliğini onayla"
+content_path = "./supabase/templates/eposta-degisikligi.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"

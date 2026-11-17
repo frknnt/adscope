@@ -7,6 +7,7 @@ import "server-only";
  *    demo        -> "Demo modu" banner, demo purchases allowed (no real payment), deterministic
  *                   analysis unless an AI key is set.
  *    production  -> demo purchases disabled, Supabase required, banner hidden.
+ *                   Forced on Vercel production deployments (VERCEL_ENV=production).
  *
  *  Data backend  supabase when NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
  *                + SUPABASE_SECRET_KEY are set; otherwise an in-memory demo store
@@ -16,6 +17,9 @@ import "server-only";
 export type AppMode = "demo" | "production";
 
 export function appMode(): AppMode {
+  // A Vercel production deployment is always production: a forgotten APP_MODE must never turn on demo
+  // purchases (free credits) or the in-memory store on the live domain. Previews may still run as demo.
+  if (process.env.VERCEL_ENV === "production") return "production";
   return process.env.APP_MODE === "production" ? "production" : "demo";
 }
 
