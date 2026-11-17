@@ -51,7 +51,7 @@
 | Production build | `next build` temiz (uyarı yok) |
 | Veritabanı danışmanı | `supabase db advisors`: güvenlik/performans sorunu yok; yalnızca yeni veritabanında kullanılmamış indeks bilgileri |
 
-Son çalıştırma (16.11.2026, video/açılış sayfası/takvim eklendikten sonra): birim + entegrasyon 65/65, uçtan uca 65/65 (demo masaüstü, demo mobil, Supabase masaüstü; 1 mobil klavye testi bilerek atlandı). Uzun süre açık kalan bir demo sunucusu yeniden kullanılırsa kayıt hız sınırı (IP başına 10 dakikada 20) dolabilir; temiz sunucuyla çalıştırın.
+Son çalıştırma (17.11.2026, video kanca analizi, sezon şablonları ve 40 kural kartından sonra): birim + entegrasyon 93/93, uçtan uca 69 geçti + 1 bilerek atlandı (demo masaüstü, demo mobil, Supabase masaüstü); yalnızca axe'nin sayfa başlığı yüklenmeden çalıştığı bir zamanlama hatası çıktı, test başlığı bekleyecek şekilde düzeltildi ve ilgili dosya iki kez tekrarlanarak 36/36 geçti. `next build` temiz, `supabase db advisors` sorun bulmadı. E2E projeleri ayrı `X-Forwarded-For` adresleriyle kaydolur; böylece IP başına kayıt sınırı projeler arasında paylaşılmaz.
 
 ## Varsayımlar (doğrulanmalı)
 
