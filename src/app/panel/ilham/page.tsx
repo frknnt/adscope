@@ -3,7 +3,7 @@ import { IconAlert, IconBoard, IconExternal, IconInfo, IconTrash } from "@/compo
 import { formatDateTr } from "@/components/rule-status";
 import { buttonClass, Disclaimer, inputClass } from "@/components/ui";
 import { requirePanelUser } from "@/app/panel/guard";
-import { getAdLibrary, isLibraryCountry, LIBRARY_COUNTRIES, type LibraryAd, type LibraryResult } from "@/lib/ads-library/meta";
+import { getAdLibrary, isLibraryCountry, LIBRARY_COUNTRIES, runningDays, type LibraryAd, type LibraryResult } from "@/lib/ads-library/meta";
 import { getRepo } from "@/lib/data";
 import { runRuleEngine } from "@/lib/engine/rule-engine";
 import type { RuleRecord } from "@/lib/engine/types";
@@ -65,6 +65,7 @@ function AdCard({ ad, country, rules, saved }: { ad: LibraryAd; country: string;
   const body = ad.bodies[0] ?? "";
   const title = ad.titles[0] ?? "";
   const s = signals({ title, body }, rules);
+  const days = runningDays(ad);
   return (
     <li className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -74,6 +75,9 @@ function AdCard({ ad, country, rules, saved }: { ad: LibraryAd; country: string;
           {ad.deliveryStop ? <> · bitiş <time dateTime={ad.deliveryStop}>{formatDateTr(ad.deliveryStop)}</time></> : ad.deliveryStart ? " · yayında" : null}
         </p>
       </div>
+      {days >= 0 ? (
+        <p className="w-fit rounded-full bg-paper-2 px-2.5 py-0.5 text-[0.78rem] font-semibold tabular">{days} gün{ad.deliveryStop ? " yayında kaldı" : "dür yayında"}</p>
+      ) : null}
       {title ? <p className="font-semibold leading-snug">{title}</p> : null}
       {body ? <p className="line-clamp-6 whitespace-pre-line text-[0.9rem] text-ink-soft">{body}</p> : <p className="text-[0.88rem] text-muted">Metin yok (yalnızca görsel veya video).</p>}
       {ad.bodies.length > 1 ? <p className="text-[0.78rem] text-muted">+{ad.bodies.length - 1} metin varyantı daha</p> : null}
@@ -206,6 +210,7 @@ export default async function InspirationPage({ searchParams }: { searchParams: 
           <h2 id="sonuclar" className="font-display text-2xl font-semibold">
             {result.ads.length ? `“${q}” için ${result.ads.length} reklam` : `“${q}” için reklam bulunamadı`}
           </h2>
+          {result.ads.length > 1 ? <p className="mt-1 text-[0.85rem] text-muted">En uzun süredir yayında olanlar üstte. Uzun süre yayında kalan reklam çoğu zaman kârlı reklamdır.</p> : null}
           {result.ads.length ? (
             <ul className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {result.ads.map((ad) => <AdCard key={ad.id} ad={ad} country={country} rules={rules} saved={pinned.has(ad.id)} />)}

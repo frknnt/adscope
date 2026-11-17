@@ -74,6 +74,14 @@ const strings = (v: unknown, max: number, each: number) =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, max).map((x) => x.trim().slice(0, each)).filter(Boolean) : [];
 const day = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
 
+/** Days between delivery start and stop (or today, for ads still running). */
+export function runningDays(ad: Pick<LibraryAd, "deliveryStart" | "deliveryStop">, today = new Date()): number {
+  if (!ad.deliveryStart) return -1;
+  const start = Date.parse(`${ad.deliveryStart}T00:00:00Z`);
+  const end = ad.deliveryStop ? Date.parse(`${ad.deliveryStop}T00:00:00Z`) : today.getTime();
+  return Math.max(0, Math.floor((end - start) / 86_400_000));
+}
+
 /** Keeps only the fields we use, with length caps; drops rows without a numeric id. */
 export function parseLibraryAds(json: unknown): { ads: LibraryAd[]; after: string | null } {
   const root = (json ?? {}) as { data?: unknown; paging?: { cursors?: { after?: unknown }; next?: unknown } };
@@ -100,6 +108,9 @@ export function parseLibraryAds(json: unknown): { ads: LibraryAd[]; after: strin
       libraryUrl: `https://www.facebook.com/ads/library/?id=${id}`,
     });
   }
+  // Longest-running first: an ad that has stayed live for weeks is usually a profitable one.
+  // The API has no sort parameter, so this orders the fetched page.
+  ads.sort((a, b) => runningDays(b) - runningDays(a));
   const after = root.paging?.next && typeof root.paging?.cursors?.after === "string" && CURSOR_RE.test(root.paging.cursors.after) ? root.paging.cursors.after : null;
   return { ads, after };
 }
@@ -113,7 +124,8 @@ function graphBaseUrl() {
 
 /** Small per-process cache so repeated searches do not spend the app's Graph API quota. */
 const cache = new Map<string, { at: number; value: { ads: LibraryAd[]; after: string | null } }>();
-const CACHE_MS = 10 * 60_000;
+// Daily cache, as planned for the Ad Library rate limits; a page of results changes slowly.
+const CACHE_MS = 24 * 60 * 60_000;
 
 export class MetaAdLibrary {
   readonly enabled: boolean;

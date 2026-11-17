@@ -23,7 +23,7 @@ MVP sonrası eklenenler:
 - **Ücretsiz kontrol** (`/reklamim-reddedilir-mi`). Üyeliksiz, yalnızca metin; kural motoruyla çalışır, hiçbir şey saklanmaz, IP özeti başına 10 dakikada 10 kontrol.
 - **Kurumsal API** (`/api/v1/analyses`). `ads_live_…` anahtarıyla JSON + base64 görsel gönderilir, rapor JSON döner; anahtar başına dakikada 30 istek, panelle aynı kredi kuralları. Belgeler `/panel/api`.
 - **Aylık mevzuat bülteni.** Ayarlardan açılır; son 30 günde doğrulanan veya güncellenen kural kartlarını sektöre göre listeler (`/api/cron/newsletter`).
-- **İlham panosu** (`/panel/ilham`). Meta Reklam Kütüphanesi'nde AB'de gösterilen reklamları arar, metinleri AdScope kurallarıyla tarar, beğenilenleri panoya kaydeder. `META_AD_LIBRARY_TOKEN` yoksa kurulum adımlarını gösterir; örnek ya da uydurma reklam göstermez.
+- **İlham panosu** (`/panel/ilham`). Meta Reklam Kütüphanesi'nde AB'de gösterilen reklamları arar, en uzun süredir yayında olanları üste alır (günlük önbellek), metinleri AdScope kurallarıyla tarar, beğenilenleri panoya kaydeder. `META_AD_LIBRARY_TOKEN` yoksa kurulum adımlarını gösterir; örnek ya da uydurma reklam göstermez.
 - **Tarayıcı eklentisi** (`extension/`). Chrome/Edge için sağ tık menüsü: seçili metni veya sayfanın adresini sihirbaza taşır. Veri göndermez; metin adresin `#` kısmında taşınır. Kurulum: [extension/README.md](extension/README.md).
 
 Kapsam dışı (ürün kararı): **Meta reklam hesabı bağlama** (şirket ve işletme doğrulaması gerektirir), **iyzico** (ödeme için Shopier kullanılacak), **ikas / Ticimax** entegrasyonu (iş ortaklığı planlanmıyor).

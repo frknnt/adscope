@@ -66,3 +66,16 @@ describe("Meta Ad Library adapter", () => {
     expect(await lib.search({ q: "abc", country: "TR" as never, turkishOnly: false, activeOnly: true })).toEqual({ ok: false, reason: "invalid_query" });
   });
 });
+
+describe("Ad Library ordering", () => {
+  it("puts the longest-running ads first", () => {
+    const { ads } = parseLibraryAds({
+      data: [
+        { id: "1", ad_delivery_start_time: "2026-11-10" },
+        { id: "2", ad_delivery_start_time: "2026-08-01" },
+        { id: "3", ad_delivery_start_time: "2026-09-01", ad_delivery_stop_time: "2026-09-05" },
+      ],
+    });
+    expect(ads.map((a) => a.id)).toEqual(["2", "1", "3"]);
+  });
+});
