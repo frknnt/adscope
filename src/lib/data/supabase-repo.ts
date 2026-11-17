@@ -480,6 +480,29 @@ export class SupabaseRepo implements DataRepo {
     return data ? toGeneration(data) : null;
   }
 
+  async saveGenerationFile(name: string, bytes: Uint8Array, mime: string) {
+    const u = await this.requireUser();
+    const path = `${u.id}/generations/${crypto.randomUUID()}-${name.replace(/[^a-z0-9.-]/gi, "")}`;
+    // User client: the storage policy only allows the caller's own folder.
+    const { error } = await (await this.db()).storage.from(BUCKET).upload(path, bytes, { contentType: mime, upsert: false });
+    return error ? null : path;
+  }
+
+  async readGenerationFile(generationId: string, path: string) {
+    const g = await this.getGeneration(generationId);
+    const u = await this.getUser();
+    if (!g || !u || !path.startsWith(`${u.id}/generations/`) || !generationFiles(g.output).includes(path)) return null;
+    const { data, error } = await (await this.db()).storage.from(BUCKET).download(path);
+    if (error || !data) return null;
+    return { bytes: new Uint8Array(await data.arrayBuffer()), mime: data.type || "application/octet-stream" };
+  }
+
+  async removeGenerationFiles(paths: string[]) {
+    const u = await this.requireUser();
+    const own = paths.filter((p) => p.startsWith(`${u.id}/generations/`));
+    if (own.length) await (await this.db()).storage.from(BUCKET).remove(own);
+  }
+
   async listGenerations(kind: GenerationKind, limit = 20) {
     const u = await this.requireUser();
     const { data } = await (await this.db()).from("generations").select(GEN_COLS).eq("user_id", u.id).eq("kind", kind).order("created_at", { ascending: false }).limit(limit);
@@ -710,6 +733,9 @@ export class SupabaseRepo implements DataRepo {
     if (assets?.length) await admin.storage.from(BUCKET).remove(assets.map((a) => a.storage_path));
     const { data: logos } = await admin.from("brands").select("logo_path").eq("user_id", u.id).not("logo_path", "is", null);
     if (logos?.length) await admin.storage.from(BUCKET).remove(logos.map((b) => b.logo_path as string));
+    const { data: gens } = await admin.from("generations").select("output").eq("user_id", u.id);
+    const genPaths = (gens ?? []).flatMap((g) => generationFiles((g.output as Record<string, unknown>) ?? {}));
+    if (genPaths.length) await admin.storage.from(BUCKET).remove(genPaths);
     // 2) sign out everywhere, then delete the auth user (cascades all user-owned rows; purchases keep a null user_id)
     await (await this.db()).auth.signOut({ scope: "global" });
     const { error } = await admin.auth.admin.deleteUser(u.id);

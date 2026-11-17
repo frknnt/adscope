@@ -46,11 +46,7 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
 
       {tab === "gorsel" ? (
         <div className="mt-8">
-          <CreativeStudio
-            brands={brands.map((b) => ({ id: b.id, name: b.name, sector: b.sector, primaryColor: b.primaryColor, secondaryColor: b.secondaryColor, font: b.font, tagline: b.tagline, hasLogo: b.hasLogo, preferredCta: b.preferredCta }))}
-            defaultSector={profile?.defaultSector ?? "genel"}
-            balance={balance}
-          />
+          <CreativeStudio sp={sp} brands={brands} defaultSector={profile?.defaultSector ?? "genel"} balance={balance} />
         </div>
       ) : (
         <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
@@ -87,7 +83,7 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
             <h2 id="sonuc-baslik" className="font-display text-2xl font-semibold">{stored ? `Öneriler: ${stored.input.productName || "ürün"}` : "Öneriler"}</h2>
             <div className="mt-4">
               {stored && result?.platform ? (
-                <CopyResults copy={stored.copy} platform={result.platform} limits={COPY_LIMITS[result.platform]} aiFailed={stored.aiFailed} />
+                <CopyResults copy={stored.copy} platform={result.platform} limits={COPY_LIMITS[result.platform]} aiFailed={stored.aiFailed} brandId={result.brandId} />
               ) : (
                 <p className="rounded-2xl border border-dashed border-line-strong bg-card px-6 py-10 text-center text-ink-soft">
                   Soldaki formu doldur. 10 başlık, 10 ana metin, 5 açıklama ve 3 harekete geçirici ifade burada listelenir; birini seçip tek tıkla analize aktarabilirsin.

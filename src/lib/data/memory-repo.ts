@@ -517,6 +517,30 @@ export class MemoryRepo implements DataRepo {
     return { status: "created", generation: genView(g) };
   }
 
+  async saveGenerationFile(name: string, bytes: Uint8Array, mime: string) {
+    const u = await this.requireUser();
+    const s = store();
+    s.genFiles ??= {};
+    const path = `${u.id}/generations/${randomUUID()}-${name.replace(/[^a-z0-9.-]/gi, "")}`;
+    s.genFiles[path] = { mime, dataB64: Buffer.from(bytes).toString("base64") };
+    persist();
+    return path;
+  }
+
+  async readGenerationFile(generationId: string, path: string) {
+    const g = await this.getGeneration(generationId);
+    if (!g || !generationFiles(g.output).includes(path)) return null;
+    const f = store().genFiles?.[path];
+    return f ? { bytes: new Uint8Array(Buffer.from(f.dataB64, "base64")), mime: f.mime } : null;
+  }
+
+  async removeGenerationFiles(paths: string[]) {
+    const u = await this.requireUser();
+    const s = store();
+    for (const p of paths) if (p.startsWith(`${u.id}/`)) delete s.genFiles?.[p];
+    persist();
+  }
+
   async getGenerationByRequest(clientRequestId: string) {
     const u = await this.requireUser();
     const g = (store().generations ?? []).find((x) => x.userId === u.id && x.clientRequestId === clientRequestId);

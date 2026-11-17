@@ -341,6 +341,11 @@ export interface DataRepo {
   getGenerationByRequest(clientRequestId: string): Promise<GenerationRecord | null>;
   getGeneration(id: string): Promise<GenerationRecord | null>;
   listGenerations(kind: GenerationKind, limit?: number): Promise<GenerationRecord[]>;
+  /** Stores a generated file under the caller's own folder (`<uid>/generations/...`). */
+  saveGenerationFile(name: string, bytes: Uint8Array, mime: string): Promise<string | null>;
+  /** Reads a file of the caller's own generation; null unless the path is listed in its output. */
+  readGenerationFile(generationId: string, path: string): Promise<{ bytes: Uint8Array; mime: string } | null>;
+  removeGenerationFiles(paths: string[]): Promise<void>;
   listPurchases(): Promise<PurchaseRecord[]>;
 
   startAnalysis(params: StartAnalysisParams): Promise<StartAnalysisResult>;

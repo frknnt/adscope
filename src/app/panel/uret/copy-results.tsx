@@ -41,12 +41,14 @@ function Line({ line, name, value, selected, onSelect, limit }: { line: CopyLine
   );
 }
 
-export function CopyResults({ copy, platform, limits, aiFailed }: { copy: CopyOutput; platform: Platform; limits: { headline: number; primaryText: number; description: number; cta: number }; aiFailed?: boolean }) {
+export function CopyResults({ copy, platform, limits, aiFailed, brandId }: { copy: CopyOutput; platform: Platform; limits: { headline: number; primaryText: number; description: number; cta: number }; aiFailed?: boolean; brandId?: string | null }) {
   const first = (l: CopyLine[]) => (l.find((x) => x.risk === "ok") ?? l[0]) as CopyLine | undefined;
   const [h, setH] = useState(first(copy.headlines)?.text ?? "");
   const [p, setP] = useState(first(copy.primaryTexts)?.text ?? "");
   const [d, setD] = useState(first(copy.descriptions)?.text ?? "");
   const wizard = `/panel/yeni#${new URLSearchParams({ baslik: h, metin: p, aciklama: d, platform }).toString()}`;
+  const cta = first(copy.ctas)?.text ?? "";
+  const visual = `/panel/uret?${new URLSearchParams({ sekme: "gorsel", baslik: h, metin: p, cta, platform, ...(brandId ? { marka: brandId } : {}) }).toString()}#gorseller`;
   const groups: { title: string; key: string; lines: CopyLine[]; sel: string; set: (t: string) => void; limit: number }[] = [
     { title: "Başlıklar", key: "h", lines: copy.headlines, sel: h, set: setH, limit: limits.headline },
     { title: "Ana metinler", key: "p", lines: copy.primaryTexts, sel: p, set: setP, limit: limits.primaryText },
@@ -58,9 +60,14 @@ export function CopyResults({ copy, platform, limits, aiFailed }: { copy: CopyOu
         <p className="text-small text-ink-soft">
           {copy.source === "ai" ? "Yapay zekâ ile üretildi; her satır kural motorundan geçti." : aiFailed ? "Yapay zekâ yanıt veremedi; şablon öneriler gösteriliyor, kredi düşülmedi." : "Şablon öneriler (yapay zekâ kapalı)."} {copy.limitNote}
         </p>
-        <Link href={wizard} className="inline-flex h-11 items-center rounded-xl bg-ink px-5 font-semibold text-paper no-underline hover:bg-navy-700">
-          Seçilenlerle analiz başlat
-        </Link>
+        <span className="flex flex-wrap gap-2">
+          <Link href={visual} className="inline-flex h-11 items-center rounded-xl border border-line-strong bg-card px-5 font-semibold text-ink no-underline hover:border-ink">
+            Seçilenlerle görsel yap
+          </Link>
+          <Link href={wizard} className="inline-flex h-11 items-center rounded-xl bg-ink px-5 font-semibold text-paper no-underline hover:bg-navy-700">
+            Seçilenlerle analiz başlat
+          </Link>
+        </span>
       </div>
       {groups.map((g) => (
         <section key={g.key} aria-labelledby={`grup-${g.key}`}>

@@ -10,6 +10,9 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/analyses/[id]/export": ["./assets/fonts/**/*"],
     "/inceleme/[token]/pdf": ["./assets/fonts/**/*"],
+    // Creative fonts (P2.1): preview route and the Üret page's download action.
+    "/api/creative/preview": ["./assets/fonts/creative/**/*"],
+    "/panel/uret": ["./assets/fonts/creative/**/*"],
   },
   // The analysis upload can carry still frames, a short 16 kHz audio clip and a landing screenshot.
   experimental: { proxyClientMaxBodySize: "16mb" },

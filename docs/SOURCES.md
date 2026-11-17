@@ -135,6 +135,12 @@ Toplam kart sayısı: 63.
 
 PDF raporda Manrope ve Fraunces gömülüdür. İkisi de SIL Open Font License 1.1 ile lisanslıdır; lisans metinleri `assets/fonts/OFL-Manrope.txt` ve `assets/fonts/OFL-Fraunces.txt` dosyalarındadır.
 
+Görsel üretici (P2.1, 17.11.2026) marka kitindeki yazı tipini görsele gömer: Inter, Manrope, Montserrat, Poppins, Nunito ve Playfair Display, her biri 400 ve 800 kalınlıkta statik TTF olarak `assets/fonts/creative/` altındadır. Dosyalar Google Fonts'tan (fonts.googleapis.com, TrueType çıktısı) indirildi; altısı da SIL Open Font License 1.1 ile lisanslıdır ve lisans metinleri aynı klasörde `OFL-<aile>.txt` adıyla durur (kaynak: github.com/google/fonts, `ofl/<aile>/OFL.txt`). Altı ailenin iki kalınlığı da Türkçe harflerin tamamını içerir (birim testi). Playfair Display'de "₺" işareti olmadığından bu ailede "TL" yazılır.
+
+Görsel çizimi Next.js'in kendi `next/og` modülüyle yapılır (Next.js 16.4.6 içinde gelen `@vercel/og` 1.0.1: satori ve resvg-wasm, MPL-2.0); ayrı bir bağımlılık eklenmedi. Tüm boyutları tek dosyada indirmek için `fflate` 0.8.3 (MIT) kullanılır.
+
+9:16 güvenli alanı: üstteki 250 ve alttaki 340 piksel (1080×1920) Meta'nın Hikâye ve Reels kreatif önerisindeki metin ve logo içermeyen bantlara dayanır; TikTok arayüzü benzer bir alanı kapatır. Bu sayılar sezgisel tasarım kuralıdır, platform reddi sebebi değildir.
+
 ## Sezon takvimi tarihleri (16.11.2026)
 
 | Tarih | Kaynak | Durum |

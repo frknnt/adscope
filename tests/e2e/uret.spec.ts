@@ -87,3 +87,35 @@ test("audience profiles refuse sensitive categories", async ({ page }) => {
   await expect(page).toHaveURL(/sonuc=/);
   await expect(page.locator("#sonuc").getByRole("heading", { name: /Ana metinler/ })).toBeVisible();
 });
+
+test("creative studio: free previews of eight layouts, one-credit ZIP download", async ({ page }) => {
+  await signUp(page);
+  await onboard(page);
+  const start = await balance(page);
+  await page.goto("/panel/uret?sekme=gorsel");
+  await page.getByLabel("Başlık").fill("Sabah kahven artık evde, üç kavrum tek kutuda");
+  await page.getByLabel("Kısa metin (isteğe bağlı)").fill("Taze çekilmiş çekirdekler, ılık ve yoğun aroma.");
+  await page.getByLabel("Çağrı (isteğe bağlı)").fill("Hemen incele");
+  await page.getByLabel(/Hikâye 9:16/).check();
+  await page.getByRole("button", { name: "Önizlemeleri göster" }).click();
+  const gallery = page.locator("#gorseller");
+  await expect(gallery.getByRole("listitem").filter({ has: page.getByRole("heading", { level: 3 }) })).toHaveCount(8);
+  for (const name of ["Manşet", "Şerit", "Çerçeve", "Renk blokları", "Köşe dairesi", "Etiket", "İkiz alan", "Alt bant"]) {
+    await expect(gallery.getByRole("heading", { name, level: 3 })).toBeVisible();
+  }
+  // Previews are real PNGs of the 9:16 size, scaled down.
+  const img = gallery.getByRole("img", { name: /Manşet yerleşimi, Hikâye 9:16/ });
+  await img.scrollIntoViewIfNeeded();
+  await expect.poll(async () => img.evaluate((el: HTMLImageElement) => (el.complete ? el.naturalHeight : 0)), { timeout: 15000 }).toBe(768);
+  await expect(gallery.getByText(/Kural puanı/).first()).toBeAttached();
+  await expect(gallery.getByText("Taşma, güvenli alan ve kontrast sorunu yok.").first()).toBeVisible();
+  await noHorizontalScroll(page);
+  const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+
+  const download = page.waitForEvent("download");
+  await gallery.getByRole("button", { name: /Tüm boyutlar \(ZIP\)\s*: Etiket/ }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe("adscope-etiket-tum-boyutlar.zip");
+  expect(await balance(page)).toBe(start - 1);
+});
