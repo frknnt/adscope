@@ -229,6 +229,7 @@ function UploadMock() {
 
 function SafeTextMock({ report }: { report: Report }) {
   const variants = report.variants.filter((v) => v.kind === "variant").slice(0, 2);
+  const safe = report.variants.find((v) => v.kind === "safe");
   return (
     <Frame label="Güvenli metin ve varyantlar">
       <p className="text-fine font-bold uppercase tracking-[0.08em] text-coral-deep">Önce</p>
@@ -237,6 +238,11 @@ function SafeTextMock({ report }: { report: Report }) {
       </p>
       <p className="mt-4 text-fine font-bold uppercase tracking-[0.08em] text-green">Sonra</p>
       <p className="mt-1.5 rounded-xl border border-green/25 bg-green-tint p-3 text-small leading-relaxed text-ink">{report.safe_text}</p>
+      {safe ? (
+        <p className="mt-2 flex items-center gap-1.5 text-meta font-semibold text-green">
+          <IconCheck width={14} height={14} /> Aynı kurallarla yeniden tarandı: {safe.recheck_red} kırmızı, {safe.recheck_yellow} sarı bayrak
+        </p>
+      ) : null}
       <ul className="mt-4 grid gap-2 sm:grid-cols-2">
         {variants.map((v) => (
           <li key={v.position} className="rounded-xl border border-line p-3">
@@ -433,6 +439,16 @@ export default async function HomePage() {
               </ButtonLink>
             </div>
             <p className="mt-5 text-small font-medium text-muted">Kart gerekmez · 3 ücretsiz analiz · İçeriğin model eğitiminde kullanılmaz</p>
+            <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-6">
+              <span className="text-meta font-semibold text-muted">Kontrol edilen platformlar</span>
+              <ul className="flex flex-wrap gap-2">
+                {["Meta", "Instagram", "Google Ads", "TikTok"].map((p) => (
+                  <li key={p} className="rounded-lg border border-line bg-card px-3 py-1.5 text-meta font-bold text-ink shadow-card">
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
           <div className="reveal" style={{ animationDelay: "120ms" }}>
             <HeroCollage report={report} />
@@ -568,6 +584,25 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Product facts (counted from the catalogue, not marketing estimates) */}
+      <section aria-label="AdScope rakamlarla" className={`${WRAP} pb-20 lg:pb-28`}>
+        <dl className="grid gap-px overflow-hidden rounded-3xl border border-line bg-line shadow-card sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            [String(RULE_CATALOG.length), "kural kartı", `${activeCount} tanesi resmî kaynaktan doğrulandı`],
+            ["3", "reklam platformu", "Meta, Google Ads, TikTok"],
+            [String(sectors.length), "sektör paketi", "Takviye gıdadan finansa"],
+            ["2 dil", "itiraz taslağı", "Türkçe ve İngilizce"],
+          ].map(([n, label, note]) => (
+            <div key={label} className="bg-card p-7">
+              <dt className="sr-only">{label}</dt>
+              <dd className="text-4xl font-extrabold tabular text-ink">{n}</dd>
+              <dd className="mt-1 text-body font-bold text-ink">{label}</dd>
+              <dd className="mt-1 text-small text-muted">{note}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
       {/* How it works + sources */}
       <section className="bg-paper-2 py-20 lg:py-28">
         <div className={WRAP}>
@@ -575,7 +610,7 @@ export default async function HomePage() {
           <ol className="mt-12 grid gap-5 md:grid-cols-3">
             {[
               ["Yükle", "Görselini veya videonu, metnini, platformu ve sektörünü seç.", IconUpload],
-              ["Kontrol et", `${activeCount} aktif ve doğrulama bekleyen kural kartıyla taranır; sonuç yaklaşık bir dakikada hazır.`, IconScale],
+              ["Kontrol et", `${RULE_CATALOG.length} kural kartıyla taranır; sonuç yaklaşık bir dakikada hazır.`, IconScale],
               ["Düzelt ve yayınla", "Güvenli metni ve varyantları kullan, raporu PDF olarak indir ya da ekibinle paylaş.", IconCheck],
             ].map(([t, d, I], i) => {
               const Icon = I as typeof IconUpload;
