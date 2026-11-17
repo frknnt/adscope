@@ -74,6 +74,8 @@ Tasarım sistemi (P6.1, 17.11.2026): `DESIGN.md` eklendi. Renkler belirteçlere 
 
 Landing yeniden tasarımı (17.11.2026): `docs/TASARIM_YONU.md`'ye göre lacivert, yalnızca açık tema. Koyu tema kaldırıldı, başlıklar Manrope 800 oldu (Fraunces arayüzden çıktı; PDF raporda hâlâ kullanılıyor). Yeni yapışkan menü ve mega menü, lacivert footer; landing 10 bölüm: hero (AdScope'un kendi örnek reklamlarından HTML kolaj, gerçek motor skorlarıyla), sektör şeridi, ihtiyaç sekmeleri, 4 özellik bloğu, gerçek rapor maketi, nasıl çalışır + kaynak şeridi, araç ızgarası ve ajans bandı, fiyat özeti, SSS, kapanış bandı. Kullanıcı sayısı, müşteri logosu, yorum ve puan rozeti bilerek yok. Demo e2e (masaüstü + mobil, axe dahil) geçti; `theme.spec.ts` artık açık temada 8 sayfayı denetliyor. Panel sayfaları yeni renkleri aldı ama yerleşimleri henüz yenilenmedi (TASARIM_YONU.md Oturum 3).
 
+Panel kabuğu (P6.3 Oturum 1, 17.11.2026): `docs/PANEL_TASARIMI.md`'ye göre panelin çerçevesi yenilendi. 264px sabit sol menü beş grupta (Pano / Kontrol et / Düzelt / Planla / Yönet), altta kredi kartı, e-posta, Ayarlar ve Çıkış. Üst çubukta konum izi, Ctrl+K hızlı geçiş (komut paleti: sayfalar ve eylemler, ok tuşları ve Enter), kredi çipi (2 ve altında sarı) ve Yeni analiz düğmesi. Mobilde üst çubuk + açılır menü ve alt çubuk (Pano, Raporlar, ortada +, İtiraz, Menü). Eski `panel-nav.tsx` kaldırıldı. Marka seçici henüz yok (sonraki oturumlarda). Demo e2e (masaüstü + mobil, axe dahil) 55/55 geçti.
+
 ## Varsayımlar (doğrulanmalı)
 
 1. Fiyatlar (Başlangıç 199 ₺ / 30, Profesyonel 499 ₺ / 100) konsept belgesinden alındı; KDV dahil tüketici fiyatı varsayıldı.

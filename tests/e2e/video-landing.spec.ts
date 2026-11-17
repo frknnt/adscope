@@ -221,11 +221,14 @@ test("video and landing inputs are validated on the server and cost nothing", as
   expect(await balance(page)).toBe(3);
 });
 
-test("season calendar lists upcoming periods and exports .ics", async ({ page }) => {
+test("season calendar lists upcoming periods and exports .ics", async ({ page, isMobile }) => {
   await signUp(page);
   await page.goto("/panel/takvim");
   await expect(page.getByRole("heading", { level: 1, name: "Sezon takvimi" })).toBeVisible();
+  // On phones the full menu lives in a drawer.
+  if (isMobile) await page.getByRole("button", { name: "Menüyü aç" }).click();
   await expect(page.getByRole("link", { name: "Sezon takvimi" })).toHaveAttribute("aria-current", "page");
+  if (isMobile) await page.getByRole("button", { name: "Menüyü kapat" }).click();
   await expect(page.locator("article").first()).toBeVisible();
   await expect(page.getByText(/Diyanet takvimiyle kontrol et/)).toBeVisible();
   await expect(page.getByRole("link", { name: /TR-RY-INDIRIM-REFERANS/ }).first()).toBeVisible();

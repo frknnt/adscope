@@ -76,6 +76,9 @@ export const IconPrint = (p: SVGProps<SVGSVGElement>) => (
 export const IconMenu = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><path d="M4 7h16M4 12h16M4 17h16" /></svg>
 );
+export const IconClose = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M6 6l12 12M18 6L6 18" /></svg>
+);
 export const IconLogout = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><path d="M15 4h4v16h-4" /><path d="M10 8l-4 4 4 4" /><path d="M6 12h10" /></svg>
 );

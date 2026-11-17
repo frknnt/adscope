@@ -73,6 +73,8 @@ Her renk bir CSS değişkeni ve aynı adlı Tailwind sınıfıdır (`bg-card`, `
 | `SiteNav` | site-nav.tsx | Yapışkan menü, mega menü (Esc ve dışarı tıklama kapatır), mobil menü |
 | `Dialog` | interactive.tsx | Yerel `<dialog>`; Esc ve arka plana tıklama kapatır |
 | `ToastProvider`, `useToast` | interactive.tsx | Panelde kurulu; kısa durum mesajları, tek `aria-live` bölgesi |
+| `PanelShell` | app/panel/shell.tsx | Panel çerçevesi: gruplu sol menü (lg+), üst çubuk (konum izi, kredi çipi, Yeni analiz), mobil açılır menü ve alt çubuk |
+| `CommandPalette` | app/panel/shell.tsx | Ctrl/Cmd+K; combobox + listbox, ok tuşları ve Enter |
 
 Yeni bir bileşen yazmadan önce bu listeye bak; benzer bir şey varsa onu genişlet.
 
