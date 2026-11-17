@@ -26,7 +26,7 @@ MVP sonrası eklenenler:
 - **İlham panosu** (`/panel/ilham`). Meta Reklam Kütüphanesi'nde AB'de gösterilen reklamları arar, metinleri AdScope kurallarıyla tarar, beğenilenleri panoya kaydeder. `META_AD_LIBRARY_TOKEN` yoksa kurulum adımlarını gösterir; örnek ya da uydurma reklam göstermez.
 - **Tarayıcı eklentisi** (`extension/`). Chrome/Edge için sağ tık menüsü: seçili metni veya sayfanın adresini sihirbaza taşır. Veri göndermez; metin adresin `#` kısmında taşınır. Kurulum: [extension/README.md](extension/README.md).
 
-Bilerek yapılmayanlar: **Meta reklam hesabı bağlama** (Meta uygulama incelemesi ve işletme doğrulaması gerekir), **iyzico** (şirket kaydı gerekir), **ikas / Ticimax** entegrasyonu (iş ortağı/uygulama mağazası hesabı gerekir). Hesaplar açılınca adaptör olarak eklenebilir.
+Kapsam dışı (ürün kararı): **Meta reklam hesabı bağlama** (şirket ve işletme doğrulaması gerektirir), **iyzico** (ödeme için Shopier kullanılacak), **ikas / Ticimax** entegrasyonu (iş ortaklığı planlanmıyor).
 
 > Risk değerlendirmesidir, hukuki görüş değildir. Ürün hiçbir çıktısında onay, hukuki uygunluk veya reddedilmeme garantisi vermez.
 

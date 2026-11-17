@@ -152,4 +152,4 @@ Takvimdeki uyum hatırlatmaları bulgu değildir; bağlı kural kartının durum
 |---|---|---|
 | Lemon Squeezy | Webhook imzası (`X-Signature`, ham gövdenin HMAC-SHA256 hex özeti) ve `order_created` olayı belgelerden okundu. Türkiye ödeme alınabilen ülkeler listesinde. Stripe'ın "merchant of record" ürününe geçiş duyurusu var; yeni kayıtların kapandığına dair bir ifade bulunamadı. Türkiye'deki bireysel satıcıların yeni hesap açıp açamayacağı bulunamadı. | Adaptör hazır, hesap bekliyor. |
 | Shopier | Satıcı koşulları ve callback/API belgesi bu ortamdan okunamadı. Bireysel satıcıyı kabul ettiği ikincil kaynaklarda geçiyor. | Yalnızca iskelet; imza şeması yer tutucu. Resmî belge okunmadan açılmamalı. |
-| iyzico, Stripe | Şirket kaydı istediği için başlangıçta değerlendirilmedi. | Kapsam dışı. |
+| iyzico, Stripe | Şirket kaydı istiyor; ürün kararıyla ödeme sağlayıcısı şimdilik Shopier. | Kapsam dışı. |

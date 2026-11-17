@@ -195,9 +195,9 @@ export default async function HomePage() {
               ))}
             </ul>
             <p className="mt-6 font-semibold">Yakında</p>
-            <p className="mt-1 text-sm text-paper/75">Bu özellikler henüz çalışmıyor.</p>
+            <p className="mt-1 text-sm text-paper/75">Henüz çalışmıyor; şimdilik krediler demo olarak eklenir.</p>
             <ul className="mt-4 space-y-2.5 text-[0.95rem] text-paper/90">
-              {["Meta reklam hesabı bağlama", "Kartla online ödeme", "ikas ve Ticimax entegrasyonu"].map((x) => (
+              {["Shopier ile online kredi satın alma"].map((x) => (
                 <li key={x} className="flex items-center justify-between gap-3 border-b border-paper/10 pb-2.5">
                   <span>{x}</span>
                   <span className="rounded-full bg-paper/10 px-2 py-0.5 text-[0.7rem] font-semibold uppercase tracking-wide">Yakında</span>

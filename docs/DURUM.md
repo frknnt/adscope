@@ -117,10 +117,10 @@ Video/Reels analizi, açılış sayfası taraması ve sezon takvimi (MVP sonras�
 
 ## Sonraya (backlog)
 
-Bilerek yapılmayanlar, çünkü şirket veya dış hesap gerektiriyor:
+Kapsam dışı (ürün kararı, 17.11.2026):
 
-- **Meta reklam hesabı bağlama ve gerçek kampanya verisi:** Meta geliştirici uygulaması, `ads_read` izni için uygulama incelemesi ve işletme doğrulaması gerekir.
-- **iyzico ile ödeme:** şirket kaydı ve iyzico üye iş yeri hesabı gerekir. Ödeme katmanı `PaymentProvider` arayüzüyle eklenebilir.
-- **ikas ve Ticimax entegrasyonu:** iş ortağı / uygulama mağazası hesabı ve API anahtarları gerekir.
+- **Meta reklam hesabı bağlama ve gerçek kampanya verisi:** şirket kurulmadan Meta uygulama incelemesi ve işletme doğrulaması yapılamıyor.
+- **iyzico:** kullanılmayacak. Ödeme sağlayıcısı şimdilik **Shopier**; adaptör iskeleti hazır, resmî callback belgesi okunup imza doğrulaması yazılınca açılacak.
+- **ikas ve Ticimax entegrasyonu:** iş ortaklığı planlanmıyor.
 
 Diğer: şifre sıfırlama ekranı, uyarı geri bildirimleri için yönetim görünümü, API için OpenAPI belgesi.
