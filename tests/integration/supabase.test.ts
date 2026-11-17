@@ -269,6 +269,25 @@ describe.skipIf(!reachable)("Supabase: auth, RLS, storage, credits", () => {
     expect((await b.client.from("season_reminder_log").select("event_key")).data ?? []).toHaveLength(0);
   });
 
+  it("checkout consents: owner inserts and reads own rows only, unknown types are rejected", async () => {
+    const rows = [
+      { user_id: a.id, consent_type: "pre_information", document_version: "2026-11-17", granted: true },
+      { user_id: a.id, consent_type: "distance_sales", document_version: "2026-11-17", granted: true },
+    ];
+    expect((await a.client.from("user_consents").insert(rows)).error).toBeNull();
+    // Another user can neither write a consent in a's name nor read a's consents.
+    expect((await b.client.from("user_consents").insert({ ...rows[0], user_id: a.id })).error).not.toBeNull();
+    const { data: seen } = await b.client.from("user_consents").select("id").eq("user_id", a.id);
+    expect(seen ?? []).toHaveLength(0);
+    // Consents are append-only and the type list is closed.
+    expect((await a.client.from("user_consents").insert({ ...rows[0], consent_type: "anything" })).error).not.toBeNull();
+    const { data: own } = await a.client.from("user_consents").select("consent_type").in("consent_type", ["pre_information", "distance_sales"]);
+    expect(own).toHaveLength(2);
+    await a.client.from("user_consents").delete().eq("user_id", a.id);
+    const { data: still } = await admin().from("user_consents").select("id").eq("user_id", a.id).in("consent_type", ["pre_information", "distance_sales"]);
+    expect(still).toHaveLength(2);
+  });
+
   it("allows one landing screenshot per analysis", async () => {
     const run = await startAnalysis(b.id);
     const shot = { analysis_id: run.analysis_id, user_id: b.id, storage_path: `${b.id}/${run.analysis_id}/${randomUUID()}.png`, mime_type: "image/png", size_bytes: 10, width: 1280, height: 2000, sha256: "b".repeat(64), kind: "landing_screenshot" };

@@ -32,6 +32,8 @@ const FOOTER = [
       ["/gizlilik", "Gizlilik politikası"],
       ["/kvkk", "KVKK aydınlatma metni"],
       ["/kullanim-kosullari", "Kullanım koşulları"],
+      ["/mesafeli-satis-sozlesmesi", "Mesafeli satış sözleşmesi"],
+      ["/on-bilgilendirme-formu", "Ön bilgilendirme formu"],
     ],
   },
 ] as const;

@@ -8,6 +8,7 @@ import { SECTOR_IDS } from "@/lib/sectors";
 import { regenerateAppeal } from "@/lib/analysis/service";
 import { getCurrentUser, getRepo } from "@/lib/data";
 import { demoPurchasesAllowed } from "@/lib/env";
+import { checkoutConsentGiven, LEGAL_VERSIONS } from "@/lib/legal";
 import { findPackage } from "@/lib/payments/packages";
 import { getPaymentProvider } from "@/lib/payments";
 
@@ -135,6 +136,10 @@ export async function startCheckoutAction(form: FormData) {
   const provider = getPaymentProvider(String(form.get("provider") ?? ""));
   const pkg = findPackage(String(form.get("packageId") ?? ""));
   if (!provider || !pkg || !provider.isConfigured()) redirect("/panel/krediler?odeme=kapali");
+  // The pre-information form and the distance sales contract must be accepted before every paid checkout.
+  if (!checkoutConsentGiven(form)) redirect("/panel/krediler?odeme=onay-gerekli");
+  const recorded = await getRepo().recordCheckoutConsent({ preInfo: LEGAL_VERSIONS.preInfo, distanceSales: LEGAL_VERSIONS.distanceSales });
+  if (!recorded) redirect("/panel/krediler?odeme=hata");
   const url = provider.checkoutUrl(pkg, user.id, user.email);
   if (!url) redirect("/panel/krediler?odeme=kapali");
   redirect(url);

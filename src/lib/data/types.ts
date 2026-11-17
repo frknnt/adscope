@@ -260,6 +260,8 @@ export interface DataRepo {
   updateProfile(patch: Partial<Pick<Profile, "displayName" | "companyName" | "defaultSector" | "onboardingCompletedAt" | "retentionDays" | "seasonReminders">>): Promise<boolean>;
   /** Records a new marketing e-mail consent row (monthly regulation newsletter). */
   setNewsletter(enabled: boolean, documentVersion: string): Promise<boolean>;
+  /** Records the pre-information and distance sales consents given right before a paid checkout. */
+  recordCheckoutConsent(versions: { preInfo: string; distanceSales: string }): Promise<boolean>;
   /** The user's own brands. */
   listBrands(): Promise<Brand[]>;
   createBrand(input: BrandInput): Promise<Brand | null>;

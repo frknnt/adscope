@@ -309,6 +309,16 @@ export class MemoryRepo implements DataRepo {
     return p && u ? { ...p, newsletter: latestMarketing(u.id) } : null;
   }
 
+  async recordCheckoutConsent(versions: { preInfo: string; distanceSales: string }) {
+    const u = await this.requireUser();
+    const now = new Date().toISOString();
+    store().consents.push(
+      { userId: u.id, type: "pre_information", version: versions.preInfo, granted: true, createdAt: now },
+      { userId: u.id, type: "distance_sales", version: versions.distanceSales, granted: true, createdAt: now },
+    );
+    return true;
+  }
+
   async setNewsletter(enabled: boolean, documentVersion: string) {
     const u = await this.requireUser();
     store().consents.push({ userId: u.id, type: "marketing_email", version: documentVersion, granted: enabled, createdAt: new Date().toISOString() });

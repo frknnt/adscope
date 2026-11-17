@@ -229,6 +229,15 @@ export class SupabaseRepo implements DataRepo {
     };
   }
 
+  async recordCheckoutConsent(versions: { preInfo: string; distanceSales: string }) {
+    const u = await this.requireUser();
+    const { error } = await (await this.db()).from("user_consents").insert([
+      { user_id: u.id, consent_type: "pre_information", document_version: versions.preInfo, granted: true },
+      { user_id: u.id, consent_type: "distance_sales", document_version: versions.distanceSales, granted: true },
+    ]);
+    return !error;
+  }
+
   async setNewsletter(enabled: boolean, documentVersion: string) {
     const u = await this.requireUser();
     const { error } = await (await this.db())

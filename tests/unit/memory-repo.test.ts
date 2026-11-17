@@ -157,3 +157,13 @@ describe("demo (memory) backend mirrors the database guarantees", () => {
     expect(await admin.claimSeasonReminder(id, "efsane-cuma-2027")).toBe(true);
   });
 });
+
+describe("checkout consent (memory backend)", () => {
+  it("needs a signed-in user and records both documents", async () => {
+    __resetMemoryStoreForTests();
+    jars.a.clear();
+    await expect(as("a").recordCheckoutConsent({ preInfo: "v1", distanceSales: "v1" })).rejects.toThrow();
+    await as("a").signUp({ email: "c@example.com", password: "Test-sifre-123", consents });
+    expect(await as("a").recordCheckoutConsent({ preInfo: "v1", distanceSales: "v1" })).toBe(true);
+  });
+});

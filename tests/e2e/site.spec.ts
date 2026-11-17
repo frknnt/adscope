@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { DISCLAIMER, FORBIDDEN, noHorizontalScroll } from "./helpers";
 
-const PAGES = ["/", "/nasil-calisir", "/fiyatlandirma", "/kurallar", "/gizlilik", "/kvkk", "/kullanim-kosullari", "/giris", "/kayit"];
+const PAGES = ["/", "/nasil-calisir", "/fiyatlandirma", "/kurallar", "/gizlilik", "/kvkk", "/kullanim-kosullari", "/mesafeli-satis-sozlesmesi", "/on-bilgilendirme-formu", "/giris", "/kayit"];
 
 for (const path of PAGES) {
   test(`${path} renders, is accessible and makes no guarantees`, async ({ page }) => {
@@ -52,4 +52,17 @@ test("panel requires sign-in", async ({ page }) => {
   await expect(page).toHaveURL(/\/giris/);
   const api = await page.request.post("/api/analyses", { multipart: { payload: "{}" } });
   expect(api.status()).toBe(401);
+});
+
+test("distance sales documents name the right-of-withdrawal exception and stay marked as drafts", async ({ page }) => {
+  for (const path of ["/mesafeli-satis-sozlesmesi", "/on-bilgilendirme-formu"]) {
+    await page.goto(path);
+    const text = await page.locator("main").innerText();
+    expect(text).toContain("cayma hakkı");
+    expect(text).toContain("15. maddesinin birinci fıkrasının (ğ) bendi");
+    expect(text).toContain("avukata kontrol ettirilecek");
+    expect(text).toContain("[ŞAHIS ŞİRKETİ UNVANI]");
+  }
+  await page.goto("/");
+  await expect(page.locator("footer").getByRole("link", { name: "Mesafeli satış sözleşmesi" })).toHaveAttribute("href", "/mesafeli-satis-sozlesmesi");
 });

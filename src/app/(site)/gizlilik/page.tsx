@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
-import { CONTROLLER, LegalDoc } from "@/components/legal-doc";
+import { CompanyDetails, LegalDoc } from "@/components/legal-doc";
+import { COMPANY } from "@/lib/legal";
 
 export const metadata: Metadata = { title: "Gizlilik politikası · AdScope" };
 
 export default function PrivacyPage() {
   return (
     <LegalDoc title="Gizlilik politikası" updated="17.11.2026">
-      <p>Bu politika AdScope&apos;un hangi verileri neden işlediğini, ne kadar sakladığını ve bu verileri nasıl silebileceğinizi açıklar. Veri sorumlusu: {CONTROLLER}.</p>
+      <p>Bu politika AdScope&apos;un hangi verileri neden işlediğini, ne kadar sakladığını ve bu verileri nasıl silebileceğinizi açıklar. Veri sorumlusu: {COMPANY.name}.</p>
+      <CompanyDetails heading="Veri sorumlusu" />
       <h2>Topladığımız veriler</h2>
       <ul>
         <li><strong>Hesap verileri:</strong> e-posta adresi, şifrenin tek yönlü özeti, isteğe bağlı ad ve şirket adı.</li>
@@ -41,7 +43,7 @@ export default function PrivacyPage() {
         <li>Konuşmayı yazıya dökme (açıksa ve onay verdiyseniz): OpenAI uyumlu bir konuşma tanıma hizmeti.</li>
         <li>Hatırlatma, bülten ve ekip daveti e-postaları: e-posta gönderim sağlayıcısı (Resend).</li>
         <li>İlham panosu araması: Meta Platforms (Reklam Kütüphanesi API). Yalnızca arama terimi ve ülke gönderilir.</li>
-        <li>Ödeme (aktifleştirildiğinde): seçilen ödeme sağlayıcısı.</li>
+        <li>Ödeme (aktifleştirildiğinde): Shopier. Kart bilgilerinizi Shopier alır; AdScope&apos;a yalnızca sipariş numarası, paket ve tutar bildirilir.</li>
       </ul>
       <p>Bu sağlayıcıların bir kısmı yurt dışında veri işleyebilir. Yurt dışına aktarım koşulları KVKK aydınlatma metninde açıklanır.</p>
       <h2>Çerezler</h2>

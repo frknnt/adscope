@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
-import { CONTROLLER, LegalDoc } from "@/components/legal-doc";
+import { CompanyDetails, CONTROLLER, LegalDoc } from "@/components/legal-doc";
 
 export const metadata: Metadata = { title: "KVKK aydınlatma metni · AdScope" };
 
 export default function KvkkPage() {
   return (
-    <LegalDoc title="KVKK aydınlatma metni" updated="16.11.2026">
+    <LegalDoc title="KVKK aydınlatma metni" updated="17.11.2026">
       <p>6698 sayılı Kişisel Verilerin Korunması Kanunu&apos;nun 10. maddesi kapsamında, veri sorumlusu sıfatıyla {CONTROLLER} tarafından hazırlanmıştır.</p>
+      <CompanyDetails heading="Veri sorumlusu" />
       <h2>İşlenen kişisel veriler ve amaçlar</h2>
       <ul>
         <li>Kimlik ve iletişim (e-posta, ad): hesap oluşturma ve oturum yönetimi, hizmetle ilgili bildirimler.</li>
@@ -21,7 +22,7 @@ export default function KvkkPage() {
       <h2>Toplama yöntemi</h2>
       <p>Veriler, kayıt formu, analiz formu ve ödeme sağlayıcısından gelen elektronik bildirimler aracılığıyla otomatik yollarla toplanır.</p>
       <h2>Haklarınız</h2>
-      <p>KVKK m. 11 uyarınca verilerinizin işlenip işlenmediğini öğrenme, bilgi talep etme, düzeltilmesini veya silinmesini isteme, aktarıldığı üçüncü kişileri bilme ve itiraz etme haklarına sahipsiniz. Analizlerinizi ve hesabınızı uygulama içinden kendiniz silebilirsiniz; diğer talepler için yukarıdaki iletişim adresine yazabilirsiniz.</p>
+      <p>KVKK m. 11 uyarınca verilerinizin işlenip işlenmediğini öğrenme, bilgi talep etme, düzeltilmesini veya silinmesini isteme, aktarıldığı üçüncü kişileri bilme ve itiraz etme haklarına sahipsiniz. Analizlerinizi ve hesabınızı uygulama içinden kendiniz silebilirsiniz; diğer talepler için yukarıdaki adrese yazılı olarak, e-posta adresine ya da varsa KEP adresine başvurabilirsiniz. Başvurular en geç otuz gün içinde ücretsiz yanıtlanır.</p>
     </LegalDoc>
   );
 }

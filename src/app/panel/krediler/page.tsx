@@ -6,9 +6,15 @@ import { demoPurchasesAllowed } from "@/lib/env";
 import { getPaymentProviders } from "@/lib/payments";
 import { CREDIT_PACKAGES, formatTry } from "@/lib/payments/packages";
 import { startCheckoutAction } from "../actions";
-import { DemoPurchaseButton } from "../forms";
+import { PackageGrid } from "./checkout";
 
 export const metadata = { title: "Krediler" };
+
+const ODEME_MSG: Record<string, string> = {
+  kapali: "Online ödeme henüz aktif değil.",
+  "onay-gerekli": "Ödemeye geçmek için ön bilgilendirme formunu okuduğunu ve mesafeli satış sözleşmesini kabul ettiğini işaretle.",
+  hata: "Onayın kaydedilemedi, ödeme başlatılmadı. Lütfen tekrar dene.",
+};
 
 const REASON = { signup_bonus: "Kayıt hediyesi", analysis: "Analiz", purchase: "Satın alma", refund: "İade", admin_adjustment: "Düzeltme" } as const;
 
@@ -32,8 +38,8 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
           Bakiye: <span className="tabular">{balance}</span> kredi, yaklaşık <span className="tabular">{balance}</span> görsel ya da <span className="tabular">{Math.floor(balance / 2)}</span> video analizi. Bakiye, aşağıdaki değiştirilemez kredi hareketlerinin toplamıdır.
         </p>
       </div>
-      {sp.odeme === "kapali" ? (
-        <p role="alert" className="mt-5 rounded-xl bg-coral-tint px-4 py-3 text-body font-medium text-coral-deep">Online ödeme henüz aktif değil.</p>
+      {sp.odeme && ODEME_MSG[sp.odeme] ? (
+        <p role="alert" className="mt-5 rounded-xl bg-coral-tint px-4 py-3 text-body font-medium text-coral-deep">{ODEME_MSG[sp.odeme]}</p>
       ) : null}
 
       <section aria-labelledby="paketler" className="mt-8">
@@ -44,27 +50,7 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
             {demo ? " Bu demo ortamında, akışı denemek için ücretsiz demo kredisi ekleyebilirsin; gerçek ödeme alınmaz." : ""}
           </p>
         ) : null}
-        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {CREDIT_PACKAGES.map((p) => (
-            <div key={p.id} className="flex flex-col rounded-2xl border border-line bg-card p-5 shadow-card">
-              <div className="flex items-baseline justify-between gap-3">
-                <h3 className="text-lg font-bold">{p.name}</h3>
-                <span className="font-display text-2xl font-semibold tabular">{formatTry(p.priceMinor)}</span>
-              </div>
-              <p className="mt-1 text-ink-soft"><span className="tabular">{p.credits}</span> analiz · {p.description}</p>
-              <div className="mt-5 grid gap-2">
-                {providers.map((pr) => (
-                  <form key={pr.id} action={startCheckoutAction}>
-                    <input type="hidden" name="provider" value={pr.id} />
-                    <input type="hidden" name="packageId" value={p.id} />
-                    <Button type="submit" className="w-full">{pr.label} ile öde</Button>
-                  </form>
-                ))}
-                {demo ? <DemoPurchaseButton packageId={p.id} label={`Demo: ${p.credits} kredi ekle (ödeme yok)`} /> : null}
-              </div>
-            </div>
-          ))}
-        </div>
+        <PackageGrid packages={CREDIT_PACKAGES} providers={providers.map((pr) => ({ id: pr.id, label: pr.label }))} demo={demo} action={startCheckoutAction} />
       </section>
 
       <section aria-labelledby="hareketler" className="mt-12">
