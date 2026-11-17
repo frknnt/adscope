@@ -49,3 +49,6 @@ playwright-report/
 
 # extra Next.js build dirs (dev, e2e, build, screenshots)
 /.next-*/
+
+# Kaynak arşivleri repoda tutulmaz; GitHub "Download ZIP" kullanılır
+/releases/
