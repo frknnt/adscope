@@ -92,6 +92,8 @@ Risk renkleri her zaman metin etiketi ve ikonla birlikte kullanılır. Tüm meti
 
 ## Panel yapısı
 
+Ayrıntılı ve güncel tarif: `docs/PANEL_TASARIMI.md` (bu bölüm özet olarak kalır).
+
 - Zemin `bg-soft`. Kartlar beyaz, kenarlıklı ve hafif gölgeli.
 - **Sol menü:** beyaz, 260px genişlik. Gruplar: Üret / Kontrol et / Yönet. Aktif öğe `bg-tint` zemin ve `navy-900` metinle, solda 3px mavi çizgiyle gösterilir. Mobilde alt gezinme çubuğu.
 - **Üst çubuk:** sayfa başlığı, kredi çipi (ör. "12 kredi"), "Yeni analiz" birincil düğmesi, hesap menüsü.

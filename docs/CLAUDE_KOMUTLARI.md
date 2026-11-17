@@ -158,9 +158,7 @@ GÖREV: src/app/(site)/page.tsx'i baştan tasarla. Hedef: Türkiye'de e-ticaret 
 
 ### P6.3 Panel deneyimi
 
-```text
-GÖREV: Paneli işletme sahibinin günlük aracı gibi yeniden düzenle: sol menüyü "Üret / Kontrol et / Yönet" gruplarına ayır, üstte kredi bakiyesi ve "Yeni" düğmesi, Ctrl+K komut paleti (sayfalar, son analizler, markalar), ilk girişte 4 adımlı başlangıç listesi (marka ekle, ilk kontrol, ilk üretim, raporu indir), her listede anlamlı boş durum, uzun işlemlerde iskelet ve ilerleme. Ana sayfa: son analizler, kural güncellemesi uyarısı, yaklaşan sezon günü, kalan kredi. Sihirbazı tek ekranda adımlı hale getir, taslağı otomatik sakla. Mobilde alt gezinme çubuğu. Mevcut e2e testlerini yeni yapıya göre güncelle, axe temiz kalsın.
-```
+Ayrıntılı tarif ve dört oturumluk komutlar: `docs/PANEL_TASARIMI.md`. Komutları oradan sırayla kullan.
 
 ### P6.4 Rapor sayfası
 
