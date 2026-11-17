@@ -119,6 +119,8 @@ Diğer panel sayfaları (P6.3 Oturum 4, 17.11.2026): Toplu kontrol iki bölme (g
 20. Tarayıcı eklentisi mağazada yayımlanacaksa geliştirici hesabı açılsın, gizlilik politikası bağlantısı eklensin.
 21. Uyarı geri bildirimleri için kural sahibinin okuyacağı bir yönetim görünümü eklensin.
 
+Kural kartı inceleme akışı (P0.4, 17.11.2026): `npm run rules:review:export` tüm kartları `docs/KURAL_INCELEME.md` tablosuna yazar (kimlik, başlık, durum, kaynak bağlantısı, dayanak, karar, not). Uzman "Karar" sütununa onay / düzeltme / kaldır yazar; `npm run rules:review:apply` tabloyu okur, kararları `src/lib/rules/review-decisions.json`'a yazar ve `supabase/seed.sql`'i yeniden üretir. Onaylanan kart `active` olur, son doğrulama tarihi bugün olur ve sürümü bir artar (seed eski sürümü önce `retired` yapar; Supabase deposu da kart başına yalnızca en yeni sürümü okur). Kaynak bağlantısı https olmayan kart hiçbir yoldan aktif olamaz; anlaşılmayan karar ya da bilinmeyen kimlik raporlanır, tahmin edilmez. Katalog tek kaynak olarak kalıyor; kararlar üstüne uygulanıyor. Birim testi: `tests/unit/rule-review.test.ts`. Betik geçici bir kopyada uçtan uca denendi. Şu an 63 karttan 46'sı doğrulama bekliyor.
+
 ## Bitti
 
 17.11.2026 (3): toplu kontrol, kurallar değişince eski reklamları yeniden tarama, raporu e-postayla gönderme, hesap kısıtlaması adım adım rehberi, ajans paketi (400 kredi). Birim + entegrasyon 121/121; yeni uçtan uca testler demo ve Supabase modunda geçti.

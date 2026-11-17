@@ -338,7 +338,13 @@ export class SupabaseRepo implements DataRepo {
       .from("rule_versions")
       .select("*, rule_cards!inner(id,domain,category,sector,platform)")
       .in("status", ["active", "requires_review"]);
-    return (data ?? []).map((v: Row) => ruleFromRow(v, v.rule_cards as Row));
+    // Only the newest usable version of each card (an older one may linger until the seed retires it).
+    const latest = new Map<string, Row>();
+    for (const v of (data ?? []) as Row[]) {
+      const prev = latest.get(v.rule_card_id as string);
+      if (!prev || (v.version as number) > (prev.version as number)) latest.set(v.rule_card_id as string, v);
+    }
+    return [...latest.values()].map((v: Row) => ruleFromRow(v, v.rule_cards as Row));
   }
 
   async getBalance() {

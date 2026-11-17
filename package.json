@@ -13,6 +13,8 @@
     "test:integration": "vitest run tests/integration",
     "test:e2e": "playwright test --trace off",
     "db:seed:generate": "tsx scripts/generate-seed.ts",
+    "rules:review:export": "tsx scripts/rule-review.ts export",
+    "rules:review:apply": "tsx scripts/rule-review.ts apply",
     "db:reset": "supabase db reset",
     "db:advisors": "supabase db advisors --level info"
   },

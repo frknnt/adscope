@@ -17,6 +17,8 @@
  */
 
 import type { Sector } from "@/lib/sectors";
+import reviewDecisions from "./review-decisions.json";
+import { applyReviewDecisions, type ReviewDecisions } from "./review";
 
 export type { Sector };
 import type { RulePlatform } from "@/lib/platforms";
@@ -225,7 +227,7 @@ function platformCard(c: {
   };
 }
 
-export const RULE_CATALOG: RuleCardDef[] = [
+const BASE_CATALOG: RuleCardDef[] = [
   // ---------------------------------------------------------------- META (active)
   {
     id: "META-UO-TIMEFRAME",
@@ -1673,6 +1675,9 @@ export const RULE_CATALOG: RuleCardDef[] = [
     reference: "Financial services (ülke tablosu teyit edilmedi)",
   }),
 ];
+
+/** The catalog with expert review decisions (docs/KURAL_INCELEME.md → review-decisions.json) applied. */
+export const RULE_CATALOG: RuleCardDef[] = applyReviewDecisions(BASE_CATALOG, reviewDecisions as ReviewDecisions);
 
 export function rulesForSector(sector: Sector, statuses: RuleStatus[] = ["active", "requires_review"]) {
   return RULE_CATALOG.filter(

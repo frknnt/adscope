@@ -17,6 +17,10 @@ const lines: string[] = [
   "",
 ];
 for (const r of RULE_CATALOG) {
+  // A newer version (after expert review) replaces the older ones: retire them first so the
+  // "one active version per card" index holds and the engine never sees two versions.
+  if (r.version > 1)
+    lines.push(`update public.rule_versions set status = 'retired' where rule_card_id = ${q(r.id)} and version < ${r.version} and status <> 'retired';`);
   lines.push(
     `insert into public.rule_cards (id, domain, category, sector, platform) values (${q(r.id)}, ${q(r.domain)}, ${q(r.category)}, ${q(r.sector)}, ${q(rulePlatform(r))})`,
     `  on conflict (id) do update set domain = excluded.domain, category = excluded.category, sector = excluded.sector, platform = excluded.platform;`,
