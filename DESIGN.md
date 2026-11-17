@@ -1,59 +1,60 @@
 # AdScope tasarım sistemi
 
-Lacivert mürekkep, sıcak kâğıt zemin, dikkat sinyali olarak mercan. Ürün bir "denetim raporu" hissi verir: sakin, okunaklı, kanıta dayalı. Gösterişten çok netlik.
+Lacivert, beyaz zemin, yalnızca açık tema. Modern reklam-teknoloji SaaS dili: büyük kalın başlıklar, ferah bölümler, ürün ekranı maketleri. Yön ve landing yapısı: `docs/TASARIM_YONU.md`.
 
-Kaynaklar: belirteçler `src/app/globals.css`, bileşenler `src/components/ui.tsx` (sunucu) ve `src/components/interactive.tsx` (istemci), risk göstergeleri `src/components/risk.tsx`.
+Kaynaklar: belirteçler `src/app/globals.css`, bileşenler `src/components/ui.tsx` (sunucu) ve `src/components/interactive.tsx` (istemci), menü `src/components/site-nav.tsx`, risk göstergeleri `src/components/risk.tsx`.
 
 ## Kipler
 
-- **Pazarlama sayfaları** (`src/app/(site)`): ikna. Büyük Fraunces başlıklar, cömert boşluk, tek belirgin eylem.
-- **Panel** (`src/app/panel`): iş. Taranabilirlik ve tutarlılık önce gelir; marka yalnızca ayrıntılarda (vurgulu işaretleyici, mercan odak halkası).
+- **Pazarlama sayfaları** (`src/app/(site)`): ikna. Eyebrow hap + büyük başlık + tek belirgin eylem; bölümler arası 80-112px.
+- **Panel** (`src/app/panel`): iş. Taranabilirlik ve tutarlılık önce gelir.
 
 ## Renk
 
-Her renk bir CSS değişkeni ve aynı adlı Tailwind sınıfıdır (`bg-card`, `text-ink-soft`, `border-line`). Hex kodu bileşen içine yazılmaz.
+Her renk bir CSS değişkeni ve aynı adlı Tailwind sınıfıdır (`bg-card`, `text-ink-soft`, `border-line`). Hex kodu bileşen içine yazılmaz. Koyu tema yok; `color-scheme: light`.
 
-| Belirteç | Açık | Koyu | Kullanım |
-|---|---|---|---|
-| `ink` | #13213c | #edf0f6 | Ana metin, birincil düğme zemini |
-| `ink-soft` / `muted` | #3d4c6b / #56607a | #b4bdd0 / #97a1b8 | İkincil metin / açıklama |
-| `paper` / `paper-2` | #f7f4ee / #efe9de | #0e1626 / #18233a | Sayfa zemini / ikincil yüzey |
-| `card` / `field` | #fffdf9 / #fff | #131d31 / #0f192b | Kart / form alanı |
-| `line` / `line-strong` | #ddd4c4 / #c7bca8 | #26334d / #3a4966 | Ayraç / alan kenarı |
-| `accent`, `on-accent` | #e8603f, #13213c | #ef6c4e, #13213c | Vurgu düğmesi (metin her temada koyu) |
-| `coral`, `coral-deep`, `coral-tint` | | | Yüksek risk, hata, odak |
-| `amber`, `amber-tint`, `caution` | | | Orta risk, sarı bayrak, işaretleyici |
-| `green`, `green-tint` | | | Düşük risk, başarı |
-| `info`, `info-tint` | | | Bilgilendirme |
+| Belirteç | Değer | Kullanım |
+|---|---|---|
+| `ink` | #0b1b3f | Başlık, birincil düğme zemini, aktif öğe |
+| `ink-soft` / `muted` | #475069 / #626b80 | Gövde / açıklama |
+| `paper` / `paper-2` / `tint` | #ffffff / #f5f7fb / #eef2fa | Sayfa / alternatif bölüm / ikon ve maket zemini |
+| `card`, `field` | #ffffff | Kart, form alanı |
+| `line` / `line-strong` | #e6e9f0 / #cfd5e2 | Ayraç / alan kenarı |
+| `navy-950`, `navy-700` | #071430, #1d3a7a | Footer / ikon rengi |
+| `blue`, `blue-tint` | #2456e6, #eaf0ff | Bağlantı, odak, "Yeni" rozeti, eyebrow; `accent` düğmesi |
+| `coral`, `coral-deep`, `coral-tint` | #e2553a, #c2321f, #fdecea | Logo işareti, yüksek risk, hata |
+| `amber`, `amber-tint`, `caution` | #9a5c00, #fff4dc, #e9b43c | Orta risk, sarı bayrak, işaretleyici |
+| `green`, `green-tint` | #13703a, #e7f6ec | Düşük risk, başarı |
+| `--gradient-brand` | lacivertten maviye | Yalnızca hero vurgusu (`.text-gradient`), öne çıkan fiyat kartı, kapanış bandı, mega menü kartı |
 
-**Risk renkleri hiçbir zaman tek başına anlam taşımaz.** Her zaman metin etiketiyle ("Yüksek", "Sarı bayrak") ve nokta/ikonla birlikte kullanılır (`LevelPill`).
-
-**Koyu tema** işletim sistemi tercihini izler (`prefers-color-scheme`), yalnızca ekranda. Yazdırma ve PDF her zaman açık temadır. Koyu temada `bg-ink` yüzeyler açık renge döner (ters çevrilmiş birincil düğme); bu bilinçlidir.
+**Risk renkleri hiçbir zaman tek başına anlam taşımaz.** Her zaman metin etiketiyle ve nokta/ikonla birlikte kullanılır (`LevelPill`).
 
 ## Tipografi
 
-- Başlık: **Fraunces** (`font-display`), yarı kalın, sıkı harf aralığı. Sayfa başlığı 2.6-3.4rem, bölüm başlığı `text-2xl`.
-- Gövde ve arayüz: **Manrope**. Sayılar `tabular`.
+- Tek aile: **Manrope**. `font-display` başlıklar için 800 ağırlık ve -0.03em aralık uygular (ağırlık sınıflarını ezer).
+- Hero H1 60px (mobil 38px), bölüm H2 42px (mobil 30px), kart başlığı 18-22px `font-extrabold`.
+- Eyebrow: 12px, büyük harf, 0.08em aralık, `bg-blue-tint text-blue` hap.
 - Arayüz metin ölçeği (yeni `text-[0.xxrem]` değeri ekleme):
 
 | Sınıf | Boyut | Kullanım |
 |---|---|---|
-| `text-fine` | 0.75rem | Ölçek etiketi, dipnot |
+| `text-fine` | 0.75rem | Ölçek etiketi, dipnot, eyebrow |
 | `text-meta` | 0.8125rem | Rozet, ipucu, tablo başlığı |
 | `text-small` | 0.875rem | Yoğun liste, tablo hücresi |
-| `text-body` | 0.9375rem | Kart içi gövde, düğme |
-| `text-base` | 1rem | Form alanı, uzun metin |
+| `text-body` | 0.9375rem | Kart içi gövde, düğme, menü |
+| `text-base` / `text-lg` | 1rem / 1.125rem | Form alanı / bölüm açıklaması |
 
 ## Boşluk, köşe, gölge
 
-- Boşluk Tailwind'in 4px ölçeği. Kart iç boşluğu `p-5 sm:p-6` (büyük formlar `sm:p-8`), bölümler arası `mt-12`.
-- Köşe: kart ve panel `rounded-2xl`, form alanı ve bilgi kutusu `rounded-xl`, düğme ve rozet `rounded-full`.
-- Gölge az kullanılır: `shadow-raised` (öne çıkan kart), `shadow-float` (diyalog, rapor kâğıdı). Kenarlık çoğu durumda yeterlidir.
+- İçerik genişliği 75rem (1200px), yan boşluk 20px (mobil) / 24px.
+- Köşe: düğme ve form alanı `rounded-xl` (12px), kart `rounded-2xl` (20px), büyük maket ve bant `rounded-3xl` (28px), rozet `rounded-full`.
+- Gölge: `shadow-card` (her kart), `shadow-raised` (hover, menü, maket), `shadow-float` (öne çıkan kart, rapor maketi).
+- Düğmeler 48px; menüdeki küçük düğmeler 40px.
 
 ## Hareket
 
-- Giriş: `.reveal` (0.7s, `ease-out-expo`). İşaretleyici çizimi: `.draw-mark`. Yükleme: `.skeleton`.
-- Hepsi `prefers-reduced-motion` ile kapanır. Geçişler 200 ms; düzen (genişlik/yükseklik) canlandırılmaz.
+- Giriş: `.reveal`. Sektör şeridi: `.marquee` / `.marquee-track`. Yüzen çipler: `.float-chip`. Yükleme: `.skeleton`.
+- Hepsi `prefers-reduced-motion` ile durur. Geçişler 200 ms; düzen canlandırılmaz.
 
 ## Bileşenler
 
@@ -68,7 +69,8 @@ Her renk bir CSS değişkeni ve aynı adlı Tailwind sınıfıdır (`bg-card`, `
 | `DataTable` | ui.tsx | Kaydırılabilir, klavyeyle odaklanabilir tablo çerçevesi |
 | `Disclaimer` | ui.tsx | Her raporda zorunlu hukuki uyarı |
 | `LevelPill`, `ScaleBar` | risk.tsx | Risk düzeyi ve 0-100 ölçek |
-| `Tabs` | interactive.tsx | Ok tuşları, Home/End |
+| `Tabs` | interactive.tsx | Ok tuşları, Home/End; landing "ihtiyaç" bölümünde kullanılıyor |
+| `SiteNav` | site-nav.tsx | Yapışkan menü, mega menü (Esc ve dışarı tıklama kapatır), mobil menü |
 | `Dialog` | interactive.tsx | Yerel `<dialog>`; Esc ve arka plana tıklama kapatır |
 | `ToastProvider`, `useToast` | interactive.tsx | Panelde kurulu; kısa durum mesajları, tek `aria-live` bölgesi |
 

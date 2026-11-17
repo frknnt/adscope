@@ -1,75 +1,72 @@
 import Link from "next/link";
-import { Logo } from "./logo";
-import { ButtonLink } from "./ui";
 import { getCurrentUser } from "@/lib/data";
-
-const NAV = [
-  { href: "/reklamim-reddedilir-mi", label: "Ücretsiz kontrol" },
-  { href: "/nasil-calisir", label: "Nasıl çalışır?" },
-  { href: "/fiyatlandirma", label: "Fiyatlandırma" },
-  { href: "/kurallar", label: "Kural kartları" },
-];
+import { Logo } from "./logo";
+import { SiteNav } from "./site-nav";
 
 export async function SiteHeader() {
   const user = await getCurrentUser();
-  return (
-    <header className="no-print border-b border-line/70">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-4 sm:px-6">
-        <Logo />
-        <nav aria-label="Ana menü" className="order-3 flex w-full gap-5 overflow-x-auto text-body font-medium text-ink-soft sm:order-none sm:w-auto">
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href} className="whitespace-nowrap py-1 no-underline hover:text-ink">
-              {n.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="flex items-center gap-2">
-          {user ? (
-            <ButtonLink href="/panel" variant="primary" className="h-10 px-4">
-              Panele git
-            </ButtonLink>
-          ) : (
-            <>
-              <Link href="/giris" className="px-3 py-2 text-body font-semibold text-ink no-underline hover:underline">
-                Giriş
-              </Link>
-              <ButtonLink href="/kayit" variant="primary" className="h-10 px-4">
-                Ücretsiz başla
-              </ButtonLink>
-            </>
-          )}
-        </div>
-      </div>
-    </header>
-  );
+  return <SiteNav loggedIn={Boolean(user)} />;
 }
+
+const FOOTER = [
+  {
+    title: "Ürün",
+    links: [
+      ["/reklamim-reddedilir-mi", "Ücretsiz kontrol"],
+      ["/nasil-calisir", "Nasıl çalışır?"],
+      ["/fiyatlandirma", "Fiyatlar"],
+      ["/#ajans", "Ajanslar için"],
+    ],
+  },
+  {
+    title: "Kaynaklar",
+    links: [
+      ["/kurallar", "Kural kartları ve kaynaklar"],
+      ["/#sss", "Sık sorulan sorular"],
+      ["/kayit", "Ücretsiz hesap aç"],
+    ],
+  },
+  {
+    title: "Yasal",
+    links: [
+      ["/gizlilik", "Gizlilik politikası"],
+      ["/kvkk", "KVKK aydınlatma metni"],
+      ["/kullanim-kosullari", "Kullanım koşulları"],
+    ],
+  },
+] as const;
 
 export function SiteFooter() {
   return (
-    <footer className="no-print mt-auto border-t border-line/70 bg-paper-2/60">
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 text-body text-ink-soft sm:grid-cols-[1.4fr_1fr_1fr] sm:px-6">
+    <footer className="no-print mt-auto bg-navy-950 text-paper">
+      <div className="mx-auto grid max-w-[75rem] gap-10 px-5 pb-10 pt-16 sm:px-6 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
         <div className="max-w-sm">
-          <Logo />
-          <p className="mt-3 leading-relaxed">
-            Reklam yayına çıkmadan önce Meta ret riskini, Türk reklam mevzuatı açısından riskleri ve kreatif kalitesini gösteren ön kontrol aracı.
+          <Logo tone="paper" />
+          <p className="mt-4 text-body leading-relaxed text-paper/75">
+            Türkiye&apos;de reklam verenler için yayın öncesi kontrol: Meta, Google Ads ve TikTok politikaları ile Türk reklam mevzuatı tek raporda.
           </p>
-          <p className="mt-3 text-meta">Risk değerlendirmesidir, hukuki görüş değildir.</p>
         </div>
-        <div>
-          <p className="font-semibold text-ink">Ürün</p>
-          <ul className="mt-3 space-y-2">
-            <li><Link href="/nasil-calisir">Nasıl çalışır?</Link></li>
-            <li><Link href="/fiyatlandirma">Fiyatlandırma</Link></li>
-            <li><Link href="/kurallar">Kural kartları ve kaynaklar</Link></li>
-          </ul>
-        </div>
-        <div>
-          <p className="font-semibold text-ink">Yasal</p>
-          <ul className="mt-3 space-y-2">
-            <li><Link href="/gizlilik">Gizlilik politikası</Link></li>
-            <li><Link href="/kvkk">KVKK aydınlatma metni</Link></li>
-            <li><Link href="/kullanim-kosullari">Kullanım koşulları</Link></li>
-          </ul>
+        {FOOTER.map((col) => (
+          <div key={col.title}>
+            <p className="text-fine font-bold uppercase tracking-[0.08em] text-paper/60">{col.title}</p>
+            <ul className="mt-4 space-y-2.5 text-body">
+              {col.links.map(([href, label]) => (
+                <li key={label}>
+                  <Link href={href} className="text-paper/85 no-underline hover:text-paper hover:underline">
+                    {label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-paper/10">
+        <div className="mx-auto flex max-w-[75rem] flex-col gap-2 px-5 py-6 text-meta text-paper/70 sm:flex-row sm:justify-between sm:px-6">
+          <p>
+            <strong className="font-semibold text-paper">Risk değerlendirmesidir, hukuki görüş değildir.</strong> AdScope reklamın onaylanacağını garanti etmez.
+          </p>
+          <p>© {new Date().getFullYear()} AdScope</p>
         </div>
       </div>
     </footer>

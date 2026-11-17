@@ -2,8 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { fillWizard, signUp } from "./helpers";
 
-// The dark theme follows the OS setting. Every token pair must keep WCAG AA contrast there too.
-test.use({ colorScheme: "dark" });
+// Light theme only. Every token pair used on these pages must keep WCAG AA contrast.
 
 const SHOTS = process.env.THEME_SHOTS_DIR;
 
@@ -16,14 +15,14 @@ async function check(page: Page, name: string) {
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${test.info().project.name}-${name}.png`, fullPage: true });
 }
 
-test("dark theme: public pages and the panel stay readable", async ({ page }) => {
+test("theme: public pages and the panel stay readable", async ({ page }) => {
   test.setTimeout(120_000);
   const bg = async () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   for (const [path, name] of [["/", "home"], ["/fiyatlandirma", "pricing"], ["/reklamim-reddedilir-mi", "quick"]] as const) {
     await page.goto(path);
     await check(page, name);
   }
-  expect(await bg()).toBe("rgb(14, 22, 38)");
+  expect(await bg()).toBe("rgb(255, 255, 255)");
 
   await signUp(page);
   await page.goto("/panel");
@@ -38,10 +37,4 @@ test("dark theme: public pages and the panel stay readable", async ({ page }) =>
   await check(page, "credits");
   await page.goto("/panel/markalar");
   await check(page, "brands");
-});
-
-test("print always uses the light sheet", async ({ page }) => {
-  await page.goto("/");
-  await page.emulateMedia({ media: "print", colorScheme: "dark" });
-  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--paper").trim())).toBe("#f7f4ee");
 });

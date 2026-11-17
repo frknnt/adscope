@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/manrope";
-import "@fontsource-variable/fraunces/full.css";
 import "./globals.css";
 import { DemoBanner } from "@/components/ui";
 import { appMode } from "@/lib/env";
@@ -12,12 +11,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#13213c" },
-    { media: "(prefers-color-scheme: dark)", color: "#0e1626" },
-  ],
-};
+export const viewport: Viewport = { themeColor: "#ffffff" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

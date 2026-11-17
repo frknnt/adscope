@@ -4,15 +4,15 @@ import type { ComponentProps, ReactNode } from "react";
 type Variant = "primary" | "accent" | "ghost" | "danger" | "quiet";
 
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-ink text-paper hover:bg-ink-2 shadow-[0_1px_0_rgba(255,255,255,.15)_inset,0_6px_16px_-8px_rgba(19,33,60,.6)]",
-  accent: "bg-accent text-on-accent hover:bg-accent-hover shadow-[0_6px_16px_-8px_rgba(178,58,33,.7)]",
-  ghost: "border border-line-strong text-ink hover:bg-paper-2",
+  primary: "bg-ink text-paper hover:bg-ink-2 shadow-[0_6px_16px_-8px_rgb(11_27_63/.55)]",
+  accent: "bg-accent text-on-accent hover:bg-accent-hover shadow-[0_6px_16px_-8px_rgb(36_86_230/.6)]",
+  ghost: "border border-line-strong bg-card text-ink hover:bg-paper-2",
   danger: "bg-coral-deep text-paper hover:bg-coral",
   quiet: "text-ink-soft hover:text-ink underline-offset-4 hover:underline",
 };
 
 const BASE =
-  "inline-flex items-center justify-center gap-2 rounded-full px-5 h-11 text-body font-semibold transition-[background,box-shadow,transform] duration-200 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-55 no-underline whitespace-nowrap";
+  "inline-flex items-center justify-center gap-2 rounded-xl px-5 h-12 text-body font-semibold transition-[background,box-shadow,transform] duration-200 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-55 no-underline whitespace-nowrap";
 
 export function buttonClass(variant: Variant = "primary", extra = "") {
   return `${BASE} ${VARIANTS[variant]} ${extra}`;
@@ -27,7 +27,7 @@ export function ButtonLink({ variant = "primary", className = "", ...props }: Co
 }
 
 export function Panel({ children, className = "", as: As = "section" }: { children: ReactNode; className?: string; as?: "section" | "div" | "article" }) {
-  return <As className={`rounded-2xl border border-line bg-card ${className}`}>{children}</As>;
+  return <As className={`rounded-2xl border border-line bg-card shadow-card ${className}`}>{children}</As>;
 }
 
 export function Field({
