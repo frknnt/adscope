@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requirePanelUser } from "@/app/panel/guard";
-import { getRepo } from "@/lib/data";
+import { getAdminRepo, getRepo } from "@/lib/data";
 import { IMAGE_OPS } from "@/lib/image/costs";
 import { SCENES } from "@/lib/image/scenes";
 import { getImageProvider, SCENE_SIZES } from "@/lib/image/service";
@@ -23,16 +23,21 @@ const TOOLS = [
 ] as const;
 type ToolId = (typeof TOOLS)[number]["id"];
 
+/** Which setting turns a provider-backed tool on (shown to admins only). */
+const SETTING = { genai: "GEMINI_API_KEY", photoroom: "PHOTOROOM_API_KEY" } as const;
+
 export default async function ToolsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  await requirePanelUser();
+  const user = await requirePanelUser();
   const sp = await searchParams;
-  const tool: ToolId = TOOLS.find((t) => t.id === sp.arac)?.id ?? "yz-gorsel";
-  const meta = TOOLS.find((t) => t.id === tool)!;
-  const repo = getRepo();
-  const [balance, brands] = await Promise.all([repo.getBalance(), repo.listBrands()]);
   const provider = getImageProvider();
   const genai = getGenaiProvider();
-  const connected = meta.provider === "genai" ? Boolean(genai) : meta.provider === "photoroom" ? Boolean(provider) : true;
+  const available = (t: (typeof TOOLS)[number]) => (t.provider === "genai" ? Boolean(genai) : t.provider === "photoroom" ? Boolean(provider) : true);
+  // Without a choice in the address, open the first tool that works here instead of a closed one.
+  const tool: ToolId = TOOLS.find((t) => t.id === sp.arac)?.id ?? TOOLS.find(available)!.id;
+  const meta = TOOLS.find((t) => t.id === tool)!;
+  const repo = getRepo();
+  const [balance, brands, role] = await Promise.all([repo.getBalance(), repo.listBrands(), getAdminRepo().getAppRole(user.id).catch(() => null)]);
+  const connected = available(meta);
 
   return (
     <div>
@@ -50,7 +55,7 @@ export default async function ToolsPage({ searchParams }: { searchParams: Promis
                 className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-small font-semibold no-underline ${t.id === tool ? "border-ink bg-ink text-paper" : "border-line bg-card text-ink hover:border-line-strong"}`}
               >
                 {t.label}
-                <span className={`text-meta font-medium ${t.id === tool ? "text-paper/80" : "text-muted"}`}>{t.price}</span>
+                <span className={`text-meta font-medium ${t.id === tool ? "text-paper/80" : "text-muted"}`}>{available(t) ? t.price : "kapalı"}</span>
               </Link>
             </li>
           ))}
@@ -60,9 +65,18 @@ export default async function ToolsPage({ searchParams }: { searchParams: Promis
       <section aria-labelledby="arac-baslik" className="mt-6 max-w-3xl">
         <h2 id="arac-baslik" className="text-2xl font-bold">{meta.label}</h2>
         {!connected ? (
-          <p className="mt-4 rounded-2xl border border-dashed border-line-strong bg-card px-6 py-8 text-ink-soft">
-            {meta.provider === "genai" ? "Yapay zekâ üretimi bu ortamda bağlı değil; bu araç kapalı." : "Görsel sağlayıcısı bu ortamda bağlı değil; bu araç kapalı."} Boyutlandırma ve filigran araçları çalışmaya devam eder.
-          </p>
+          <div role="status" className="mt-4 rounded-2xl border border-dashed border-line-strong bg-card px-6 py-8 text-ink-soft">
+            <p className="font-semibold text-ink">Bu araç şu an kapalı.</p>
+            <p className="mt-1">
+              {meta.provider === "genai" ? "Yapay zekâ ile görsel ve video üretimi" : "Arka plan kaldırma, büyütme ve ürün sahnesi"} için gereken hizmet bağlantısı bu sitede henüz yapılmadı. Kredin düşmez. Bu arada ücretsiz{" "}
+              <Link href="/panel/araclar?arac=boyut">Boyutlandır ve kırp</Link> ve <Link href="/panel/araclar?arac=filigran">Filigran ve logo</Link> araçlarını kullanabilirsin.
+            </p>
+            {role === "admin" ? (
+              <p className="mt-3 rounded-xl bg-info-tint px-4 py-3 text-small text-info">
+                Yönetici notu: barındırma ayarlarına <code>{SETTING[meta.provider as keyof typeof SETTING]}</code> ortam değişkenini ekleyip yeniden yayınla; araç kendiliğinden açılır.
+              </p>
+            ) : null}
+          </div>
         ) : tool === "yz-gorsel" ? (
           <GenaiTool op="ai_image" perResult={GENAI_OPS.ai_image.creditsPerResult} maxResults={GENAI_OPS.ai_image.maxResults} balance={balance} aspects={[...IMAGE_ASPECTS]} />
         ) : tool === "yz-video" ? (

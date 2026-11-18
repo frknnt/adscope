@@ -197,6 +197,8 @@ Yapay zekâ görsel ve video üretimi (18.11.2026, kullanıcı kararı: Google G
 
 ## Bitti
 
+18.11.2026 (6): Görsel araçları düzeltmeleri. Anahtarı olmayan araçlar sekmede "kapalı" yazar ve açıklama gösterir (yöneticiye hangi ortam değişkeninin eksik olduğu söylenir); sayfa ilk çalışan araçla açılır; büyütme, 1000 pikselden büyük fotoğrafı tarayıcıda küçültüp gönderir; boyutlandırmada genişlik alanı silinip yeniden yazılabilir; üretilen videolar parça parça (Range) indirilebilir.
+
 18.11.2026 (5): Google Gemini ile yapay zekâ görseli (Nano Banana 2.1) ve kısa video (Omni Flash) üretimi, Görsel araçları sayfasında.
 
 18.11.2026 (4): Faz 7. Veritabanında paylaşılan hız sınırı, iş kuyruğu, OpenAPI belgesi, imzalı webhook'lar, API kullanım grafiği, temizlenmiş hata izleme, çerez onayı, dönüşüm hunisi, kurulabilir uygulama ve telefondan paylaşma. Birim 212/212.

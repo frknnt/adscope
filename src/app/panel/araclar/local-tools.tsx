@@ -60,7 +60,9 @@ export function ResizeTool() {
   const [error, setError] = useState<string | null>(null);
   const [aspect, setAspect] = useState<AspectId>("kare");
   const [mode, setMode] = useState<"kirp" | "sigdir">("kirp");
-  const [width, setWidth] = useState(1080);
+  // Kept as text so the field can be cleared and retyped; the number is clamped when the image is made.
+  const [widthText, setWidthText] = useState("1080");
+  const width = Number(widthText) || 1080;
   const [bg, setBg] = useState("#ffffff");
   const [format, setFormat] = useState<"png" | "jpeg">("png");
   const [out, setOut] = useOutput();
@@ -114,7 +116,8 @@ export function ResizeTool() {
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="boyut-genislik" className="text-sm font-semibold text-ink">Genişlik (piksel)</label>
-            <input id="boyut-genislik" type="number" inputMode="numeric" min={MIN_OUTPUT} max={MAX_OUTPUT} value={width} onChange={(e) => setWidth(Number(e.target.value) || MIN_OUTPUT)} className={inputClass} />
+            <input id="boyut-genislik" type="text" inputMode="numeric" autoComplete="off" value={widthText} onChange={(e) => setWidthText(e.target.value.replace(/\D/g, "").slice(0, 5))} className={inputClass} />
+            <p className="text-meta text-muted">{MIN_OUTPUT}–{MAX_OUTPUT} piksel; aralık dışındaki değer en yakın sınıra çekilir.</p>
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="boyut-bicim" className="text-sm font-semibold text-ink">Biçim</label>

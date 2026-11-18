@@ -80,13 +80,20 @@ test("provider tools: background removal and four product scenes with credits", 
 
   await page.goto("/panel/araclar?arac=buyut");
   await page.locator("#yukle-upscale").setInputFiles("tests/fixtures/ad.png");
+  // ad.png is larger than the upscaler accepts: it is shrunk in the browser first, then upscaled.
   await page.getByRole("button", { name: "Büyüt · 2 kredi" }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "en fazla 1000×1000 piksel olmalı" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Sonuç 1" })).toBeVisible();
+  await expect(page.getByText("2 kredi düştü.")).toBeVisible();
+  const sentUpscale = received.at(-1)!;
+  expect(sentUpscale.path).toBe("/v2/edit");
+  const png = Buffer.from(sentUpscale.body, "latin1");
+  const ihdr = png.indexOf("IHDR");
+  expect(Math.max(png.readUInt32BE(ihdr + 4), png.readUInt32BE(ihdr + 8))).toBeLessThanOrEqual(1000);
 
   await page.goto("/panel/krediler");
   for (const box of await page.getByRole("checkbox").all()) await box.check();
   await page.getByRole("button", { name: /Demo: 30 kredi ekle/ }).click();
-  await expect.poll(() => balance(page)).toBe(32);
+  await expect.poll(() => balance(page)).toBe(30);
 
   await page.goto("/panel/araclar?arac=sahne");
   await page.locator("#yukle-product_scene").setInputFiles("tests/fixtures/ad.png");
@@ -103,5 +110,21 @@ test("provider tools: background removal and four product scenes with credits", 
     expect(r.body).not.toContain("ayse@ornek.com");
   }
   await axeClean(page);
-  expect(await balance(page)).toBe(27);
+  expect(await balance(page)).toBe(25);
+});
+
+test("without a provider key the closed tools say so, and the page opens on a tool that works", async ({ page }) => {
+  // The demo server has both keys, so a closed tool is checked through its message on the page only
+  // when a key is missing; here we check the default tab and the resize field.
+  await signUp(page);
+  await page.goto("/panel/araclar");
+  await expect(page.getByRole("link", { name: /Yapay zekâ görseli/ })).toHaveAttribute("aria-current", "page");
+  await page.goto("/panel/araclar?arac=boyut");
+  const width = page.getByLabel("Genişlik (piksel)");
+  await width.fill("");
+  await width.pressSequentially("720");
+  await expect(width).toHaveValue("720");
+  await page.locator("#yukle-boyut").setInputFiles("tests/fixtures/ad.png");
+  await page.getByRole("button", { name: "Görseli hazırla · ücretsiz" }).click();
+  await expect(page.getByRole("link", { name: /İndir \(720×720\)/ })).toBeVisible();
 });

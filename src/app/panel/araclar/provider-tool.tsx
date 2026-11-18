@@ -15,6 +15,29 @@ const ACTION: Record<Op, { button: string; busy: string }> = {
   product_scene: { button: "4 sahne üret", busy: "Sahneler üretiliyor…" },
 };
 
+/** Shrinks a photo in the browser so its longer side fits the upscaler's input limit (keeps PNG transparency). */
+async function fitForUpscale(file: File, maxSide: number): Promise<File> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const long = Math.max(img.naturalWidth, img.naturalHeight);
+    if (long <= maxSide) return file;
+    const k = maxSide / long;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.floor(img.naturalWidth * k));
+    canvas.height = Math.max(1, Math.floor(img.naturalHeight * k));
+    const g = canvas.getContext("2d")!;
+    g.imageSmoothingQuality = "high";
+    g.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
+    return blob ? new File([blob], "urun.png", { type: "image/png" }) : file;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export function ProviderTool(props: { op: Op; cost: number; balance: number; providerName: string; scenes?: { id: string; label: string }[]; sizes?: { id: string; label: string }[]; maxSide?: number }) {
   const { op, cost, balance } = props;
   const router = useRouter();
@@ -33,7 +56,16 @@ export function ProviderTool(props: { op: Op; cost: number; balance: number; pro
     setPending(true);
     setError(null);
     const data = new FormData(form);
-    data.set("image", file);
+    let upload: File = file;
+    if (op === "upscale" && props.maxSide) {
+      try {
+        upload = await fitForUpscale(file, props.maxSide);
+      } catch {
+        setPending(false);
+        return setError("Fotoğraf okunamadı. Başka bir dosyayla dene.");
+      }
+    }
+    data.set("image", upload);
     data.set("op", op);
     data.set("requestId", requestId);
     try {
@@ -74,7 +106,7 @@ export function ProviderTool(props: { op: Op; cost: number; balance: number; pro
           id={`yukle-${op}`}
           label={op === "product_scene" ? "Ürün fotoğrafı seç" : "Fotoğraf seç"}
           file={file}
-          hint={op === "upscale" ? `JPG, PNG ya da WebP, en fazla 5 MB ve ${props.maxSide}×${props.maxSide} piksel.` : undefined}
+          hint={op === "upscale" ? `JPG, PNG ya da WebP, en fazla 5 MB. Uzun kenarı ${props.maxSide} pikselden büyükse önce cihazında ${props.maxSide} piksele küçültülür, sonra büyütülür.` : undefined}
           onFile={(f, err) => {
             setFile(f);
             setError(err);
