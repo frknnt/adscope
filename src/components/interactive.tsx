@@ -53,7 +53,7 @@ export function Tabs({ label, tabs, initial = 0 }: { label: string; tabs: { titl
             aria-controls={`${id}-p${i}`}
             tabIndex={i === active ? 0 : -1}
             onClick={() => setActive(i)}
-            className={`-mb-px whitespace-nowrap border-b-2 px-4 py-2.5 text-small font-semibold transition-colors ${i === active ? "border-blue text-ink" : "border-transparent text-muted hover:text-ink"}`}
+            className={`-mb-px min-h-11 whitespace-nowrap border-b-2 px-4 py-2.5 text-small font-semibold transition-colors ${i === active ? "border-blue text-ink" : "border-transparent text-muted hover:text-ink"}`}
           >
             {t.title}
           </button>

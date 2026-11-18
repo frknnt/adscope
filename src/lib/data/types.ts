@@ -105,7 +105,7 @@ export type InspirationPinInput = Omit<InspirationPin, "id" | "createdAt">;
 export interface LedgerEntry {
   id: string;
   delta: number;
-  reason: "signup_bonus" | "analysis" | "purchase" | "refund" | "admin_adjustment" | "generation";
+  reason: "signup_bonus" | "analysis" | "purchase" | "refund" | "admin_adjustment" | "generation" | "coupon_bonus" | "referral_bonus" | "referral_clawback";
   note: string | null;
   analysisId: string | null;
   createdAt: string;
@@ -358,7 +358,7 @@ export interface SignUpInput {
   consents: { terms: string; kvkk: string; privacy: string; marketing: boolean };
 }
 
-export type AuthResult = { ok: true; needsConfirmation?: boolean } | { ok: false; code: "invalid_credentials" | "exists" | "weak_password" | "not_confirmed" | "error" };
+export type AuthResult = { ok: true; needsConfirmation?: boolean; userId?: string } | { ok: false; code: "invalid_credentials" | "exists" | "weak_password" | "not_confirmed" | "error" };
 
 /** User-scoped data access. Every method acts as the signed-in user only. */
 export interface DataRepo {
@@ -502,6 +502,82 @@ export interface AdminAuditEntry {
   createdAt: string;
 }
 
+// Growth: coupons, invites, partner commissions (P5.1, P5.2) ------------------------------------
+export type CouponKind = "bonus_credits" | "percent" | "fixed";
+export interface CouponInput {
+  code: string;
+  kind: CouponKind;
+  /** bonus_credits: credits; percent: 1..100; fixed: kuruş. */
+  value: number;
+  packageIds: string[];
+  startsAt: string;
+  expiresAt: string | null;
+  maxRedemptions: number | null;
+  perUserLimit: number;
+  campaignLabel: string | null;
+}
+export interface CouponView extends CouponInput {
+  id: string;
+  active: boolean;
+  /** Applied redemptions. */
+  redeemed: number;
+  createdAt: string;
+}
+export type CouponReserveStatus = "ok" | "invalid" | "wrong_package" | "unsupported" | "used" | "exhausted";
+export interface CouponReservation {
+  code: string;
+  packageId: string;
+  value: number;
+  createdAt: string;
+}
+export interface ActiveCampaign {
+  code: string;
+  label: string;
+  value: number;
+  packageIds: string[];
+  expiresAt: string | null;
+}
+export interface CommissionView {
+  id: string;
+  amountMinor: number;
+  commissionBp: number;
+  commissionMinor: number;
+  currency: string;
+  status: "pending" | "paid" | "reversed";
+  isDemo: boolean;
+  createdAt: string;
+}
+export interface InviteOverview {
+  inviteCode: string;
+  partner: { code: string; commissionBp: number } | null;
+  invited: number;
+  rewarded: number;
+  /** Net referral credits this user received (bonuses minus clawbacks). */
+  earnedCredits: number;
+  pendingCommissionMinor: number;
+  commissions: CommissionView[];
+}
+export type ReferralAttach = "ok" | "invalid" | "self" | "repeat" | "exists";
+export interface GrowthPurchase {
+  userId: string;
+  packageId: string;
+  /** provider:order id, the same reference the purchase ledger entry uses. */
+  purchaseRef: string;
+  amountMinor: number;
+  currency: string;
+  isDemo: boolean;
+  referralBonus: number;
+}
+export interface GrowthResult {
+  couponCredits: number;
+  referralRewarded: boolean;
+  commissionRecorded: boolean;
+}
+export interface AdminCommissionRow extends CommissionView {
+  partnerId: string;
+  partnerEmail: string | null;
+}
+
 /** Privileged operations not tied to a signed-in session (webhooks, cron). Server-only. */
 export interface AdminRepo {
   applyPurchase(p: {
@@ -541,6 +617,35 @@ export interface AdminRepo {
   saveWatchResult(id: string, r: { seenIds: string[]; summary: CompetitorSummary }): Promise<void>;
   /** Confirmed e-mail address and name of a user (for digests); null when unknown. */
   getUserContact(userId: string): Promise<{ email: string; displayName: string | null } | null>;
+  // Welcome series (P5.4)
+  /** Accounts created since the date that did not turn the series off (confirmed e-mail addresses only). */
+  listWelcomeRecipients(sinceIso: string): Promise<{ userId: string; email: string; displayName: string | null; sector: Sector | null; createdAt: string; marketing: boolean; balance: number }[]>;
+  claimWelcomeEmail(userId: string, step: number): Promise<boolean>;
+  releaseWelcomeEmail(userId: string, step: number): Promise<void>;
+  /** One-click opt-out: welcome series, season reminders and marketing consent off (a new consent row). */
+  unsubscribeEmails(userId: string): Promise<void>;
+  // Growth (P5.1, P5.2). Callers pass the user id from a verified session or a verified webhook.
+  /** The user's invite code, created on first use. */
+  ensureInviteCode(userId: string): Promise<string>;
+  getInviteOverview(userId: string): Promise<InviteOverview>;
+  /** Links a new account to an invite or partner code once; blocks self invites and repeat e-mails. */
+  attachReferral(p: { inviteeId: string; inviteeEmail: string; code: string }): Promise<ReferralAttach>;
+  /** Gives a user a partner code with the given commission (basis points); returns the code. */
+  grantPartnerCode(p: { adminId: string; userId: string; commissionBp: number }): Promise<string | null>;
+  /** Atomically reserves a coupon for the user's next purchase of a package (total and per-user limits hold). */
+  reserveCoupon(p: { code: string; userId: string; packageId: string }): Promise<CouponReserveStatus>;
+  getCouponReservation(userId: string): Promise<CouponReservation | null>;
+  releaseCouponReservation(userId: string): Promise<void>;
+  /** Coupon bonus, first-purchase referral reward and partner commission; idempotent per purchase reference. */
+  applyGrowthAfterPurchase(p: GrowthPurchase): Promise<GrowthResult>;
+  /** Verified refund: takes back purchased, coupon and referral credits (never below zero) and reverses the commission. */
+  applyRefund(p: { provider: string; orderId: string }): Promise<{ applied: boolean }>;
+  createCoupon(p: CouponInput & { adminId: string }): Promise<"ok" | "exists" | "error">;
+  listCoupons(): Promise<CouponView[]>;
+  setCouponActive(p: { adminId: string; id: string; active: boolean }): Promise<void>;
+  /** Bonus credit coupons that are active, started, unexpired and not used up, with a campaign label. */
+  listActiveCampaigns(): Promise<ActiveCampaign[]>;
+  adminListCommissions(limit?: number): Promise<AdminCommissionRow[]>;
   /** Lawyer review link: valid, unrevoked, unexpired token → read-only report (counts the view). */
   getSharedReview(tokenHash: string): Promise<SharedReview | null>;
   /** Creative / frame / screenshot bytes behind a valid review link (does not count a view). */

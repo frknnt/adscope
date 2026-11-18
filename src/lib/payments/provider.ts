@@ -15,6 +15,8 @@ export interface VerifiedPurchase {
 
 export type WebhookOutcome =
   | { kind: "purchase"; purchase: VerifiedPurchase }
+  /** A verified refund of an earlier order: purchased and bonus credits are taken back. */
+  | { kind: "refund"; provider: "lemonsqueezy" | "shopier"; orderId: string }
   | { kind: "ignored"; reason: string }
   | { kind: "invalid"; reason: string };
 

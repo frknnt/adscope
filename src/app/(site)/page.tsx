@@ -21,7 +21,10 @@ import { ButtonLink, Disclaimer } from "@/components/ui";
 import { CREDIT_PACKAGES, formatTry } from "@/lib/payments/packages";
 import { RULE_CATALOG } from "@/lib/rules/catalog";
 import { SAMPLE_AD, sampleReport } from "@/lib/sample";
+import { getRepo } from "@/lib/data";
+import { buildGuide, GUIDE_SLUGS, type GuideSlug } from "@/lib/guides/guides";
 import { SECTOR_IDS, SECTOR_INFO } from "@/lib/sectors";
+import { QuickCheck } from "./reklamim-reddedilir-mi/quick-check";
 
 type Report = Awaited<ReturnType<typeof sampleReport>>;
 
@@ -413,7 +416,12 @@ export default async function HomePage() {
   const report = await sampleReport();
   const activeCount = RULE_CATALOG.filter((r) => r.status === "active").length;
   const sources = [...new Set(RULE_CATALOG.map((r) => r.sourceOrg))].slice(0, 8);
-  const sectors = SECTOR_IDS.filter((s) => s !== "genel").map((s) => SECTOR_INFO[s].label);
+  const sectors = SECTOR_IDS.filter((s) => s !== "genel");
+  const rules = await getRepo().listAllRules();
+  const guides = (Object.keys(GUIDE_SLUGS) as GuideSlug[]).map((slug) => {
+    const g = buildGuide(slug, rules);
+    return { slug, label: g.label, short: SECTOR_INFO[g.sector].label, risky: g.risky.slice(0, 3), safe: g.safe.slice(0, 2) };
+  });
   const featuredId = "profesyonel";
 
   return (
@@ -434,7 +442,7 @@ export default async function HomePage() {
               <ButtonLink href="/kayit" variant="primary" className="px-6 text-base">
                 Ücretsiz başla
               </ButtonLink>
-              <ButtonLink href="/reklamim-reddedilir-mi" variant="ghost" className="px-6 text-base">
+              <ButtonLink href="#dene" variant="ghost" className="px-6 text-base">
                 Kayıt olmadan dene
               </ButtonLink>
             </div>
@@ -456,26 +464,65 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Sector strip */}
-      <section aria-labelledby="sektorler" className="border-y border-line bg-paper-2 py-6">
-        <div className={`${WRAP} flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-8`}>
-          <h2 id="sektorler" className="shrink-0 text-small font-bold text-ink">
-            Riskli sektörler için kural paketleri
-          </h2>
-          <div className="marquee relative min-w-0 flex-1 overflow-hidden">
-            <ul className="marquee-track flex w-max gap-3">
-              {[...sectors, ...sectors].map((s, i) => (
-                <li
-                  key={`${s}-${i}`}
-                  aria-hidden={i >= sectors.length ? true : undefined}
-                  className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-line bg-card px-4 py-2 text-small font-semibold text-ink"
-                >
-                  <span className="size-1.5 rounded-full bg-blue" aria-hidden />
-                  {s}
-                </li>
-              ))}
+      {/* Live mini check: the same rule engine as the free check page, nothing is stored */}
+      <section id="dene" aria-labelledby="dene-baslik" className="scroll-mt-24 border-y border-line bg-paper-2 py-16 lg:py-20">
+        <div className={`${WRAP} grid gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-start`}>
+          <div>
+            <Eyebrow>Kayıt olmadan dene</Eyebrow>
+            <h2 id="dene-baslik" className="mt-4 font-display text-[2rem] leading-tight text-ink sm:text-[2.5rem]">Metnini yapıştır, riskli ifadeleri hemen gör.</h2>
+            <p className="mt-4 max-w-md text-body leading-relaxed text-ink-soft">
+              Bu kutu kural motorunu doğrudan çalıştırır. Yapay zekâ kullanılmaz, metnin kaydedilmez. Görsel, video ve açılış sayfası kontrolü ücretsiz hesapla açılır.
+            </p>
+            <ul className="mt-6 grid gap-3">
+              <Check>Kaynaklı kural kartlarına göre işaretler</Check>
+              <Check>Doğrulanmamış kurallar yalnızca dikkat düzeyinde kalır</Check>
+              <Check>Daha güvenli bir yazım önerir</Check>
             </ul>
           </div>
+          <div className="rounded-3xl border border-line bg-card p-5 shadow-card sm:p-7">
+            <QuickCheck />
+          </div>
+        </div>
+      </section>
+
+      {/* Sector picker: risky wordings come from each sector's rule cards */}
+      <section aria-labelledby="sektorler" className={`${WRAP} py-20 lg:py-28`}>
+        <SectionHead eyebrow="Sektörüne göre" title={<span id="sektorler">Sektörünü seç, sık görülen riskleri gör.</span>} lead="Örnekler kural kartlarındaki riskli ifadelerden, daha güvenli yazımlar ürünün kendi düzeltme motorundan gelir." />
+        <div className="mt-10">
+          <Tabs
+            label="Sektör seç"
+            tabs={guides.map((g) => ({
+              title: g.short,
+              content: (
+                <div className="grid gap-6 pt-6 lg:grid-cols-2">
+                  <div>
+                    <h3 className="text-small font-bold uppercase tracking-[0.06em] text-coral-deep">Riskli ifadeler</h3>
+                    <ul className="mt-3 grid gap-2">
+                      {g.risky.map((r) => (
+                        <li key={r.text} className="rounded-xl border border-line bg-card px-4 py-3 text-body text-ink">
+                          “{r.text}”{r.verified ? null : <span className="ml-2 text-meta font-semibold text-muted">(kaynak doğrulanmadı)</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h3 className="text-small font-bold uppercase tracking-[0.06em] text-green">Daha güvenli yazım</h3>
+                    <ul className="mt-3 grid gap-2">
+                      {g.safe.map((r) => (
+                        <li key={r.from} className="rounded-xl border border-line bg-card px-4 py-3 text-body">
+                          <span className="block text-small text-muted line-through">{r.from}</span>
+                          <span className="mt-1 block text-ink">{r.to}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <Link href={`/rehber/${g.slug}`} className="mt-4 inline-flex min-h-11 items-center font-semibold text-blue">
+                      {g.label} rehberinin tamamı
+                    </Link>
+                  </div>
+                </div>
+              ),
+            }))}
+          />
         </div>
       </section>
 
@@ -561,7 +608,7 @@ export default async function HomePage() {
                     <Check key={p}>{p}</Check>
                   ))}
                 </ul>
-                <Link href="/kayit" className="mt-7 inline-flex items-center gap-1.5 text-body font-bold text-blue no-underline hover:underline">
+                <Link href="/kayit" className="mt-7 inline-flex min-h-11 items-center gap-1.5 text-body font-bold text-blue no-underline hover:underline">
                   Ücretsiz dene <span aria-hidden>→</span>
                 </Link>
               </div>
@@ -637,7 +684,7 @@ export default async function HomePage() {
                 </li>
               ))}
             </ul>
-            <Link href="/kurallar" className="mt-5 inline-flex text-small font-bold text-blue">
+            <Link href="/kurallar" className="mt-5 inline-flex min-h-11 items-center text-small font-bold text-blue">
               Tüm kural kartları ve resmî bağlantılar →
             </Link>
           </div>

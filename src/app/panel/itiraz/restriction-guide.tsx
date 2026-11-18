@@ -48,7 +48,7 @@ export function RestrictionGuide() {
         {STEPS.map((s, i) => (
           <li key={s.title} className={`rounded-xl border px-4 py-3 ${done[i] ? "border-line bg-paper-2/60" : "border-line-strong"}`}>
             <label className="flex cursor-pointer items-start gap-3">
-              <input type="checkbox" checked={done[i]} onChange={() => toggle(i)} className="mt-1 size-4 accent-ink" />
+              <input type="checkbox" checked={done[i]} onChange={() => toggle(i)} className="mt-0.5 size-5 accent-ink" />
               <span>
                 <span className={`font-semibold ${done[i] ? "text-muted line-through" : ""}`}>{i + 1}. {s.title}</span>
                 <span className="mt-0.5 block text-small text-ink-soft">{s.body}</span>

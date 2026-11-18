@@ -16,6 +16,7 @@ import { FindingFeedbackForm } from "../agency-forms";
 import type { LandingReport, VideoReview } from "@/lib/engine/types";
 import { aspectLabel } from "@/lib/engine/video";
 import { CopyButton } from "../forms";
+import { fixFirst, resultSentence } from "@/lib/report/summary";
 
 const FIELD_LABEL: Record<string, string> = {
   headline: "Başlık",
@@ -330,8 +331,7 @@ function SafeCompare({ a, safe }: { a: AnalysisDetail; safe: VariantView }) {
 
 /** The single most important thing to fix: the first red (legal before platform), else the first yellow finding. */
 function FixFirst({ a, safe }: { a: AnalysisDetail; safe: VariantView | undefined }) {
-  const rank = (f: FindingView) => (f.severity === "red" ? 0 : f.severity === "yellow" ? 2 : 4) + (f.domain === "tr_law" && f.rule?.status === "active" ? 0 : 1);
-  const top = [...a.findings].filter((f) => f.severity !== "info").sort((x, y) => rank(x) - rank(y))[0];
+  const top = fixFirst(a.findings);
   if (!top) return null;
   return (
     <section aria-labelledby="once-duzelt" className="rounded-2xl border border-blue/20 bg-blue-tint p-5 sm:p-6">
@@ -643,6 +643,7 @@ export function ReportView({
     ];
     return (
       <div className="flex flex-col gap-8">
+        <p className="text-lg font-semibold leading-snug text-ink" data-testid="result-sentence">{resultSentence(a)}</p>
         {scoresNode}
         <FixFirst a={a} safe={safe} />
         <Tabs label="Rapor bölümleri" tabs={tabs} />
@@ -653,6 +654,7 @@ export function ReportView({
 
   return (
     <div className="flex flex-col gap-10">
+      <p className="text-lg font-semibold leading-snug text-ink">{resultSentence(a)}</p>
       {scoresNode}
       {creativeNode}
       {findingsNode}

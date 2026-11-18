@@ -6,6 +6,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ComponentType, type S
 import { signOutAction } from "@/app/(auth)/actions";
 import {
   IconChart,
+  IconGift,
   IconAppeal,
   IconSpark,
   IconTools,
@@ -67,6 +68,7 @@ const GROUPS: { title: string | null; items: Item[] }[] = [
 
 const EXTRA: Item[] = [
   { href: "/panel/krediler", label: "Krediler", Icon: IconCoin },
+  { href: "/panel/davet", label: "Davet et", Icon: IconGift },
   { href: "/panel/ayarlar", label: "Ayarlar", Icon: IconSettings },
 ];
 
@@ -82,7 +84,7 @@ function NavLink({ it, path }: { it: Item; path: string }) {
     <Link
       href={it.href}
       aria-current={active ? "page" : undefined}
-      className={`relative flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-body font-semibold no-underline transition-colors ${
+      className={`relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-body font-semibold no-underline transition-colors ${
         active ? "bg-tint text-ink before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-blue" : "text-ink-soft hover:bg-paper-2 hover:text-ink"
       }`}
     >
@@ -129,12 +131,12 @@ function NavBody({ path, balance, email }: { path: string; balance: number; emai
             aria-label="Ayarlar"
             title="Ayarlar"
             aria-current={path.startsWith("/panel/ayarlar") ? "page" : undefined}
-            className={`inline-flex size-9 items-center justify-center rounded-lg hover:bg-paper-2 hover:text-ink ${path.startsWith("/panel/ayarlar") ? "bg-tint text-blue" : "text-ink-soft"}`}
+            className={`inline-flex size-11 items-center justify-center rounded-lg hover:bg-paper-2 hover:text-ink ${path.startsWith("/panel/ayarlar") ? "bg-tint text-blue" : "text-ink-soft"}`}
           >
             <IconSettings className="size-4" />
           </Link>
           <form action={signOutAction}>
-            <button type="submit" className="inline-flex size-9 items-center justify-center rounded-lg text-ink-soft hover:bg-paper-2 hover:text-ink" aria-label="Çıkış yap" title="Çıkış yap">
+            <button type="submit" className="inline-flex size-11 items-center justify-center rounded-lg text-ink-soft hover:bg-paper-2 hover:text-ink" aria-label="Çıkış yap" title="Çıkış yap">
               <IconLogout className="size-4" />
             </button>
           </form>
@@ -301,26 +303,26 @@ export function PanelShell({ balance, email, children }: { balance: number; emai
             type="button"
             onClick={() => setPalette(true)}
             aria-label="Hızlı geçiş (Ctrl K)"
-            className="ml-auto hidden h-10 w-64 items-center justify-between rounded-xl border border-line bg-paper-2 px-3 text-small text-muted hover:border-line-strong md:flex"
+            className="ml-auto hidden h-11 w-64 items-center justify-between rounded-xl border border-line bg-paper-2 px-3 text-small text-muted hover:border-line-strong md:flex"
           >
             Ara…
             <kbd className="rounded-md border border-line bg-card px-1.5 text-fine font-semibold text-muted">Ctrl K</kbd>
           </button>
           <Link
             href="/panel/krediler"
-            className={`ml-auto inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-small font-bold no-underline md:ml-0 ${balance <= 2 ? "border-amber/30 bg-amber-tint text-amber" : "border-line bg-card text-ink"}`}
+            className={`ml-auto inline-flex h-11 items-center gap-1.5 rounded-full border px-3 text-small font-bold no-underline md:ml-0 ${balance <= 2 ? "border-amber/30 bg-amber-tint text-amber" : "border-line bg-card text-ink"}`}
           >
             <IconCoin className="size-4" />
             <span className="tabular">{balance}</span> kredi
           </Link>
           <span className="hidden sm:block">
-            <Link href="/panel/yeni" className={buttonClass("primary", "h-10 px-4")}>
+            <Link href="/panel/yeni" className={buttonClass("primary", "h-11 px-4")}>
               <IconPlus className="size-4" /> Yeni analiz
             </Link>
           </span>
           <button
             type="button"
-            className="inline-flex size-10 items-center justify-center rounded-xl border border-line text-ink lg:hidden"
+            className="inline-flex size-11 items-center justify-center rounded-xl border border-line text-ink lg:hidden"
             aria-expanded={drawer}
             aria-controls={drawerId}
             aria-label="Menüyü aç"

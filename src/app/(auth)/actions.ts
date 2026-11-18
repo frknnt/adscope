@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getRepo } from "@/lib/data";
 import { LEGAL_VERSIONS } from "@/lib/legal";
+import { attachInvite } from "@/lib/growth/service";
 import { clientIp, hashKey, rateLimit } from "@/lib/security/rate-limit";
 
 export type AuthFormState = { error: string | null; info?: string | null; email?: string };
@@ -73,6 +74,9 @@ export async function signUpAction(_prev: AuthFormState, form: FormData): Promis
     consents: { terms: LEGAL_VERSIONS.terms, kvkk: LEGAL_VERSIONS.kvkk, privacy: LEGAL_VERSIONS.privacy, marketing: parsed.data.marketing === "on" },
   });
   if (!res.ok) return { error: AUTH_MESSAGES[res.code] ?? AUTH_MESSAGES.error, email: rawEmail };
+  // Invite or partner code from /kayit?davet=KOD. A bad or repeated code never blocks the signup.
+  const invite = form.get("davet");
+  if (res.userId && typeof invite === "string" && invite) await attachInvite({ inviteeId: res.userId, inviteeEmail: parsed.data.email, rawCode: invite });
   if (res.needsConfirmation) {
     return { error: null, info: "Hesabın oluşturuldu. E-posta adresine gelen doğrulama bağlantısına tıklayınca 3 ücretsiz kredinle başlayabilirsin.", email: rawEmail };
   }

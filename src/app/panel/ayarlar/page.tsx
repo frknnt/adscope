@@ -39,7 +39,7 @@ export default async function SettingsPage() {
           <span className={`rounded-full px-3 py-1 text-meta font-semibold ${profile?.newsletter ? "bg-green-tint text-green" : "bg-paper text-muted"}`}>
             {profile?.newsletter ? "Açık" : "Kapalı"}
           </span>
-          <button type="submit" className="rounded-full border border-line-strong px-4 py-2 text-small font-semibold hover:bg-paper-2">
+          <button type="submit" className="min-h-11 rounded-full border border-line-strong px-4 text-small font-semibold hover:bg-paper-2">
             {profile?.newsletter ? "Bülteni kapat" : "Bülteni aç"}
           </button>
           {!emailConfigured() ? <span className="text-meta text-muted">E-posta gönderimi bu ortamda kapalı; tercih kaydedilir.</span> : null}

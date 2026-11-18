@@ -47,6 +47,7 @@ export class ShopierProvider implements PaymentProvider {
     } catch {
       return { kind: "invalid", reason: "bad_json" };
     }
+    if (body.status === "refunded") return body.order_id ? { kind: "refund", provider: "shopier", orderId: String(body.order_id) } : { kind: "invalid", reason: "missing_fields" };
     if (body.status !== "success") return { kind: "ignored", reason: "not_paid" };
     const pkg = findPackage(String(body.package_id ?? ""));
     if (!isUuid(body.user_id) || !pkg || !body.order_id) return { kind: "invalid", reason: "missing_fields" };

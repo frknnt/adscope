@@ -4,6 +4,7 @@ import { join } from "node:path";
 import PDFDocument from "pdfkit";
 import type { AnalysisDetail, ReportBranding } from "@/lib/data/types";
 import { PLATFORM_SHORT } from "@/lib/platforms";
+import { fixFirst, resultSentence } from "@/lib/report/summary";
 import { SECTOR_LABEL } from "@/lib/sectors";
 
 /**
@@ -130,6 +131,8 @@ export async function buildReportPdf(
   ].filter(Boolean);
   doc.moveDown(0.2);
   para(sub.join(" · "), { size: 9.5, color: C.muted });
+  doc.moveDown(0.6);
+  para(resultSentence(a), { font: "bold", size: 12 });
 
   // Scores -------------------------------------------------------------------------
   doc.moveDown(0.9);
@@ -149,6 +152,22 @@ export async function buildReportPdf(
   });
   doc.y = boxY + 88;
   if (a.scoreBreakdown?.legal.reason) para(a.scoreBreakdown.legal.reason, { size: 8.5, color: C.soft });
+
+  // Fix first ------------------------------------------------------------------------
+  const first = fixFirst(a.findings);
+  const safe = a.variants.find((v) => v.kind === "safe");
+  if (first) {
+    const lines = [first.matchedText ? `“${first.matchedText}” · ${first.title}` : first.title, first.suggestion ? `Düzeltme: ${first.suggestion}` : ""].filter(Boolean).join("\n");
+    doc.font("body").fontSize(10);
+    const h = doc.heightOfString(lines, { width: width - 24, lineGap: 2 }) + 34;
+    doc.moveDown(0.6);
+    ensure(h);
+    const y0 = doc.y;
+    doc.roundedRect(left, y0, width, h, 8).fill(C.infoTint);
+    doc.font("bold").fontSize(8).fillColor(C.info).text("ÖNCE BUNU DÜZELT", left + 12, y0 + 10, { width: width - 24 });
+    doc.font("body").fontSize(10).fillColor(C.ink).text(lines, left + 12, doc.y + 3, { width: width - 24, lineGap: 2 });
+    doc.y = y0 + h + 2;
+  }
 
   // Ad -------------------------------------------------------------------------------
   heading("İncelenen reklam");
@@ -212,17 +231,23 @@ export async function buildReportPdf(
   }
 
   // Safe text and variants ---------------------------------------------------------------
-  const safe = a.variants.find((v) => v.kind === "safe");
   if (safe) {
     heading("Güvenli metin önerisi");
-    const text = [safe.headline, safe.primaryText, safe.description].filter(Boolean).join("\n");
-    doc.font("body").fontSize(10);
-    const h = doc.heightOfString(text, { width: width - 24, lineGap: 2 }) + 20;
-    ensure(h);
+    // Before and after side by side, like the web report.
+    const colW = (width - 12) / 2;
+    const before = [a.headline, a.primaryText].filter(Boolean).join("\n");
+    const after = [safe.headline, safe.primaryText, safe.description].filter(Boolean).join("\n");
+    doc.font("body").fontSize(9.5);
+    const h = Math.max(doc.heightOfString(before, { width: colW - 24, lineGap: 2 }), doc.heightOfString(after, { width: colW - 24, lineGap: 2 })) + 36;
+    ensure(Math.min(h, 400));
     const y0 = doc.y;
-    doc.roundedRect(left, y0, width, h, 8).fill(C.greenTint);
-    doc.font("body").fontSize(10).fillColor(C.ink).text(text, left + 12, y0 + 10, { width: width - 24, lineGap: 2 });
-    doc.y = y0 + h + 4;
+    doc.roundedRect(left, y0, colW, h, 8).fillAndStroke(C.card, C.line);
+    doc.roundedRect(left + colW + 12, y0, colW, h, 8).fill(C.greenTint);
+    doc.font("bold").fontSize(8).fillColor(C.muted).text("ÖNCE: SENİN METNİN", left + 12, y0 + 10, { width: colW - 24 });
+    doc.font("body").fontSize(9.5).fillColor(C.ink).text(before, left + 12, y0 + 24, { width: colW - 24, lineGap: 2 });
+    doc.font("bold").fontSize(8).fillColor(C.green).text("SONRA: GÜVENLİ ÖNERİ", left + colW + 24, y0 + 10, { width: colW - 24 });
+    doc.font("body").fontSize(9.5).fillColor(C.ink).text(after, left + colW + 24, y0 + 24, { width: colW - 24, lineGap: 2 });
+    doc.y = Math.max(doc.y, y0 + h) + 4;
     para(`Aynı kural kartlarıyla yeniden tarandı: ${safe.recheckRed} kırmızı, ${safe.recheckYellow} sarı bayrak.`, { size: 8.5, color: C.muted });
   }
   const variants = a.variants.filter((v) => v.kind === "variant");

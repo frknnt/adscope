@@ -8,6 +8,7 @@ const NAV = [
   ["/yonetim", "Özet"],
   ["/yonetim/kullanicilar", "Kullanıcılar ve krediler"],
   ["/yonetim/satin-almalar", "Satın almalar"],
+  ["/yonetim/kuponlar", "Kupon ve ortaklık"],
   ["/yonetim/geri-bildirim", "Uyarı geri bildirimleri"],
   ["/yonetim/kurallar", "Kural kartları"],
   ["/yonetim/gunluk", "Denetim günlüğü"],

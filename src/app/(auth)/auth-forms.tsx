@@ -47,7 +47,7 @@ export function SignInForm({ next }: { next?: string }) {
   );
 }
 
-export function SignUpForm() {
+export function SignUpForm({ invite = null }: { invite?: string | null }) {
   const [state, action, pending] = useActionState(signUpAction, initial);
   if (state.info) {
     return (
@@ -60,6 +60,7 @@ export function SignUpForm() {
   return (
     <form action={action} className="flex flex-col gap-5" noValidate>
       <FormMessage state={state} />
+      {invite ? <input type="hidden" name="davet" value={invite} /> : null}
       <Field label="E-posta" htmlFor="email">
         <input id="email" name="email" type="email" autoComplete="email" required defaultValue={state.email} className={inputClass} />
       </Field>
@@ -69,20 +70,20 @@ export function SignUpForm() {
       <fieldset className="flex flex-col gap-3 text-body leading-snug text-ink-soft">
         <legend className="sr-only">Onaylar</legend>
         <label className="flex gap-3">
-          <input type="checkbox" name="terms" required className="mt-0.5 size-4.5 shrink-0 accent-ink" />
+          <input type="checkbox" name="terms" required className="mt-0.5 size-5 shrink-0 accent-ink" />
           <span>
             <Link href="/kullanim-kosullari" target="_blank" className="font-semibold text-ink">Kullanım koşullarını</Link> ve{" "}
             <Link href="/gizlilik" target="_blank" className="font-semibold text-ink">gizlilik politikasını</Link> kabul ediyorum.
           </span>
         </label>
         <label className="flex gap-3">
-          <input type="checkbox" name="kvkk" required className="mt-0.5 size-4.5 shrink-0 accent-ink" />
+          <input type="checkbox" name="kvkk" required className="mt-0.5 size-5 shrink-0 accent-ink" />
           <span>
             <Link href="/kvkk" target="_blank" className="font-semibold text-ink">KVKK aydınlatma metnini</Link> okudum.
           </span>
         </label>
         <label className="flex gap-3">
-          <input type="checkbox" name="marketing" className="mt-0.5 size-4.5 shrink-0 accent-ink" />
+          <input type="checkbox" name="marketing" className="mt-0.5 size-5 shrink-0 accent-ink" />
           <span>Ürün güncellemeleri ve kampanyalar için e-posta almak istiyorum. (İsteğe bağlı)</span>
         </label>
       </fieldset>

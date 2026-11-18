@@ -56,7 +56,7 @@ export default async function RulesPage() {
                   <dt className="text-muted">Hukukçu incelemesi</dt><dd>{REVIEW_LABEL[r.legalReviewStatus]}</dd>
                 </dl>
                 <p className="mt-3 text-meta leading-relaxed text-muted">{r.verificationNote}</p>
-                <a href={r.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-auto inline-flex items-center gap-1.5 pt-3 text-sm font-semibold text-coral-deep">
+                <a href={r.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-auto inline-flex min-h-11 items-center gap-1.5 pt-1 text-sm font-semibold text-coral-deep">
                   Resmî kaynak <IconExternal className="size-3.5" aria-hidden />
                   <span className="sr-only">(yeni sekmede açılır)</span>
                 </a>

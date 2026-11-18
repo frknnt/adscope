@@ -41,7 +41,7 @@ export default async function GuidePage({ params }: { params: Promise<{ sektor: 
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       <nav aria-label="Konum" className="text-small text-muted">
-        <Link href="/rehber">Sektör rehberleri</Link> / <span aria-current="page">{g.label}</span>
+        <Link href="/rehber" className="inline-flex min-h-11 items-center">Sektör rehberleri</Link> / <span aria-current="page">{g.label}</span>
       </nav>
       <h1 className="mt-3 max-w-4xl font-display text-4xl font-semibold leading-tight sm:text-[3rem]">{g.title}</h1>
       <p className="mt-4 max-w-3xl text-lg leading-relaxed text-ink-soft">
@@ -57,9 +57,9 @@ export default async function GuidePage({ params }: { params: Promise<{ sektor: 
           <h2 id="riskli" className="font-display text-2xl font-semibold">Sık reddedilen ya da riskli ifadeler</h2>
           <ul className="mt-4 grid gap-2">
             {g.risky.map((r, i) => (
-              <li key={i} className="flex items-start justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3">
-                <span className="text-body text-ink">&ldquo;{r.text}&rdquo;</span>
-                <a href={`/kurallar#${r.ruleId}`} className="shrink-0 text-meta font-semibold">{r.verified ? r.ruleId : `${r.ruleId} · doğrulanmadı`}</a>
+              <li key={i} className="flex flex-col gap-1 rounded-xl border border-line bg-card px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                <span className="min-w-0 text-body text-ink">&ldquo;{r.text}&rdquo;</span>
+                <a href={`/kurallar#${r.ruleId}`} className="inline-flex min-h-11 items-center break-all text-meta font-semibold sm:shrink-0">{r.verified ? r.ruleId : `${r.ruleId} · doğrulanmadı`}</a>
               </li>
             ))}
           </ul>
@@ -94,7 +94,7 @@ export default async function GuidePage({ params }: { params: Promise<{ sektor: 
               <h3 className="mt-2 text-lg font-bold leading-snug">{r.title}</h3>
               <p className="mt-2 text-body leading-relaxed text-ink-soft">{r.description}</p>
               <p className="mt-auto pt-3 text-small">
-                <a href={r.sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold">
+                <a href={r.sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 font-semibold">
                   {r.sourceOrg}: {r.sourceTitle} <IconExternal className="size-3.5" aria-hidden />
                   <span className="sr-only">(yeni sekmede açılır)</span>
                 </a>
@@ -110,7 +110,7 @@ export default async function GuidePage({ params }: { params: Promise<{ sektor: 
         <ul className="mt-4 grid gap-2 text-body">
           {g.sources.map((s) => (
             <li key={s.url}>
-              <a href={s.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1">
+              <a href={s.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1">
                 {s.org}: {s.title} <IconExternal className="size-3.5" aria-hidden />
                 <span className="sr-only">(yeni sekmede açılır)</span>
               </a>

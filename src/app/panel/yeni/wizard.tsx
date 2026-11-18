@@ -929,7 +929,7 @@ export function AnalysisWizard({
         </aside>
       </div>
       <details className="mt-6 rounded-2xl border border-line bg-card p-4 lg:hidden">
-        <summary className="cursor-pointer font-semibold text-ink">Önizlemeyi göster</summary>
+        <summary className="cursor-pointer py-3 font-semibold text-ink">Önizlemeyi göster</summary>
         <div className="mt-4">{preview}</div>
       </details>
     </div>

@@ -101,20 +101,20 @@ export function SiteNav({ loggedIn }: { loggedIn: boolean }) {
   }, [menu, mobile]);
 
   const ctas = loggedIn ? (
-    <Link href="/panel" className={buttonClass("primary", "h-10 px-4")}>
+    <Link href="/panel" className={buttonClass("primary", "h-11 px-4")}>
       Panele git
     </Link>
   ) : (
     <>
-      <Link href="/giris" className="px-2 py-2 text-body font-semibold text-ink no-underline hover:text-blue">
+      <Link href="/giris" className="inline-flex min-h-11 items-center px-2 text-body font-semibold text-ink no-underline hover:text-blue">
         Giriş
       </Link>
       <span className="hidden lg:inline-flex">
-        <Link href="/reklamim-reddedilir-mi" className={buttonClass("ghost", "h-10 px-4")}>
+        <Link href="/reklamim-reddedilir-mi" className={buttonClass("ghost", "h-11 px-4")}>
           Ücretsiz kontrol
         </Link>
       </span>
-      <Link href="/kayit" className={buttonClass("primary", "h-10 px-4")}>
+      <Link href="/kayit" className={buttonClass("primary", "h-11 px-4")}>
         Ücretsiz başla
       </Link>
     </>
@@ -140,7 +140,7 @@ export function SiteNav({ loggedIn }: { loggedIn: boolean }) {
             aria-expanded={menu}
             aria-controls={panelId}
             onClick={() => setMenu((v) => !v)}
-            className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-body font-semibold text-ink hover:bg-paper-2"
+            className="inline-flex min-h-11 items-center gap-1 rounded-lg px-3 text-body font-semibold text-ink hover:bg-paper-2"
           >
             Özellikler
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden className={`transition-transform ${menu ? "rotate-180" : ""}`}>
@@ -148,7 +148,7 @@ export function SiteNav({ loggedIn }: { loggedIn: boolean }) {
             </svg>
           </button>
           {LINKS.map((l) => (
-            <Link key={l.href} href={l.href} className="rounded-lg px-3 py-2 text-body font-semibold text-ink no-underline hover:bg-paper-2">
+            <Link key={l.href} href={l.href} className="inline-flex min-h-11 items-center rounded-lg px-3 text-body font-semibold text-ink no-underline hover:bg-paper-2">
               {l.label}
             </Link>
           ))}

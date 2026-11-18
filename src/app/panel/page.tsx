@@ -161,7 +161,7 @@ export default async function DashboardPage() {
         <section aria-labelledby="sezon">
           <div className="flex items-baseline justify-between gap-4">
             <h2 id="sezon" className="font-display text-2xl font-semibold">Yaklaşan sezon günleri</h2>
-            <Link href="/panel/takvim" className="font-semibold text-blue">Takvim</Link>
+            <Link href="/panel/takvim" className="inline-flex min-h-11 items-center font-semibold text-blue">Takvim</Link>
           </div>
           <ul className="mt-4 grid gap-4 md:grid-cols-3">
             {seasons.map((e, i) => {

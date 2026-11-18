@@ -60,7 +60,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
         <div className="grid content-start gap-6">
           <ImportForm />
           <details className="rounded-2xl border border-line bg-card p-4 text-small text-ink-soft">
-            <summary className="cursor-pointer font-semibold text-ink">Raporu nasıl dışa aktarırım?</summary>
+            <summary className="cursor-pointer py-3 font-semibold text-ink">Raporu nasıl dışa aktarırım?</summary>
             <ol className="mt-3 list-decimal space-y-1.5 pl-5">
               <li>Reklam Yöneticisi&apos;nde Reklamlar sekmesine geç ve tarih aralığını seç.</li>
               <li>Sütunlara harcanan tutar, gösterim, bağlantı tıklamaları, satın almalar ve dönüşüm değerini ekle. Metinle eşleştirme için Gövde ve Başlık (reklam ayarları) sütunlarını da ekleyebilirsin.</li>

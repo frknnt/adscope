@@ -74,13 +74,13 @@ export function RiskBadge({ level, score, label = "Ret riski", className = "" }:
 
 export function SegmentedLinks({ label, items }: { label: string; items: { href: string; label: string; active: boolean; Icon?: ComponentType<SVGProps<SVGSVGElement>> }[] }) {
   return (
-    <div role="group" aria-label={label} className="inline-flex rounded-xl border border-line bg-card p-1">
+    <div role="group" aria-label={label} className="inline-flex max-w-full flex-wrap rounded-xl border border-line bg-card p-1">
       {items.map((it) => (
         <Link
           key={it.href}
           href={it.href}
           aria-current={it.active ? "true" : undefined}
-          className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-small font-semibold no-underline ${it.active ? "bg-ink text-paper" : "text-ink-soft hover:bg-paper-2 hover:text-ink"}`}
+          className={`inline-flex h-11 items-center gap-1.5 rounded-lg px-3 text-small font-semibold no-underline ${it.active ? "bg-ink text-paper" : "text-ink-soft hover:bg-paper-2 hover:text-ink"}`}
         >
           {it.Icon ? <it.Icon className="size-4" aria-hidden /> : null}
           {it.label}

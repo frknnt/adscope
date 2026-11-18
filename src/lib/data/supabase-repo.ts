@@ -5,8 +5,20 @@ import { siteUrl } from "@/lib/env";
 import type { AppealOut, RuleRecord, VideoMeta } from "@/lib/engine/types";
 import type { RuleCardDef, Sector } from "@/lib/rules/catalog";
 import { findPackage } from "@/lib/payments/packages";
+import { COUPON_RESERVATION_MS, commissionOf, emailHash, newCode } from "@/lib/growth/codes";
 import { API_KEY_LIMIT, PERFORMANCE_IMPORT_LIMIT, PIN_LIMIT, TEAM_LIMIT, WATCH_LIMIT, WATCH_SEEN_CAP } from "./limits";
 import type {
+  LedgerEntry,
+  ActiveCampaign,
+  AdminCommissionRow,
+  CouponInput,
+  CouponReservation,
+  CouponReserveStatus,
+  CouponView,
+  GrowthPurchase,
+  GrowthResult,
+  InviteOverview,
+  ReferralAttach,
   AdminRepo,
   AnalysisDetail,
   AnalysisSummary,
@@ -238,7 +250,7 @@ export class SupabaseRepo implements DataRepo {
       // Consent rows are written with the admin client because the session may not exist yet (email confirmation).
       await this.admin().from("user_consents").insert(rows);
     }
-    return { ok: true, needsConfirmation: !data.session };
+    return { ok: true, needsConfirmation: !data.session, userId: data.user?.id };
   }
 
   async signIn(email: string, password: string): Promise<AuthResult> {
@@ -1315,6 +1327,290 @@ export class SupabaseAdminRepo implements AdminRepo {
       .from("competitor_watches")
       .update({ seen_ids: r.seenIds.slice(-WATCH_SEEN_CAP), last_summary: r.summary, last_checked_at: new Date().toISOString() })
       .eq("id", id);
+  }
+
+  // Welcome series (P5.4) -----------------------------------------------------------------------
+  async listWelcomeRecipients(sinceIso: string) {
+    const { data: profiles } = await this.admin.from("profiles").select("id,display_name,default_sector,created_at").gte("created_at", sinceIso).eq("welcome_emails", true).limit(5000);
+    const ids = (profiles ?? []).map((p) => p.id as string);
+    if (!ids.length) return [];
+    const [{ data: consents }, { data: balances }] = await Promise.all([
+      this.admin.from("user_consents").select("user_id,granted,created_at").eq("consent_type", "marketing_email").in("user_id", ids).order("created_at", { ascending: false }),
+      this.admin.rpc("admin_user_balances", { p_user_ids: ids }),
+    ]);
+    const marketing = new Map<string, boolean>();
+    for (const c of consents ?? []) if (!marketing.has(c.user_id)) marketing.set(c.user_id, c.granted);
+    const bal = new Map(((balances ?? []) as { user_id: string; balance: number }[]).map((b) => [b.user_id, Number(b.balance)]));
+    const out: Awaited<ReturnType<AdminRepo["listWelcomeRecipients"]>> = [];
+    for (const p of profiles ?? []) {
+      const { data } = await this.admin.auth.admin.getUserById(p.id);
+      const u = data?.user;
+      if (!u?.email || !u.email_confirmed_at) continue;
+      out.push({ userId: p.id, email: u.email, displayName: p.display_name, sector: p.default_sector, createdAt: p.created_at, marketing: marketing.get(p.id) ?? false, balance: bal.get(p.id) ?? 0 });
+    }
+    return out;
+  }
+
+  async claimWelcomeEmail(userId: string, step: number) {
+    const { data, error } = await this.admin.from("welcome_email_log").upsert({ user_id: userId, step }, { onConflict: "user_id,step", ignoreDuplicates: true }).select("user_id");
+    if (error) return false;
+    return (data ?? []).length > 0;
+  }
+
+  async releaseWelcomeEmail(userId: string, step: number) {
+    await this.admin.from("welcome_email_log").delete().eq("user_id", userId).eq("step", step);
+  }
+
+  async unsubscribeEmails(userId: string) {
+    await this.admin.from("profiles").update({ welcome_emails: false, season_reminders: false }).eq("id", userId);
+    await this.admin.from("user_consents").insert({ user_id: userId, consent_type: "marketing_email", document_version: "e-posta-tercihleri", granted: false });
+  }
+
+  // Growth (P5.1, P5.2) -----------------------------------------------------------------------
+  /** Append-only ledger write; a repeated idempotency key is a no-op. Returns true when inserted. */
+  private async grant(userId: string, delta: number, reason: LedgerEntry["reason"], key: string, note: string) {
+    if (delta === 0) return false;
+    const { error } = await this.admin.from("credit_ledger").insert({ user_id: userId, delta, reason, idempotency_key: key, note });
+    if (error && error.code !== "23505") throw new Error("ledger_write_failed");
+    return !error;
+  }
+
+  private async balanceOf(userId: string) {
+    const { data } = await this.admin.rpc("admin_user_balances", { p_user_ids: [userId] });
+    return Number(((data ?? []) as { balance: number }[])[0]?.balance ?? 0);
+  }
+
+  async ensureInviteCode(userId: string) {
+    const { data } = await this.admin.from("invite_codes").select("code").eq("user_id", userId).eq("kind", "invite").maybeSingle();
+    if (data) return data.code as string;
+    for (let i = 0; i < 5; i++) {
+      const code = newCode("AD");
+      const { error } = await this.admin.from("invite_codes").insert({ user_id: userId, kind: "invite", code });
+      if (!error) return code;
+      // Lost a race with a parallel request of the same user: read the winner.
+      const { data: again } = await this.admin.from("invite_codes").select("code").eq("user_id", userId).eq("kind", "invite").maybeSingle();
+      if (again) return again.code as string;
+    }
+    throw new Error("invite_code_failed");
+  }
+
+  async getInviteOverview(userId: string): Promise<InviteOverview> {
+    const inviteCode = await this.ensureInviteCode(userId);
+    const [{ data: partner }, { data: refs }, { data: ledger }, { data: comm }] = await Promise.all([
+      this.admin.from("invite_codes").select("code,commission_bp").eq("user_id", userId).eq("kind", "partner").maybeSingle(),
+      this.admin.from("referrals").select("rewarded_at,clawed_back_at").eq("inviter_id", userId).limit(10_000),
+      this.admin.from("credit_ledger").select("delta").eq("user_id", userId).in("reason", ["referral_bonus", "referral_clawback"]),
+      this.admin.from("affiliate_commissions").select("id,amount_minor,commission_bp,commission_minor,currency,status,is_demo,created_at").eq("partner_id", userId).order("created_at", { ascending: false }).limit(100),
+    ]);
+    const commissions = (comm ?? []).map((c) => ({ id: c.id, amountMinor: c.amount_minor, commissionBp: c.commission_bp, commissionMinor: c.commission_minor, currency: c.currency, status: c.status, isDemo: c.is_demo, createdAt: c.created_at }));
+    return {
+      inviteCode,
+      partner: partner ? { code: partner.code, commissionBp: partner.commission_bp ?? 0 } : null,
+      invited: (refs ?? []).length,
+      rewarded: (refs ?? []).filter((r) => r.rewarded_at && !r.clawed_back_at).length,
+      earnedCredits: (ledger ?? []).reduce((n, l) => n + Number(l.delta), 0),
+      pendingCommissionMinor: commissions.filter((c) => c.status === "pending" && !c.isDemo).reduce((n, c) => n + c.commissionMinor, 0),
+      commissions,
+    };
+  }
+
+  async attachReferral(p: { inviteeId: string; inviteeEmail: string; code: string }): Promise<ReferralAttach> {
+    const { data: code } = await this.admin.from("invite_codes").select("user_id,kind").eq("code", p.code.toUpperCase()).maybeSingle();
+    if (!code) return "invalid";
+    if (code.user_id === p.inviteeId) return "self";
+    const hash = emailHash(p.inviteeEmail);
+    const { data: inviter } = await this.admin.auth.admin.getUserById(code.user_id);
+    if (inviter?.user?.email && emailHash(inviter.user.email) === hash) return "self";
+    const { data: existing } = await this.admin.from("referrals").select("invitee_id").eq("invitee_id", p.inviteeId).maybeSingle();
+    if (existing) return "exists";
+    // The e-mail claim is the gate: a unique violation means this address was invited before.
+    const { error: claimErr } = await this.admin.from("referral_email_claims").insert({ email_hash: hash });
+    if (claimErr) return claimErr.code === "23505" ? "repeat" : "invalid";
+    const { error } = await this.admin.from("referrals").insert({ invitee_id: p.inviteeId, inviter_id: code.user_id, kind: code.kind });
+    if (error) return error.code === "23505" ? "exists" : "invalid";
+    return "ok";
+  }
+
+  async grantPartnerCode(p: { adminId: string; userId: string; commissionBp: number }) {
+    const { data: u } = await this.admin.auth.admin.getUserById(p.userId);
+    if (!u?.user) return null;
+    const { data: row } = await this.admin.from("invite_codes").select("code").eq("user_id", p.userId).eq("kind", "partner").maybeSingle();
+    let code = row?.code as string | undefined;
+    if (code) await this.admin.from("invite_codes").update({ commission_bp: p.commissionBp }).eq("user_id", p.userId).eq("kind", "partner");
+    else {
+      for (let i = 0; i < 5 && !code; i++) {
+        const c = newCode("ORT");
+        const { error } = await this.admin.from("invite_codes").insert({ user_id: p.userId, kind: "partner", code: c, commission_bp: p.commissionBp });
+        if (!error) code = c;
+      }
+    }
+    if (!code) return null;
+    await this.recordAudit({ adminId: p.adminId, action: "partner_code", targetUserId: p.userId, details: { commissionBp: p.commissionBp } });
+    return code;
+  }
+
+  async reserveCoupon(p: { code: string; userId: string; packageId: string }): Promise<CouponReserveStatus> {
+    const { data, error } = await this.admin.rpc("reserve_coupon", { p_code: p.code.trim(), p_user_id: p.userId, p_package_id: p.packageId });
+    if (error) return "invalid";
+    const status = ((data ?? []) as { status: string }[])[0]?.status;
+    return (["ok", "invalid", "wrong_package", "unsupported", "used", "exhausted"] as const).find((x) => x === status) ?? "invalid";
+  }
+
+  async getCouponReservation(userId: string): Promise<CouponReservation | null> {
+    const since = new Date(Date.now() - COUPON_RESERVATION_MS).toISOString();
+    const { data } = await this.admin
+      .from("coupon_redemptions")
+      .select("package_id,created_at,coupons(code,value)")
+      .eq("user_id", userId)
+      .eq("status", "reserved")
+      .gt("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const c = data?.coupons as unknown as { code: string; value: number } | null;
+    return data && c ? { code: c.code, packageId: data.package_id, value: c.value, createdAt: data.created_at } : null;
+  }
+
+  async releaseCouponReservation(userId: string) {
+    await this.admin.from("coupon_redemptions").update({ status: "released" }).eq("user_id", userId).eq("status", "reserved");
+  }
+
+  async applyGrowthAfterPurchase(p: GrowthPurchase): Promise<GrowthResult> {
+    const now = new Date().toISOString();
+    const out: GrowthResult = { couponCredits: 0, referralRewarded: false, commissionRecorded: false };
+    // Coupon: claim the newest open reservation for this package with this purchase (conditional
+    // update), then grant from whatever redemption carries the purchase reference (retry safe).
+    const since = new Date(Date.now() - COUPON_RESERVATION_MS).toISOString();
+    const { data: open } = await this.admin
+      .from("coupon_redemptions")
+      .select("id")
+      .eq("user_id", p.userId)
+      .eq("status", "reserved")
+      .eq("package_id", p.packageId)
+      .gt("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (open) await this.admin.from("coupon_redemptions").update({ status: "applied", purchase_ref: p.purchaseRef, applied_at: now }).eq("id", open.id).eq("status", "reserved");
+    const { data: red } = await this.admin.from("coupon_redemptions").select("id,coupons(code,kind,value)").eq("purchase_ref", p.purchaseRef).maybeSingle();
+    const coupon = red?.coupons as unknown as { code: string; kind: string; value: number } | null;
+    if (red && coupon?.kind === "bonus_credits") {
+      await this.grant(p.userId, coupon.value, "coupon_bonus", `coupon:${red.id}`, `Kupon ek kredisi (${coupon.code})`);
+      out.couponCredits = coupon.value;
+    }
+    // Referral: the conditional update lets exactly one purchase claim the first-purchase reward.
+    await this.admin.from("referrals").update({ rewarded_at: now, reward_ref: p.purchaseRef }).eq("invitee_id", p.userId).is("rewarded_at", null).is("clawed_back_at", null);
+    const { data: ref } = await this.admin.from("referrals").select("inviter_id,kind,reward_ref").eq("invitee_id", p.userId).maybeSingle();
+    if (ref && ref.reward_ref === p.purchaseRef && p.referralBonus > 0) {
+      await this.grant(p.userId, p.referralBonus, "referral_bonus", `referral:${p.userId}:invitee`, "Davet ödülü: ilk satın alma");
+      if (ref.kind === "invite") await this.grant(ref.inviter_id, p.referralBonus, "referral_bonus", `referral:${p.userId}:inviter`, "Davet ödülü: davet ettiğin kişi ilk satın almasını yaptı");
+      out.referralRewarded = true;
+    }
+    if (ref?.kind === "partner") {
+      const { data: code } = await this.admin.from("invite_codes").select("commission_bp").eq("user_id", ref.inviter_id).eq("kind", "partner").maybeSingle();
+      if (code?.commission_bp) {
+        const { error } = await this.admin.from("affiliate_commissions").insert({
+          partner_id: ref.inviter_id,
+          invitee_id: p.userId,
+          purchase_ref: p.purchaseRef,
+          amount_minor: p.amountMinor,
+          commission_bp: code.commission_bp,
+          commission_minor: commissionOf(p.amountMinor, code.commission_bp),
+          currency: p.currency,
+          is_demo: p.isDemo,
+        });
+        if (error && error.code !== "23505") throw new Error("commission_write_failed");
+        out.commissionRecorded = true;
+      }
+    }
+    return out;
+  }
+
+  async applyRefund(p: { provider: string; orderId: string }) {
+    const { data: ev } = await this.admin.from("purchase_events").select("id,user_id,credits,status").eq("provider", p.provider).eq("provider_order_id", p.orderId).in("status", ["paid", "refunded"]).limit(1).maybeSingle();
+    if (!ev?.user_id) return { applied: false };
+    const userId = ev.user_id as string;
+    const ref = `${p.provider}:${p.orderId}`;
+    // Never below zero: credits already spent are not taken back. Keys keep retries from repeating.
+    const take = async (uid: string, amount: number, reason: "refund" | "referral_clawback", key: string, note: string) => {
+      const n = Math.min(amount, await this.balanceOf(uid));
+      if (n > 0) await this.grant(uid, -n, reason, key, note);
+    };
+    await take(userId, ev.credits, "refund", `refund:${ref}`, "Ödeme iadesi");
+    const { data: red } = await this.admin.from("coupon_redemptions").select("id,coupons(code,kind,value)").eq("purchase_ref", ref).maybeSingle();
+    const coupon = red?.coupons as unknown as { code: string; kind: string; value: number } | null;
+    if (red && coupon?.kind === "bonus_credits") {
+      const { data: granted } = await this.admin.from("credit_ledger").select("id").eq("idempotency_key", `coupon:${red.id}`).maybeSingle();
+      if (granted) await take(userId, coupon.value, "refund", `coupon-refund:${red.id}`, `Kupon ek kredisi geri alındı (${coupon.code})`);
+    }
+    const { data: referral } = await this.admin.from("referrals").select("inviter_id").eq("invitee_id", userId).eq("reward_ref", ref).maybeSingle();
+    if (referral) {
+      for (const side of ["invitee", "inviter"] as const) {
+        const { data: g } = await this.admin.from("credit_ledger").select("user_id,delta").eq("idempotency_key", `referral:${userId}:${side}`).maybeSingle();
+        if (g) await take(g.user_id, Number(g.delta), "referral_clawback", `referral-clawback:${userId}:${side}`, "Davet ödülü geri alındı (ödeme iadesi)");
+      }
+      await this.admin.from("referrals").update({ clawed_back_at: new Date().toISOString() }).eq("invitee_id", userId).is("clawed_back_at", null);
+    }
+    await this.admin.from("affiliate_commissions").update({ status: "reversed" }).eq("purchase_ref", ref).eq("status", "pending");
+    const { data: changed } = await this.admin.from("purchase_events").update({ status: "refunded" }).eq("id", ev.id).eq("status", "paid").select("id");
+    return { applied: Boolean(changed?.length) };
+  }
+
+  async createCoupon(p: CouponInput & { adminId: string }) {
+    const { error } = await this.admin.from("coupons").insert({
+      code: p.code,
+      kind: p.kind,
+      value: p.value,
+      package_ids: p.packageIds,
+      starts_at: p.startsAt,
+      expires_at: p.expiresAt,
+      max_redemptions: p.maxRedemptions,
+      per_user_limit: p.perUserLimit,
+      campaign_label: p.campaignLabel,
+      created_by: p.adminId,
+    });
+    if (error) return error.code === "23505" ? ("exists" as const) : ("error" as const);
+    await this.recordAudit({ adminId: p.adminId, action: "coupon_create", targetUserId: null, details: { code: p.code, kind: p.kind, value: p.value } });
+    return "ok" as const;
+  }
+
+  async listCoupons(): Promise<CouponView[]> {
+    const { data } = await this.admin.from("coupons").select("*, coupon_redemptions(status)").order("created_at", { ascending: false }).limit(200);
+    return (data ?? []).map((c) => ({
+      id: c.id,
+      code: c.code,
+      kind: c.kind,
+      value: c.value,
+      packageIds: c.package_ids ?? [],
+      startsAt: c.starts_at,
+      expiresAt: c.expires_at,
+      maxRedemptions: c.max_redemptions,
+      perUserLimit: c.per_user_limit,
+      campaignLabel: c.campaign_label,
+      active: c.active,
+      redeemed: ((c.coupon_redemptions ?? []) as { status: string }[]).filter((r) => r.status === "applied").length,
+      createdAt: c.created_at,
+    }));
+  }
+
+  async setCouponActive(p: { adminId: string; id: string; active: boolean }) {
+    const { data } = await this.admin.from("coupons").update({ active: p.active }).eq("id", p.id).select("code").maybeSingle();
+    if (data) await this.recordAudit({ adminId: p.adminId, action: p.active ? "coupon_activate" : "coupon_deactivate", targetUserId: null, details: { code: data.code } });
+  }
+
+  async listActiveCampaigns(): Promise<ActiveCampaign[]> {
+    const now = Date.now();
+    return (await this.listCoupons())
+      .filter((c) => c.active && c.kind === "bonus_credits" && c.campaignLabel && Date.parse(c.startsAt) <= now && (!c.expiresAt || Date.parse(c.expiresAt) > now) && (c.maxRedemptions === null || c.redeemed < c.maxRedemptions))
+      .map((c) => ({ code: c.code, label: c.campaignLabel!, value: c.value, packageIds: c.packageIds, expiresAt: c.expiresAt }));
+  }
+
+  async adminListCommissions(limit = 200): Promise<AdminCommissionRow[]> {
+    const { data } = await this.admin.from("affiliate_commissions").select("*").order("created_at", { ascending: false }).limit(limit);
+    const rows = data ?? [];
+    const emails = new Map<string, string | null>();
+    for (const id of new Set(rows.map((r) => r.partner_id as string))) emails.set(id, (await this.getUserContact(id))?.email ?? null);
+    return rows.map((c) => ({ id: c.id, partnerId: c.partner_id, partnerEmail: emails.get(c.partner_id) ?? null, amountMinor: c.amount_minor, commissionBp: c.commission_bp, commissionMinor: c.commission_minor, currency: c.currency, status: c.status, isDemo: c.is_demo, createdAt: c.created_at }));
   }
 
   async getUserContact(userId: string) {

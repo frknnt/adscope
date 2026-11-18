@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { afterPurchase } from "@/lib/growth/service";
 import { SECTOR_IDS } from "@/lib/sectors";
 import { regenerateAppeal } from "@/lib/analysis/service";
 import { getCurrentUser, getRepo } from "@/lib/data";
@@ -118,16 +119,18 @@ export async function deleteAccountAction(_prev: ActionState, form: FormData): P
 }
 
 export async function demoPurchaseAction(_prev: ActionState, form: FormData): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
   if (!demoPurchasesAllowed()) return { error: "Demo satın alma bu ortamda kapalı." };
   const pkg = findPackage(String(form.get("packageId") ?? ""));
   if (!pkg) return { error: "Paket bulunamadı." };
   // Each click is its own demo order; the event id makes the ledger write idempotent if the action is replayed.
   const eventId = z.uuid().safeParse(form.get("eventId")).success ? String(form.get("eventId")) : randomUUID();
   const res = await getRepo().applyDemoPurchase(pkg.id, eventId);
+  const growth = await afterPurchase({ provider: "demo", eventId, orderId: eventId, userId: user.id, packageId: pkg.id, amountMinor: pkg.priceMinor, currency: pkg.currency, isDemo: true }).catch(() => null);
   revalidatePath("/panel", "layout");
+  const extra = growth?.couponCredits ? ` Kupon ile ${growth.couponCredits} ek kredi eklendi.` : "";
   return res.applied
-    ? { error: null, ok: `${pkg.credits} demo kredisi eklendi. Gerçek ödeme alınmadı.` }
+    ? { error: null, ok: `${pkg.credits} demo kredisi eklendi.${extra} Gerçek ödeme alınmadı.` }
     : { error: null, ok: "Bu demo satın alma zaten işlenmişti; kredi tekrar eklenmedi." };
 }
 

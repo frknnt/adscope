@@ -3,11 +3,11 @@ import { expect, type Page } from "@playwright/test";
 export const FORBIDDEN = [/kesin onay/i, /hukuken uygundur/i, /reklam reddedilmez/i];
 export const DISCLAIMER = "Risk değerlendirmesidir, hukuki görüş değildir";
 
-export async function signUp(page: Page, email = `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.com`) {
+export async function signUp(page: Page, email = `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.com`, path = "/kayit") {
   // Each new account comes from its own documentation-range address, so the growing suite stays
   // under the per-address sign-up limit (20 per 10 minutes) that protects the real form.
   await page.setExtraHTTPHeaders({ "X-Forwarded-For": `203.0.113.${1 + Math.floor(Math.random() * 254)}` });
-  await page.goto("/kayit");
+  await page.goto(path);
   await page.getByLabel("E-posta", { exact: true }).fill(email);
   await page.getByLabel("Şifre").fill("Test-sifre-123");
   await page.locator("input[name=terms]").check();

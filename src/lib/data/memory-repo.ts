@@ -7,8 +7,19 @@ import type { AnalysisResult, AppealOut, ImageMeta, RuleRecord, VideoMeta } from
 import { RULE_CATALOG, type Sector } from "@/lib/rules/catalog";
 import type { Platform } from "@/lib/platforms";
 import { findPackage } from "@/lib/payments/packages";
+import { COUPON_RESERVATION_MS, commissionOf, emailHash, newCode } from "@/lib/growth/codes";
 import { API_KEY_LIMIT, PERFORMANCE_IMPORT_LIMIT, PIN_LIMIT, TEAM_LIMIT, WATCH_LIMIT } from "./limits";
 import type {
+  ActiveCampaign,
+  AdminCommissionRow,
+  CouponInput,
+  CouponReservation,
+  CouponReserveStatus,
+  CouponView,
+  GrowthPurchase,
+  GrowthResult,
+  InviteOverview,
+  ReferralAttach,
   AdminRepo,
   AiRunRecord,
   AnalysisDetail,
@@ -100,7 +111,7 @@ interface Store {
   ledger: (LedgerEntry & { userId: string; idempotencyKey: string })[];
   audiences?: (Audience & { userId: string })[];
   generations?: (GenerationRecord & { userId: string; clientRequestId: string; expiresAt: string })[];
-  purchases: (PurchaseRecord & { userId: string | null; eventKey: string })[];
+  purchases: (PurchaseRecord & { userId: string | null; eventKey: string; orderId?: string })[];
   consents: { userId: string; type: string; version: string; granted: boolean; createdAt: string }[];
   aiRuns: (AiRunRecord & { userId: string; createdAt: string })[];
   reminderLog?: { userId: string; eventKey: string; sentAt: string }[];
@@ -117,6 +128,14 @@ interface Store {
   perfImports?: (PerformanceImport & { userId: string; rows: PerformanceRow[] })[];
   watches?: (CompetitorWatch & { userId: string; seenIds: string[] })[];
   audit?: AdminAuditEntry[];
+  coupons?: (CouponInput & { id: string; active: boolean; createdBy: string; createdAt: string })[];
+  couponRedemptions?: { id: string; couponId: string; userId: string; packageId: string; status: "reserved" | "applied" | "released"; purchaseRef: string | null; createdAt: string; appliedAt: string | null }[];
+  inviteCodes?: { userId: string; kind: "invite" | "partner"; code: string; commissionBp: number | null; createdAt: string }[];
+  referrals?: { inviteeId: string; inviterId: string; kind: "invite" | "partner"; rewardedAt: string | null; rewardRef: string | null; clawedBackAt: string | null; createdAt: string }[];
+  emailClaims?: string[];
+  welcomeLog?: { userId: string; step: number; sentAt: string }[];
+  welcomeOptOut?: string[];
+  commissions?: (AdminCommissionRow & { inviteeId: string | null; purchaseRef: string })[];
 }
 
 type StoredBrand = Store["brands"][number];
@@ -304,7 +323,7 @@ export class MemoryRepo implements DataRepo {
     );
     persist();
     await this.setSession(user.id);
-    return { ok: true };
+    return { ok: true, userId: user.id };
   }
 
   /** Test hook: re-running the bonus grant must not add credits twice. */
@@ -1145,6 +1164,7 @@ export class MemoryAdminRepo implements AdminRepo {
         id: randomUUID(),
         userId: p.userId,
         eventKey,
+        orderId: p.orderId,
         provider: p.provider,
         packageId: p.packageId,
         credits: p.credits,
@@ -1214,7 +1234,7 @@ export class MemoryAdminRepo implements AdminRepo {
     return store()
       .purchases.slice(-limit)
       .reverse()
-      .map(({ eventKey, userId, ...p }) => ({ ...p, userId, eventId: eventKey }));
+      .map(({ eventKey, userId, orderId: _o, ...p }) => ({ ...p, userId, eventId: eventKey }));
   }
 
   async adminFeedbackStats(): Promise<AdminFeedbackRow[]> {
@@ -1268,6 +1288,265 @@ export class MemoryAdminRepo implements AdminRepo {
     w.lastSummary = structuredClone(r.summary);
     w.lastCheckedAt = new Date().toISOString();
     persist();
+  }
+
+  // Welcome series (P5.4) -----------------------------------------------------------------------
+  async listWelcomeRecipients(sinceIso: string) {
+    const s = store();
+    const since = Date.parse(sinceIso);
+    return s.users
+      .filter((u) => Date.parse(u.createdAt) >= since && !(s.welcomeOptOut ?? []).includes(u.id))
+      .map((u) => ({ userId: u.id, email: u.email, displayName: s.profiles[u.id]?.displayName ?? null, sector: s.profiles[u.id]?.defaultSector ?? null, createdAt: u.createdAt, marketing: latestMarketing(u.id), balance: balanceOf(u.id) }));
+  }
+
+  async claimWelcomeEmail(userId: string, step: number) {
+    const s = store();
+    s.welcomeLog ??= [];
+    if (s.welcomeLog.some((r) => r.userId === userId && r.step === step)) return false;
+    s.welcomeLog.push({ userId, step, sentAt: new Date().toISOString() });
+    persist();
+    return true;
+  }
+
+  async releaseWelcomeEmail(userId: string, step: number) {
+    const s = store();
+    s.welcomeLog = (s.welcomeLog ?? []).filter((r) => !(r.userId === userId && r.step === step));
+    persist();
+  }
+
+  async unsubscribeEmails(userId: string) {
+    const s = store();
+    if (!s.users.some((u) => u.id === userId)) return;
+    s.welcomeOptOut ??= [];
+    if (!s.welcomeOptOut.includes(userId)) s.welcomeOptOut.push(userId);
+    if (s.profiles[userId]) s.profiles[userId].seasonReminders = false;
+    s.consents.push({ userId, type: "marketing_email", version: "e-posta-tercihleri", granted: false, createdAt: new Date().toISOString() });
+    persist();
+  }
+
+  // Growth (P5.1, P5.2) -----------------------------------------------------------------------
+  async ensureInviteCode(userId: string) {
+    return withLock(`invite:${userId}`, () => {
+      const s = store();
+      s.inviteCodes ??= [];
+      const found = s.inviteCodes.find((c) => c.userId === userId && c.kind === "invite");
+      if (found) return found.code;
+      let code = newCode("AD");
+      while (s.inviteCodes.some((c) => c.code === code)) code = newCode("AD");
+      s.inviteCodes.push({ userId, kind: "invite", code, commissionBp: null, createdAt: new Date().toISOString() });
+      persist();
+      return code;
+    });
+  }
+
+  async getInviteOverview(userId: string): Promise<InviteOverview> {
+    const inviteCode = await this.ensureInviteCode(userId);
+    const s = store();
+    const partner = (s.inviteCodes ?? []).find((c) => c.userId === userId && c.kind === "partner");
+    const mine = (s.referrals ?? []).filter((r) => r.inviterId === userId);
+    const earned = s.ledger.filter((l) => l.userId === userId && (l.reason === "referral_bonus" || l.reason === "referral_clawback")).reduce((n, l) => n + l.delta, 0);
+    const commissions = (s.commissions ?? []).filter((c) => c.partnerId === userId).slice(-100).reverse();
+    return {
+      inviteCode,
+      partner: partner ? { code: partner.code, commissionBp: partner.commissionBp ?? 0 } : null,
+      invited: mine.length,
+      rewarded: mine.filter((r) => r.rewardedAt && !r.clawedBackAt).length,
+      earnedCredits: earned,
+      pendingCommissionMinor: commissions.filter((c) => c.status === "pending" && !c.isDemo).reduce((n, c) => n + c.commissionMinor, 0),
+      commissions: commissions.map(({ partnerId: _p, partnerEmail: _e, inviteeId: _i, purchaseRef: _r, ...c }) => c),
+    };
+  }
+
+  async attachReferral(p: { inviteeId: string; inviteeEmail: string; code: string }): Promise<ReferralAttach> {
+    return withLock("referrals", () => {
+      const s = store();
+      const code = (s.inviteCodes ?? []).find((c) => c.code === p.code.toUpperCase());
+      if (!code) return "invalid";
+      if (code.userId === p.inviteeId) return "self";
+      const inviter = s.users.find((u) => u.id === code.userId);
+      const hash = emailHash(p.inviteeEmail);
+      if (inviter && emailHash(inviter.email) === hash) return "self";
+      s.referrals ??= [];
+      if (s.referrals.some((r) => r.inviteeId === p.inviteeId)) return "exists";
+      s.emailClaims ??= [];
+      if (s.emailClaims.includes(hash)) return "repeat";
+      s.emailClaims.push(hash);
+      s.referrals.push({ inviteeId: p.inviteeId, inviterId: code.userId, kind: code.kind, rewardedAt: null, rewardRef: null, clawedBackAt: null, createdAt: new Date().toISOString() });
+      persist();
+      return "ok";
+    });
+  }
+
+  async grantPartnerCode(p: { adminId: string; userId: string; commissionBp: number }) {
+    const s = store();
+    if (!s.users.some((u) => u.id === p.userId)) return null;
+    s.inviteCodes ??= [];
+    let row = s.inviteCodes.find((c) => c.userId === p.userId && c.kind === "partner");
+    if (row) row.commissionBp = p.commissionBp;
+    else {
+      let code = newCode("ORT");
+      while (s.inviteCodes.some((c) => c.code === code)) code = newCode("ORT");
+      row = { userId: p.userId, kind: "partner", code, commissionBp: p.commissionBp, createdAt: new Date().toISOString() };
+      s.inviteCodes.push(row);
+    }
+    persist();
+    await this.recordAudit({ adminId: p.adminId, action: "partner_code", targetUserId: p.userId, details: { commissionBp: p.commissionBp } });
+    return row.code;
+  }
+
+  async reserveCoupon(p: { code: string; userId: string; packageId: string }): Promise<CouponReserveStatus> {
+    const code = p.code.trim().toUpperCase();
+    // One lock per coupon stands in for SELECT ... FOR UPDATE on the coupon row.
+    return withLock(`coupon:${code}`, () => {
+      const s = store();
+      const c = (s.coupons ?? []).find((x) => x.code === code);
+      const now = Date.now();
+      if (!c || !c.active || Date.parse(c.startsAt) > now || (c.expiresAt && Date.parse(c.expiresAt) <= now)) return "invalid";
+      if (c.packageIds.length && !c.packageIds.includes(p.packageId)) return "wrong_package";
+      if (c.kind !== "bonus_credits") return "unsupported";
+      s.couponRedemptions ??= [];
+      const live = (r: NonNullable<Store["couponRedemptions"]>[number]) => r.status === "applied" || (r.status === "reserved" && now - Date.parse(r.createdAt) < COUPON_RESERVATION_MS);
+      for (const r of s.couponRedemptions) if (r.couponId === c.id && r.userId === p.userId && r.status === "reserved" && !live(r)) r.status = "released";
+      const open = s.couponRedemptions.find((r) => r.couponId === c.id && r.userId === p.userId && r.status === "reserved");
+      if (open) {
+        open.packageId = p.packageId;
+        open.createdAt = new Date().toISOString();
+        persist();
+        return "ok";
+      }
+      if (s.couponRedemptions.filter((r) => r.couponId === c.id && r.userId === p.userId && live(r)).length >= c.perUserLimit) return "used";
+      if (c.maxRedemptions !== null && s.couponRedemptions.filter((r) => r.couponId === c.id && live(r)).length >= c.maxRedemptions) return "exhausted";
+      s.couponRedemptions.push({ id: randomUUID(), couponId: c.id, userId: p.userId, packageId: p.packageId, status: "reserved", purchaseRef: null, createdAt: new Date().toISOString(), appliedAt: null });
+      persist();
+      return "ok";
+    });
+  }
+
+  async getCouponReservation(userId: string): Promise<CouponReservation | null> {
+    const s = store();
+    const now = Date.now();
+    const r = (s.couponRedemptions ?? []).filter((x) => x.userId === userId && x.status === "reserved" && now - Date.parse(x.createdAt) < COUPON_RESERVATION_MS).at(-1);
+    const c = r && (s.coupons ?? []).find((x) => x.id === r.couponId);
+    return r && c ? { code: c.code, packageId: r.packageId, value: c.value, createdAt: r.createdAt } : null;
+  }
+
+  async releaseCouponReservation(userId: string) {
+    for (const r of store().couponRedemptions ?? []) if (r.userId === userId && r.status === "reserved") r.status = "released";
+    persist();
+  }
+
+  async applyGrowthAfterPurchase(p: GrowthPurchase): Promise<GrowthResult> {
+    return withLock(`growth:${p.userId}`, () => {
+      const s = store();
+      const now = new Date().toISOString();
+      const out: GrowthResult = { couponCredits: 0, referralRewarded: false, commissionRecorded: false };
+      // Coupon: the newest open reservation for this package becomes "applied" with this purchase.
+      s.couponRedemptions ??= [];
+      let red = s.couponRedemptions.find((r) => r.purchaseRef === p.purchaseRef);
+      if (!red) {
+        red = s.couponRedemptions.filter((r) => r.userId === p.userId && r.status === "reserved" && r.packageId === p.packageId && Date.now() - Date.parse(r.createdAt) < COUPON_RESERVATION_MS).at(-1);
+        if (red) Object.assign(red, { status: "applied", purchaseRef: p.purchaseRef, appliedAt: now });
+      }
+      const coupon = red && (s.coupons ?? []).find((c) => c.id === red.couponId);
+      if (red && coupon?.kind === "bonus_credits") {
+        insertLedger({ userId: p.userId, delta: coupon.value, reason: "coupon_bonus", note: `Kupon ek kredisi (${coupon.code})`, analysisId: null, idempotencyKey: `coupon:${red.id}` });
+        out.couponCredits = coupon.value;
+      }
+      // Referral: only the invitee's first purchase is rewarded, once.
+      const ref = (s.referrals ?? []).find((r) => r.inviteeId === p.userId);
+      if (ref && !ref.rewardedAt && !ref.clawedBackAt) Object.assign(ref, { rewardedAt: now, rewardRef: p.purchaseRef });
+      if (ref && ref.rewardRef === p.purchaseRef && p.referralBonus > 0) {
+        insertLedger({ userId: p.userId, delta: p.referralBonus, reason: "referral_bonus", note: "Davet ödülü: ilk satın alma", analysisId: null, idempotencyKey: `referral:${p.userId}:invitee` });
+        if (ref.kind === "invite") insertLedger({ userId: ref.inviterId, delta: p.referralBonus, reason: "referral_bonus", note: "Davet ödülü: davet ettiğin kişi ilk satın almasını yaptı", analysisId: null, idempotencyKey: `referral:${p.userId}:inviter` });
+        out.referralRewarded = true;
+      }
+      // Partner: a commission record for every purchase of a referred user (paid by hand).
+      const partner = ref?.kind === "partner" ? (s.inviteCodes ?? []).find((c) => c.userId === ref.inviterId && c.kind === "partner") : undefined;
+      if (ref && partner?.commissionBp) {
+        s.commissions ??= [];
+        if (!s.commissions.some((c) => c.purchaseRef === p.purchaseRef)) {
+          const partnerEmail = s.users.find((u) => u.id === ref.inviterId)?.email ?? null;
+          s.commissions.push({ id: randomUUID(), partnerId: ref.inviterId, partnerEmail, inviteeId: p.userId, purchaseRef: p.purchaseRef, amountMinor: p.amountMinor, commissionBp: partner.commissionBp, commissionMinor: commissionOf(p.amountMinor, partner.commissionBp), currency: p.currency, status: "pending", isDemo: p.isDemo, createdAt: now });
+        }
+        out.commissionRecorded = true;
+      }
+      persist();
+      return out;
+    });
+  }
+
+  async applyRefund(p: { provider: string; orderId: string }) {
+    const s = store();
+    const purchase = s.purchases.find((x) => x.provider === p.provider && (x.orderId === p.orderId || x.eventKey === `${p.provider}:${p.orderId}`));
+    if (!purchase?.userId) return { applied: false };
+    const userId = purchase.userId;
+    return withLock(userId, () => {
+      const ref = `${p.provider}:${p.orderId}`;
+      // Never below zero: credits already spent are not taken back.
+      const take = (uid: string, amount: number, reason: "refund" | "referral_clawback", key: string, note: string) => {
+        const n = Math.min(amount, balanceOf(uid));
+        return n > 0 ? insertLedger({ userId: uid, delta: -n, reason, note, analysisId: null, idempotencyKey: key }) : false;
+      };
+      let applied = false;
+      if (purchase.status === "paid") {
+        applied = take(userId, purchase.credits, "refund", `refund:${ref}`, "Ödeme iadesi") || applied;
+        purchase.status = "refunded";
+        applied = true;
+      }
+      const red = (s.couponRedemptions ?? []).find((r) => r.purchaseRef === ref);
+      const coupon = red && (s.coupons ?? []).find((c) => c.id === red.couponId);
+      if (red && coupon?.kind === "bonus_credits" && s.ledger.some((l) => l.idempotencyKey === `coupon:${red.id}`)) take(userId, coupon.value, "refund", `coupon-refund:${red.id}`, `Kupon ek kredisi geri alındı (${coupon.code})`);
+      const referral = (s.referrals ?? []).find((r) => r.inviteeId === userId && r.rewardRef === ref);
+      if (referral && !referral.clawedBackAt) {
+        referral.clawedBackAt = new Date().toISOString();
+        for (const side of ["invitee", "inviter"] as const) {
+          const grant = s.ledger.find((l) => l.idempotencyKey === `referral:${userId}:${side}`);
+          if (grant) take(grant.userId, grant.delta, "referral_clawback", `referral-clawback:${userId}:${side}`, "Davet ödülü geri alındı (ödeme iadesi)");
+        }
+      }
+      for (const c of s.commissions ?? []) if (c.purchaseRef === ref && c.status === "pending") c.status = "reversed";
+      persist();
+      return { applied };
+    });
+  }
+
+  async createCoupon(p: CouponInput & { adminId: string }) {
+    const s = store();
+    s.coupons ??= [];
+    if (s.coupons.some((c) => c.code === p.code)) return "exists" as const;
+    const { adminId, ...input } = p;
+    s.coupons.push({ ...input, id: randomUUID(), active: true, createdBy: adminId, createdAt: new Date().toISOString() });
+    persist();
+    await this.recordAudit({ adminId, action: "coupon_create", targetUserId: null, details: { code: p.code, kind: p.kind, value: p.value } });
+    return "ok" as const;
+  }
+
+  async listCoupons(): Promise<CouponView[]> {
+    const s = store();
+    return (s.coupons ?? [])
+      .slice()
+      .reverse()
+      .map(({ createdBy: _c, ...c }) => ({ ...c, redeemed: (s.couponRedemptions ?? []).filter((r) => r.couponId === c.id && r.status === "applied").length }));
+  }
+
+  async setCouponActive(p: { adminId: string; id: string; active: boolean }) {
+    const c = (store().coupons ?? []).find((x) => x.id === p.id);
+    if (!c) return;
+    c.active = p.active;
+    persist();
+    await this.recordAudit({ adminId: p.adminId, action: p.active ? "coupon_activate" : "coupon_deactivate", targetUserId: null, details: { code: c.code } });
+  }
+
+  async listActiveCampaigns(): Promise<ActiveCampaign[]> {
+    const now = Date.now();
+    const list = await this.listCoupons();
+    return list
+      .filter((c) => c.active && c.kind === "bonus_credits" && c.campaignLabel && Date.parse(c.startsAt) <= now && (!c.expiresAt || Date.parse(c.expiresAt) > now) && (c.maxRedemptions === null || c.redeemed < c.maxRedemptions))
+      .map((c) => ({ code: c.code, label: c.campaignLabel!, value: c.value, packageIds: c.packageIds, expiresAt: c.expiresAt }));
+  }
+
+  async adminListCommissions(limit = 200): Promise<AdminCommissionRow[]> {
+    return (store().commissions ?? []).slice(-limit).reverse().map(({ inviteeId: _i, purchaseRef: _r, ...c }) => c);
   }
 
   async getUserContact(userId: string) {

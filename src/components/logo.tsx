@@ -4,7 +4,7 @@ import Link from "next/link";
 export function Logo({ href = "/", tone = "ink" }: { href?: string; tone?: "ink" | "paper" }) {
   const color = tone === "ink" ? "text-ink" : "text-paper";
   return (
-    <Link href={href} className={`inline-flex items-center gap-2 ${color} no-underline`} aria-label="AdScope ana sayfa">
+    <Link href={href} className={`inline-flex min-h-11 items-center gap-2 ${color} no-underline`} aria-label="AdScope ana sayfa">
       <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden>
         <circle cx="14" cy="14" r="10" fill="none" stroke="currentColor" strokeWidth="2.5" />
         <path d="M21.5 21.5 28 28" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />

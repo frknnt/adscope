@@ -90,7 +90,7 @@ function EventCard({ e, today, open, sector }: { e: SeasonEvent; today: Date; op
           </ol>
 
           <details className="group mt-4 rounded-xl bg-paper/70 px-4 py-3" open={open}>
-            <summary className="cursor-pointer text-body font-semibold">Öneriler ve uyum hatırlatmaları</summary>
+            <summary className="cursor-pointer py-3 text-body font-semibold">Öneriler ve uyum hatırlatmaları</summary>
             <div className="mt-3 grid gap-5 md:grid-cols-2">
               <div>
                 <h4 className="text-meta font-bold uppercase tracking-wide text-muted">Kreatif önerileri</h4>
@@ -110,7 +110,7 @@ function EventCard({ e, today, open, sector }: { e: SeasonEvent; today: Date; op
                             const rule = RULES.get(id);
                             return rule ? (
                               <span key={id} className="inline-flex items-center gap-1.5">
-                                <Link href={`/kurallar#${id}`} className="font-semibold text-ink tabular">{id}</Link>
+                                <Link href={`/kurallar#${id}`} className="inline-flex min-h-11 items-center font-semibold text-ink tabular">{id}</Link>
                                 <RuleStatusPill status={rule.status} />
                               </span>
                             ) : null;
@@ -125,11 +125,11 @@ function EventCard({ e, today, open, sector }: { e: SeasonEvent; today: Date; op
           </details>
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
             {templates.map((t) => (
-              <Link key={t.id} href={`/panel/yeni?sablon=${t.id}`} className="inline-flex items-center gap-1.5 text-body font-semibold text-coral-deep">
+              <Link key={t.id} href={`/panel/yeni?sablon=${t.id}`} className="inline-flex min-h-11 items-center gap-1.5 text-body font-semibold text-coral-deep">
                 <IconPlus className="size-4" /> Şablonla başla: {t.title}
               </Link>
             ))}
-            <Link href="/panel/yeni" className={`inline-flex items-center gap-1.5 text-body font-semibold ${templates.length ? "text-ink-soft" : "text-coral-deep"}`}>
+            <Link href="/panel/yeni" className={`inline-flex min-h-11 items-center gap-1.5 text-body font-semibold ${templates.length ? "text-ink-soft" : "text-coral-deep"}`}>
               {templates.length ? null : <IconPlus className="size-4" />} {templates.length ? "Kendi metninle kontrol et" : "Bu dönemin reklamını kontrol et"}
             </Link>
           </div>
@@ -166,7 +166,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
             Önümüzdeki 12 ayın özel gün ve kampanya dönemleri. Her dönem için ne zaman hazırlanman, reklamı ne zaman incelemeye göndermen gerektiği ve dönemin sık rastlanan uyum riskleri.
           </p>
         </div>
-        <a href={`/panel/takvim/ics${sector ? `?sektor=${sector}` : ""}`} className={buttonClass("ghost", "h-10")} download>
+        <a href={`/panel/takvim/ics${sector ? `?sektor=${sector}` : ""}`} className={buttonClass("ghost", "h-11")} download>
           <IconCalendar className="size-[18px]" /> Takvimime ekle (.ics)
         </a>
       </div>
@@ -177,7 +177,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           <span className="font-semibold">Sezon hatırlatma e-postaları {profile?.seasonReminders ? "açık" : "kapalı"}.</span>{" "}
           <span className="text-ink-soft">{profile?.seasonReminders ? "Hazırlık zamanı gelen her dönem için bir e-posta alırsın." : "Hazırlık zamanı geldiğinde e-postayla haber verelim mi?"}</span>
         </p>
-        <button type="submit" className={buttonClass(profile?.seasonReminders ? "ghost" : "primary", "h-10")}>
+        <button type="submit" className={buttonClass(profile?.seasonReminders ? "ghost" : "primary", "h-11")}>
           {profile?.seasonReminders ? "Hatırlatmaları kapat" : "Hatırlatmaları aç"}
         </button>
       </form>
@@ -188,7 +188,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
             key={f.href}
             href={f.href}
             aria-current={f.active ? "page" : undefined}
-            className={`rounded-full px-3.5 py-1.5 text-small font-semibold no-underline ${f.active ? "bg-ink text-paper" : "border border-line-strong text-ink-soft hover:bg-paper-2 hover:text-ink"}`}
+            className={`inline-flex min-h-11 items-center rounded-full px-4 text-small font-semibold no-underline ${f.active ? "bg-ink text-paper" : "border border-line-strong text-ink-soft hover:bg-paper-2 hover:text-ink"}`}
           >
             {f.label}
           </Link>
@@ -211,13 +211,13 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                 const list = months.get(key) ?? [];
                 return (
                   <li key={key} className="rounded-xl bg-paper-2 px-2 py-2.5">
-                    <a href={list.length ? `#ay-${key}` : undefined} className="block text-center text-fine font-bold capitalize text-ink-soft no-underline">
+                    <a href={list.length ? `#ay-${key}` : undefined} data-target-exempt="equivalent" className="block text-center text-fine font-bold capitalize text-ink-soft no-underline">
                       {fmt(`${key}-01`, { month: "short" })}
                     </a>
                     <ul className="mt-2 flex min-h-5 flex-wrap justify-center gap-1">
                       {list.map((e) => (
                         <li key={e.key}>
-                          <a href={`#${e.key}`} title={`${e.name} · ${fmt(e.start, { day: "numeric", month: "long" })}`} className={`block size-3 rounded-full ${phaseOf(e, today) === "yayinda" ? "bg-coral" : "bg-blue"}`}>
+                          <a href={`#${e.key}`} data-target-exempt="equivalent" title={`${e.name} · ${fmt(e.start, { day: "numeric", month: "long" })}`} className={`block size-3 rounded-full ${phaseOf(e, today) === "yayinda" ? "bg-coral" : "bg-blue"}`}>
                             <span className="sr-only">
                               {e.name}, {fmt(e.start, { day: "numeric", month: "long" })}
                               {phaseOf(e, today) === "yayinda" ? ", şu an reklam döneminde" : ""}

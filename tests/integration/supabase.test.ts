@@ -489,9 +489,71 @@ describe.skipIf(!reachable)("Supabase: agency mode, feedback, review links, API 
 describe.skipIf(!reachable)("Supabase: client role privileges", () => {
   it("client roles have no blanket privileges on newer tables", async () => {
     const anon = createClient(URL_, PUB, opts);
-    for (const t of ["team_members", "team_invites", "finding_feedback", "review_shares", "newsletter_log", "api_keys", "inspiration_pins", "season_reminder_log", "generations", "audiences", "performance_imports", "performance_rows", "competitor_watches", "admin_audit_log"]) {
+    for (const t of ["team_members", "team_invites", "finding_feedback", "review_shares", "newsletter_log", "api_keys", "inspiration_pins", "season_reminder_log", "generations", "audiences", "performance_imports", "performance_rows", "competitor_watches", "admin_audit_log", "coupons", "coupon_redemptions", "invite_codes", "referrals", "referral_email_claims", "affiliate_commissions", "welcome_email_log"]) {
       const r = await anon.from(t).select("*").limit(1);
       expect(r.error?.code, t).toBe("42501");
     }
+  });
+});
+
+describe.skipIf(!reachable)("Supabase: invites, coupons, commissions", () => {
+  it("owners read their own growth rows only; clients cannot write them or call reserve_coupon", async () => {
+    const owner = await newUser();
+    const stranger = await newUser();
+    const code = `IT-${randomUUID().slice(0, 8).toUpperCase()}`;
+    expect((await admin().from("invite_codes").insert({ user_id: owner.id, kind: "invite", code })).error).toBeNull();
+    expect((await owner.client.from("invite_codes").select("code")).data?.map((r) => r.code)).toEqual([code]);
+    expect((await stranger.client.from("invite_codes").select("code").eq("user_id", owner.id)).data ?? []).toHaveLength(0);
+    expect((await stranger.client.from("invite_codes").insert({ user_id: stranger.id, kind: "partner", code: "IT-KENDIM1", commission_bp: 5000 })).error).not.toBeNull();
+    expect((await stranger.client.from("referrals").insert({ invitee_id: stranger.id, inviter_id: owner.id, kind: "invite" })).error).not.toBeNull();
+    expect((await stranger.client.from("coupons").select("id").limit(1)).error?.code).toBe("42501");
+    expect((await stranger.client.from("referral_email_claims").select("email_hash").limit(1)).error?.code).toBe("42501");
+    expect((await stranger.client.rpc("reserve_coupon", { p_code: "X", p_user_id: stranger.id, p_package_id: "baslangic" })).error).not.toBeNull();
+    expect((await stranger.client.from("credit_ledger").insert({ user_id: stranger.id, delta: 5, reason: "referral_bonus", idempotency_key: `x:${randomUUID()}` })).error).not.toBeNull();
+    // Commission rows: the partner reads them, but not the invitee id column.
+    await admin().from("affiliate_commissions").insert({ partner_id: owner.id, invitee_id: stranger.id, purchase_ref: `it:${randomUUID()}`, amount_minor: 1000, commission_bp: 2000, commission_minor: 200 });
+    expect((await owner.client.from("affiliate_commissions").select("commission_minor")).data?.[0]?.commission_minor).toBe(200);
+    expect((await owner.client.from("affiliate_commissions").select("invitee_id")).error).not.toBeNull();
+    expect((await stranger.client.from("affiliate_commissions").select("id")).data ?? []).toHaveLength(0);
+  });
+
+  it("welcome e-mail log: owner reads own rows, only the server writes; the opt-out column is the user's", async () => {
+    const owner = await newUser();
+    const stranger = await newUser();
+    expect((await admin().from("welcome_email_log").insert({ user_id: owner.id, step: 0 })).error).toBeNull();
+    expect((await admin().from("welcome_email_log").insert({ user_id: owner.id, step: 0 })).error?.code).toBe("23505");
+    expect((await admin().from("welcome_email_log").insert({ user_id: owner.id, step: 2 })).error).not.toBeNull();
+    expect((await owner.client.from("welcome_email_log").select("step")).data).toEqual([{ step: 0 }]);
+    expect((await stranger.client.from("welcome_email_log").select("step").eq("user_id", owner.id)).data ?? []).toHaveLength(0);
+    expect((await owner.client.from("welcome_email_log").insert({ user_id: owner.id, step: 1 })).error).not.toBeNull();
+    expect((await owner.client.from("profiles").update({ welcome_emails: false }, { count: "exact" }).eq("id", owner.id)).count).toBe(1);
+    expect((await stranger.client.from("profiles").update({ welcome_emails: false }, { count: "exact" }).eq("id", owner.id)).count ?? 0).toBe(0);
+  });
+
+  it("concurrency: reserve_coupon holds the total limit under parallel calls", async () => {
+    const creator = await newUser();
+    const code = `IT${randomUUID().slice(0, 8).toUpperCase()}`;
+    expect((await admin().from("coupons").insert({ code, kind: "bonus_credits", value: 2, max_redemptions: 3, created_by: creator.id })).error).toBeNull();
+    const users = await Promise.all(Array.from({ length: 8 }, () => newUser()));
+    const res = await Promise.all(users.map((u) => admin().rpc("reserve_coupon", { p_code: code, p_user_id: u.id, p_package_id: "baslangic" })));
+    const statuses = res.map((r) => (r.data as { status: string }[])[0]?.status);
+    expect(statuses.filter((s) => s === "ok")).toHaveLength(3);
+    expect(statuses.filter((s) => s === "exhausted")).toHaveLength(5);
+  });
+
+  it("concurrency: only one purchase claims the first-purchase referral reward", async () => {
+    const inviter = await newUser();
+    const invitee = await newUser();
+    await admin().from("referrals").insert({ invitee_id: invitee.id, inviter_id: inviter.id, kind: "invite" });
+    const claims = await Promise.all(["a", "b", "c", "d"].map((o) =>
+      admin().from("referrals").update({ rewarded_at: new Date().toISOString(), reward_ref: `it:${o}` }).eq("invitee_id", invitee.id).is("rewarded_at", null).select("invitee_id"),
+    ));
+    expect(claims.filter((c) => (c.data ?? []).length === 1)).toHaveLength(1);
+    expect((await invitee.client.from("referrals").select("inviter_id")).data?.[0]?.inviter_id).toBe(inviter.id);
+    // The same e-mail can be claimed once.
+    const hash = "a".repeat(63) + "b";
+    await admin().from("referral_email_claims").delete().eq("email_hash", hash);
+    expect((await admin().from("referral_email_claims").insert({ email_hash: hash })).error).toBeNull();
+    expect((await admin().from("referral_email_claims").insert({ email_hash: hash })).error?.code).toBe("23505");
   });
 });

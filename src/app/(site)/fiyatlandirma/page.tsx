@@ -1,10 +1,25 @@
 import type { Metadata } from "next";
 import { ButtonLink, Disclaimer } from "@/components/ui";
+import { getAdminRepo } from "@/lib/data";
+import type { ActiveCampaign } from "@/lib/data/types";
 import { CREDIT_PACKAGES, formatTry } from "@/lib/payments/packages";
 
 export const metadata: Metadata = { title: "Fiyatlandırma · AdScope" };
+// The campaign strip must disappear the moment a coupon expires or is used up.
+export const dynamic = "force-dynamic";
 
-export default function PricingPage() {
+const dayFmt = new Intl.DateTimeFormat("tr-TR", { dateStyle: "long", timeZone: "Europe/Istanbul" });
+
+async function activeCampaigns(): Promise<ActiveCampaign[]> {
+  try {
+    return (await getAdminRepo().listActiveCampaigns()).slice(0, 2);
+  } catch {
+    return [];
+  }
+}
+
+export default async function PricingPage() {
+  const campaigns = await activeCampaigns();
   const plans = [
     { name: "Ücretsiz", price: "0 ₺", credits: 3, note: "Kayıtta bir kez, kart bilgisi gerekmez.", cta: { href: "/kayit", label: "Ücretsiz başla" }, featured: false },
     ...CREDIT_PACKAGES.map((p) => ({
@@ -18,6 +33,15 @@ export default function PricingPage() {
   ];
   return (
     <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
+      {campaigns.map((c) => (
+        <aside key={c.code} aria-label="Aktif kampanya" className="mb-8 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-coral bg-coral-tint px-5 py-4 text-body text-ink">
+          <strong className="font-bold">{c.label}</strong>
+          <span>
+            Krediler sayfasında <strong className="font-mono">{c.code}</strong> kodunu girersen{c.packageIds.length ? ` ${c.packageIds.map((id) => CREDIT_PACKAGES.find((p) => p.id === id)?.name ?? id).join(" ve ")} paketinde` : ""} <strong className="tabular">+{c.value}</strong> ek kredi alırsın.
+            {c.expiresAt ? ` Son gün: ${dayFmt.format(new Date(c.expiresAt))}.` : ""}
+          </span>
+        </aside>
+      ))}
       <h1 className="max-w-3xl font-display text-4xl font-semibold leading-tight sm:text-[3.4rem]">Analiz başına öde. Abonelik yok.</h1>
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-ink-soft">
         Görsel analizi 1 kredi, video/Reels analizi 2 kredidir. Kredi yalnızca rapor başarıyla tamamlandığında düşer; analiz yarıda kalırsa krediniz yerinde kalır.

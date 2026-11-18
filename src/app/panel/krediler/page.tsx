@@ -1,12 +1,14 @@
 import { formatDateTimeTr } from "@/components/rule-status";
 import { Button, DataTable } from "@/components/ui";
-import { getRepo } from "@/lib/data";
+import { getAdminRepo, getRepo } from "@/lib/data";
 import { requirePanelUser } from "@/app/panel/guard";
 import { demoPurchasesAllowed } from "@/lib/env";
 import { getPaymentProviders } from "@/lib/payments";
 import { CREDIT_PACKAGES, formatTry } from "@/lib/payments/packages";
 import { startCheckoutAction } from "../actions";
 import { PackageGrid } from "./checkout";
+import { releaseCouponAction } from "./coupon-actions";
+import { CouponForm } from "./coupon-form";
 
 export const metadata = { title: "Krediler" };
 
@@ -16,12 +18,13 @@ const ODEME_MSG: Record<string, string> = {
   hata: "Onayın kaydedilemedi, ödeme başlatılmadı. Lütfen tekrar dene.",
 };
 
-const REASON = { signup_bonus: "Kayıt hediyesi", analysis: "Analiz", purchase: "Satın alma", refund: "İade", admin_adjustment: "Düzeltme", generation: "Üretim" } as const;
+const REASON = { signup_bonus: "Kayıt hediyesi", analysis: "Analiz", purchase: "Satın alma", refund: "İade", admin_adjustment: "Düzeltme", generation: "Üretim", coupon_bonus: "Kupon", referral_bonus: "Davet ödülü", referral_clawback: "Davet ödülü iadesi" } as const;
 
 export default async function CreditsPage({ searchParams }: { searchParams: Promise<{ odeme?: string }> }) {
-  await requirePanelUser();
+  const user = await requirePanelUser();
   const repo = getRepo();
-  const [balance, ledger, purchases, sp] = await Promise.all([repo.getBalance(), repo.listLedger(), repo.listPurchases(), searchParams]);
+  const [balance, ledger, purchases, sp, reservation] = await Promise.all([repo.getBalance(), repo.listLedger(), repo.listPurchases(), searchParams, getAdminRepo().getCouponReservation(user.id)]);
+  const reservedPkg = reservation ? CREDIT_PACKAGES.find((p) => p.id === reservation.packageId) : null;
   const providers = getPaymentProviders().filter((p) => p.isConfigured());
   const demo = demoPurchasesAllowed();
 
@@ -50,6 +53,21 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
             {demo ? " Bu demo ortamında, akışı denemek için ücretsiz demo kredisi ekleyebilirsin; gerçek ödeme alınmaz." : ""}
           </p>
         ) : null}
+        <div className="mt-4 rounded-2xl border border-line bg-card p-5">
+          <h3 className="text-body font-bold">Kupon kodun var mı?</h3>
+          <p className="mt-1 text-small text-ink-soft">Kupon, seçtiğin paketi aldığında hesabına ek kredi olarak eklenir. Ödeme tutarı değişmez.</p>
+          {reservation ? (
+            <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-green-tint px-4 py-3 text-small text-ink">
+              <span>
+                <strong>{reservation.code}</strong> ayrıldı: {reservedPkg?.name ?? reservation.packageId} paketini aldığında <strong className="tabular">+{reservation.value}</strong> kredi.
+              </span>
+              <form action={releaseCouponAction}>
+                <button type="submit" className="min-h-11 rounded-lg px-2 font-semibold text-blue hover:underline">Kuponu kaldır</button>
+              </form>
+            </div>
+          ) : null}
+          <div className="mt-4"><CouponForm packages={CREDIT_PACKAGES.map((p) => ({ id: p.id, name: p.name }))} /></div>
+        </div>
         <PackageGrid packages={CREDIT_PACKAGES} providers={providers.map((pr) => ({ id: pr.id, label: pr.label }))} demo={demo} action={startCheckoutAction} />
       </section>
 
