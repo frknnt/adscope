@@ -1,15 +1,56 @@
 import { requirePanelUser } from "@/app/panel/guard";
 import { formatDateTimeTr } from "@/components/rule-status";
-import { getRepo } from "@/lib/data";
+import { getAdminRepo, getRepo } from "@/lib/data";
 import { siteUrl } from "@/lib/env";
 import { revokeApiKeyAction } from "../agency-actions";
-import { ApiKeyForm } from "../agency-forms";
+import { ApiKeyForm, WebhookForm } from "../agency-forms";
+import { deleteWebhookAction } from "./webhook-actions";
+
+const VERIFY_EXAMPLE = `// Node.js: gelen webhook'u doğrula
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+function verify(secret, rawBody, header) {
+  const { t, v1 } = Object.fromEntries(header.split(",").map((p) => p.split("=")));
+  if (Math.abs(Date.now() / 1000 - Number(t)) > 300) return false;
+  const want = createHmac("sha256", secret).update(\`\${t}.\${rawBody}\`).digest();
+  return timingSafeEqual(want, Buffer.from(v1, "hex"));
+}`;
+
+function UsageChart({ rows }: { rows: { day: string; count: number }[] }) {
+  const max = Math.max(1, ...rows.map((r) => r.count));
+  const total = rows.reduce((n, r) => n + r.count, 0);
+  const label = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("tr-TR", { day: "numeric", month: "short" });
+  return (
+    <figure className="mt-5">
+      <figcaption className="text-body text-ink-soft">
+        Son 14 günde <span className="font-semibold text-ink tabular">{total.toLocaleString("tr-TR")}</span> istek
+      </figcaption>
+      <div aria-hidden className="mt-3 flex h-28 items-end gap-1 border-b border-line">
+        {rows.map((r) => (
+          <div key={r.day} className="flex h-full flex-1 flex-col justify-end" title={`${label(r.day)}: ${r.count}`}>
+            <div className="rounded-t-[3px] bg-blue" style={{ height: r.count ? `${Math.max(4, (r.count / max) * 100)}%` : "0" }} />
+          </div>
+        ))}
+      </div>
+      <div aria-hidden className="mt-1 flex justify-between text-fine text-muted tabular">
+        <span>{label(rows[0].day)}</span>
+        <span>{label(rows[rows.length - 1].day)}</span>
+      </div>
+      <table className="sr-only">
+        <caption>Günlük API isteği</caption>
+        <thead><tr><th scope="col">Gün</th><th scope="col">İstek</th></tr></thead>
+        <tbody>{rows.map((r) => <tr key={r.day}><td>{label(r.day)}</td><td>{r.count}</td></tr>)}</tbody>
+      </table>
+    </figure>
+  );
+}
 
 export const metadata = { title: "API" };
 
 export default async function ApiPage() {
-  await requirePanelUser();
-  const keys = await getRepo().listApiKeys();
+  const user = await requirePanelUser();
+  const admin = getAdminRepo();
+  const [keys, hooks, usage] = await Promise.all([getRepo().listApiKeys(), admin.listWebhooks(user.id), admin.getApiUsage(user.id, 14)]);
   const base = siteUrl();
   const example = `curl -X POST ${base}/api/v1/analyses \\
   -H "Authorization: Bearer ads_live_…" \\
@@ -47,7 +88,7 @@ export default async function ApiPage() {
                 {!k.revokedAt ? (
                   <form action={revokeApiKeyAction}>
                     <input type="hidden" name="id" value={k.id} />
-                    <button type="submit" className="font-semibold text-coral-deep">İptal et</button>
+                    <button type="submit" className="inline-flex min-h-11 items-center font-semibold text-coral-deep">İptal et</button>
                   </form>
                 ) : null}
               </li>
@@ -56,8 +97,53 @@ export default async function ApiPage() {
         ) : null}
       </section>
 
+      <section aria-labelledby="istekler" className="mt-8 rounded-2xl border border-line bg-card p-5 sm:p-7">
+        <h2 id="istekler" className="font-display text-2xl font-semibold">İstek sayısı</h2>
+        <UsageChart rows={usage} />
+      </section>
+
+      <section aria-labelledby="webhooklar" className="mt-8 rounded-2xl border border-line bg-card p-5 sm:p-7">
+        <h2 id="webhooklar" className="font-display text-2xl font-semibold">Webhook</h2>
+        <p className="mt-1 max-w-2xl text-body text-muted">
+          Bir analiz tamamlandığında bu adrese <code>analysis.completed</code> olayı gönderilir. Olayda reklam metni yoktur; raporu analiz kimliğiyle API&apos;den çekersin.
+          2xx dışındaki yanıtlar beş kez yeniden denenir.
+        </p>
+        <div className="mt-5"><WebhookForm /></div>
+        {hooks.length ? (
+          <ul className="mt-6 grid gap-2 text-body">
+            {hooks.map((h) => (
+              <li key={h.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line px-4 py-2.5">
+                <span className="min-w-0">
+                  <code className="break-all text-meta">{h.url}</code>
+                  <span className="block text-meta text-muted">
+                    Eklendi {formatDateTimeTr(h.createdAt)} · {h.lastDeliveryAt ? `son gönderim ${formatDateTimeTr(h.lastDeliveryAt)} (${h.lastStatus})` : "henüz gönderim yok"}
+                  </span>
+                </span>
+                <form action={deleteWebhookAction}>
+                  <input type="hidden" name="id" value={h.id} />
+                  <button type="submit" className="inline-flex min-h-11 items-center font-semibold text-coral-deep">Sil</button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <details className="mt-5 rounded-xl border border-line">
+          <summary className="cursor-pointer px-4 py-3 font-semibold">İmzayı doğrulama</summary>
+          <div className="px-4 pb-4">
+            <p className="text-small text-ink-soft">
+              Her istekte <code>X-AdScope-Signature: t=…,v1=…</code> başlığı bulunur. <code>v1</code>, zaman damgası ve ham gövdenin <code>t.gövde</code> biçiminde HMAC-SHA256 özetidir.
+              Beş dakikadan eski damgaları reddet.
+            </p>
+            <pre tabIndex={0} aria-label="Doğrulama örneği" className="mt-3 overflow-x-auto rounded-xl bg-ink p-4 text-meta leading-relaxed text-paper"><code>{VERIFY_EXAMPLE}</code></pre>
+          </div>
+        </details>
+      </section>
+
       <section aria-labelledby="kullanim" className="mt-8 rounded-2xl border border-line bg-card p-5 sm:p-7">
         <h2 id="kullanim" className="font-display text-2xl font-semibold">Kullanım</h2>
+        <p className="mt-1 text-body text-ink-soft">
+          Tüm alanlar ve yanıtlar <a href="/api/v1/openapi.json" className="inline-flex min-h-11 items-center font-semibold">OpenAPI 3.1 belgesinde</a> tanımlı; Postman, Insomnia ya da kod üreticilere doğrudan verebilirsin.
+        </p>
         <dl className="mt-4 grid gap-3 text-body sm:grid-cols-[14rem_1fr]">
           <dt className="font-semibold"><code>POST /api/v1/analyses</code></dt>
           <dd className="text-ink-soft">Görsel + metin analizi. Yanıt 201 ve rapor. Aynı <code>client_request_id</code> ile tekrar gönderirsen yeni kredi düşmez, aynı rapor döner.</dd>

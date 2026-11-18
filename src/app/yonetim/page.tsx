@@ -11,7 +11,7 @@ export default async function AdminHome() {
   await requireAdmin();
   const repo = getAdminRepo();
   const since = new Date(daysAgo(7)).toISOString();
-  const [stats, users, purchases] = await Promise.all([repo.adminErrorStats(since), repo.adminListUsers(), repo.adminListPurchases(200)]);
+  const [stats, users, purchases, funnel] = await Promise.all([repo.adminErrorStats(since), repo.adminListUsers(), repo.adminListPurchases(200), repo.adminFunnel(new Date(daysAgo(30)).toISOString())]);
   const paid = purchases.filter((p) => p.status === "paid" && !p.isDemo && p.createdAt >= since);
   return (
     <div className="grid gap-8">
@@ -35,6 +35,24 @@ export default async function AdminHome() {
           </div>
         ))}
       </dl>
+      <section aria-labelledby="huni">
+        <h2 id="huni" className="text-lg font-bold">Dönüşüm hunisi (son 30 günde açılan hesaplar)</h2>
+        <ol className="mt-3 grid gap-3 sm:grid-cols-3">
+          {[
+            ["Hesap açtı", funnel.signups, null],
+            ["İlk analizini tamamladı", funnel.firstAnalysis, pct(funnel.firstAnalysis, funnel.signups)],
+            ["İlk satın almayı yaptı", funnel.firstPurchase, pct(funnel.firstPurchase, funnel.signups)],
+          ].map(([k, v, p]) => (
+            <li key={String(k)} className="rounded-2xl border border-line bg-card p-4">
+              <p className="text-meta font-semibold text-muted">{k}</p>
+              <p className="mt-1 text-2xl font-bold tabular">{v}{p ? <span className="ml-2 text-body font-semibold text-ink-soft">{p}</span> : null}</p>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-2 text-small text-ink-soft">
+          Sayılar mevcut tablolardan hesaplanır; kişi bazında iz tutulmaz. Kuyrukta bekleyen iş: <span className="font-semibold tabular">{funnel.queuedJobs}</span>, son 30 günde başarısız iş: <span className="font-semibold tabular">{funnel.failedJobs}</span>.
+        </p>
+      </section>
       <section aria-labelledby="hatalar">
         <h2 id="hatalar" className="text-lg font-bold">Başarısız analizler (hata koduna göre)</h2>
         {Object.keys(stats.analyses.byCode).length ? (

@@ -6,7 +6,9 @@ import type { AppealOut, RuleRecord, VideoMeta } from "@/lib/engine/types";
 import type { RuleCardDef, Sector } from "@/lib/rules/catalog";
 import { findPackage } from "@/lib/payments/packages";
 import { COUPON_RESERVATION_MS, commissionOf, emailHash, newCode } from "@/lib/growth/codes";
-import { API_KEY_LIMIT, PERFORMANCE_IMPORT_LIMIT, PIN_LIMIT, TEAM_LIMIT, WATCH_LIMIT, WATCH_SEEN_CAP } from "./limits";
+import { API_KEY_LIMIT, PERFORMANCE_IMPORT_LIMIT, PIN_LIMIT, TEAM_LIMIT, WATCH_LIMIT, WATCH_SEEN_CAP, WEBHOOK_LIMIT } from "./limits";
+import { rateLimit } from "@/lib/security/rate-limit";
+import { lastDays } from "./days";
 import type {
   LedgerEntry,
   ActiveCampaign,
@@ -36,6 +38,11 @@ import type {
   InspirationPinInput,
   AdminAuditEntry,
   AdminErrorStats,
+  AdminFunnel,
+  JobFinish,
+  JobInput,
+  JobRecord,
+  WebhookView,
   AdminFeedbackRow,
   AdminPurchaseRow,
   AdminUserRow,
@@ -1716,8 +1723,121 @@ export class SupabaseAdminRepo implements AdminRepo {
     if (!k) return null;
     const { data } = await this.admin.auth.admin.getUserById(k.user_id);
     if (!data?.user) return null;
-    await this.admin.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", k.id);
+    await Promise.all([
+      this.admin.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", k.id),
+      this.admin.rpc("api_usage_hit", { p_key_id: k.id, p_user_id: k.user_id }),
+    ]);
     return { id: k.user_id as string, email: data.user.email ?? "" };
+  }
+
+  async rateLimitHit(key: string, limit: number, windowSec: number) {
+    const { data, error } = await this.admin.rpc("rate_limit_hit", { p_key: key.slice(0, 120), p_limit: limit, p_window_seconds: windowSec });
+    const row = Array.isArray(data) ? data[0] : data;
+    // If the database is unreachable, fall back to the per-instance limiter instead of failing open.
+    if (error || !row) return rateLimit(`fallback:${key}`, limit, windowSec * 1000);
+    return { ok: Boolean(row.allowed), retryAfterSec: Number(row.retry_after) || 0 };
+  }
+
+  async purgeScaleTables() {
+    const day = new Date(Date.now() - 86400_000).toISOString();
+    const month = new Date(Date.now() - 30 * 86400_000).toISOString();
+    await Promise.all([
+      this.admin.from("rate_limit_buckets").delete().lt("window_start", day),
+      this.admin.from("jobs").delete().in("status", ["succeeded", "failed"]).lt("finished_at", month),
+    ]);
+  }
+
+  async enqueueJob(j: JobInput) {
+    const { data, error } = await this.admin
+      .from("jobs")
+      .insert({ user_id: j.userId, kind: j.kind, payload: j.payload, dedupe_key: j.dedupeKey ?? null, max_attempts: j.maxAttempts ?? 5 })
+      .select("id")
+      .single();
+    if (error) {
+      if (error.code !== "23505") console.error("[jobs] enqueue_failed");
+      return null;
+    }
+    return data.id as string;
+  }
+
+  async claimJobs(limit: number, lockSec: number): Promise<JobRecord[]> {
+    const { data, error } = await this.admin.rpc("claim_jobs", { p_limit: limit, p_lock_seconds: lockSec });
+    if (error) {
+      console.error("[jobs] claim_failed");
+      return [];
+    }
+    return ((data ?? []) as { id: string; user_id: string | null; kind: JobRecord["kind"]; attempts: number; max_attempts: number; payload: Record<string, unknown> }[]).map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      kind: r.kind,
+      attempts: r.attempts,
+      maxAttempts: r.max_attempts,
+      payload: r.payload ?? {},
+    }));
+  }
+
+  async finishJob(id: string, r: JobFinish) {
+    const now = new Date().toISOString();
+    const patch = r.ok
+      ? { status: "succeeded", result: r.result ?? null, locked_until: null, finished_at: now, progress: 100 }
+      : r.retryAt
+        ? { status: "queued", run_after: r.retryAt, locked_until: null, last_error: r.error.slice(0, 120) }
+        : { status: "failed", locked_until: null, last_error: r.error.slice(0, 120), finished_at: now };
+    const { error } = await this.admin.from("jobs").update(patch).eq("id", id);
+    if (error) console.error("[jobs] finish_failed");
+  }
+
+  async listWebhooks(userId: string): Promise<WebhookView[]> {
+    const { data } = await this.admin.from("api_webhooks").select("id,url,active,last_status,last_delivery_at,created_at").eq("user_id", userId).order("created_at");
+    return (data ?? []).map((w) => ({ id: w.id, url: w.url, active: w.active, lastStatus: w.last_status, lastDeliveryAt: w.last_delivery_at, createdAt: w.created_at }));
+  }
+
+  async createWebhook(userId: string, url: string, secret: string) {
+    const { count } = await this.admin.from("api_webhooks").select("id", { count: "exact", head: true }).eq("user_id", userId);
+    if ((count ?? 0) >= WEBHOOK_LIMIT) return "limit" as const;
+    const { error } = await this.admin.from("api_webhooks").insert({ user_id: userId, url, secret });
+    return error ? ("error" as const) : ("ok" as const);
+  }
+
+  async deleteWebhook(userId: string, id: string) {
+    const { data } = await this.admin.from("api_webhooks").delete().eq("user_id", userId).eq("id", id).select("id");
+    return (data ?? []).length > 0;
+  }
+
+  async getWebhookTarget(userId: string, id: string) {
+    const { data } = await this.admin.from("api_webhooks").select("id,url,secret,active").eq("user_id", userId).eq("id", id).maybeSingle();
+    return data ? { id: data.id as string, url: data.url as string, secret: data.secret as string, active: Boolean(data.active) } : null;
+  }
+
+  async recordWebhookDelivery(id: string, status: string) {
+    await this.admin.from("api_webhooks").update({ last_status: status.slice(0, 40), last_delivery_at: new Date().toISOString() }).eq("id", id);
+  }
+
+  async getApiUsage(userId: string, days: number) {
+    const range = lastDays(days);
+    const { data } = await this.admin.from("api_usage").select("day,count").eq("user_id", userId).gte("day", range[0]);
+    return range.map((day) => ({ day, count: (data ?? []).filter((r) => r.day === day).reduce((n, r) => n + (r.count as number), 0) }));
+  }
+
+  async adminFunnel(sinceIso: string): Promise<AdminFunnel> {
+    const { data: users } = await this.admin.from("profiles").select("id").gte("created_at", sinceIso).limit(50_000);
+    const ids = (users ?? []).map((u) => u.id as string);
+    const analyzed = new Set<string>();
+    const bought = new Set<string>();
+    for (let i = 0; i < ids.length; i += 300) {
+      const chunk = ids.slice(i, i + 300);
+      const [{ data: an }, { data: pu }] = await Promise.all([
+        this.admin.from("analyses").select("user_id").eq("status", "completed").in("user_id", chunk).limit(50_000),
+        this.admin.from("purchase_events").select("user_id").in("user_id", chunk).limit(50_000),
+      ]);
+      for (const a of an ?? []) analyzed.add(a.user_id as string);
+      for (const p of pu ?? []) bought.add(p.user_id as string);
+    }
+    const [{ count: queued }, { count: failed }] = await Promise.all([
+      this.admin.from("jobs").select("id", { count: "exact", head: true }).in("status", ["queued", "running"]),
+      this.admin.from("jobs").select("id", { count: "exact", head: true }).eq("status", "failed").gte("created_at", sinceIso),
+    ]);
+    return { signups: ids.length, firstAnalysis: analyzed.size, firstPurchase: bought.size, queuedJobs: queued ?? 0, failedJobs: failed ?? 0 };
   }
 
   repoForUser(user: SessionUser): DataRepo {

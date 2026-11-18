@@ -72,7 +72,7 @@ export function validateLandingUrl(raw: string): URL | null {
 
 type Raw = { status: number; headers: http.IncomingHttpHeaders; body: Buffer | null; error?: LandingSnapshot["status"] };
 
-function guardedLookup(hostname: string, options: object, cb: (err: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void) {
+export function guardedLookup(hostname: string, options: object, cb: (err: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void) {
   dnsLookup(hostname, { ...(options as object), all: true }, (err, addresses) => {
     if (err) return cb(err, "", 4);
     const list = (addresses as LookupAddress[]) ?? [];

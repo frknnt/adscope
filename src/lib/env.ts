@@ -69,3 +69,11 @@ export function demoSessionSecret() {
 export function siteIndexable() {
   return process.env.SITE_INDEXABLE === "true" && appMode() === "production";
 }
+
+/** Optional privacy-friendly analytics (public pages only, after consent). Both values are public. */
+export function analyticsConfig(): { scriptUrl: string; domain: string } | null {
+  const scriptUrl = process.env.ANALYTICS_SCRIPT_URL ?? "";
+  const domain = process.env.ANALYTICS_DOMAIN ?? "";
+  if (!/^https:\/\/[^\s"']+$/.test(scriptUrl) || !/^[a-z0-9.-]+$/i.test(domain)) return null;
+  return { scriptUrl, domain };
+}

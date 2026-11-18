@@ -7,7 +7,8 @@ import { runPipeline } from "@/lib/engine/pipeline";
 import type { Level } from "@/lib/engine/types";
 import { PLATFORM_IDS, type Platform } from "@/lib/platforms";
 import { SECTOR_IDS } from "@/lib/sectors";
-import { clientIp, hashKey, rateLimit } from "@/lib/security/rate-limit";
+import { clientIp, hashKey } from "@/lib/security/rate-limit";
+import { limit } from "@/lib/security/limiter";
 
 export interface QuickFinding {
   severity: "red" | "yellow" | "info";
@@ -51,8 +52,8 @@ export async function quickCheckAction(_prev: QuickCheckState, form: FormData): 
   const parsed = schema.safeParse(Object.fromEntries(form));
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? "Formu kontrol et." };
   const ip = clientIp(await headers());
-  const limit = rateLimit(`quick:${await hashKey("quick", ip)}`, 10, 10 * 60_000);
-  if (!limit.ok) return { status: "error", message: `Kısa sürede çok fazla kontrol yaptın. ${Math.ceil(limit.retryAfterSec / 60)} dakika sonra tekrar dene ya da ücretsiz hesap aç.` };
+  const lim = await limit(`quick:${await hashKey("quick", ip)}`, 10, 10 * 60_000);
+  if (!lim.ok) return { status: "error", message: `Kısa sürede çok fazla kontrol yaptın. ${Math.ceil(lim.retryAfterSec / 60)} dakika sonra tekrar dene ya da ücretsiz hesap aç.` };
 
   const d = parsed.data;
   try {

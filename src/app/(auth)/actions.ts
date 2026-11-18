@@ -6,7 +6,8 @@ import { z } from "zod";
 import { getRepo } from "@/lib/data";
 import { LEGAL_VERSIONS } from "@/lib/legal";
 import { attachInvite } from "@/lib/growth/service";
-import { clientIp, hashKey, rateLimit } from "@/lib/security/rate-limit";
+import { clientIp, hashKey } from "@/lib/security/rate-limit";
+import { limit } from "@/lib/security/limiter";
 
 export type AuthFormState = { error: string | null; info?: string | null; email?: string };
 
@@ -24,8 +25,7 @@ async function limited(scope: string, email: string) {
   const h = await headers();
   const ipKey = await hashKey(scope, clientIp(h));
   const emailKey = await hashKey(scope, email);
-  const a = rateLimit(ipKey, 20, 10 * 60_000);
-  const b = rateLimit(emailKey, 8, 10 * 60_000);
+  const [a, b] = await Promise.all([limit(ipKey, 20, 10 * 60_000), limit(emailKey, 8, 10 * 60_000)]);
   return !a.ok || !b.ok;
 }
 

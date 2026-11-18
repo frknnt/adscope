@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getAdminRepo } from "@/lib/data";
 import type { AnalysisDetail, DataRepo, SessionUser } from "@/lib/data/types";
 import { hashToken } from "@/lib/security/tokens";
-import { rateLimit } from "@/lib/security/rate-limit";
+import { limit } from "@/lib/security/limiter";
 
 export const API_DISCLAIMER = "Risk değerlendirmesidir, hukuki görüş değildir.";
 
@@ -21,7 +21,7 @@ export async function authenticate(req: Request): Promise<{ user: SessionUser; r
   const m = /^Bearer\s+(ads_live_[A-Za-z0-9_-]{30,80})$/.exec(header.trim());
   if (!m) return apiError(401, "unauthorized", "Geçerli bir API anahtarı gönderin (Authorization: Bearer …).");
   const hash = hashToken(m[1]);
-  const limited = rateLimit(`api:${hash.slice(0, 24)}`, 30, 60_000);
+  const limited = await limit(`api:${hash.slice(0, 24)}`, 30, 60_000);
   if (!limited.ok) return apiError(429, "rate_limited", "Dakikada en fazla 30 istek.", { "Retry-After": String(limited.retryAfterSec) });
   const admin = getAdminRepo();
   const user = await admin.resolveApiKey(hash);

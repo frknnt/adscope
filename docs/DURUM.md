@@ -27,8 +27,13 @@
 | WhatsApp / DM şablonu | **Gerçek, deterministik.** Kural motorundan tekrar geçer; marka yasaklı kelimeleri çıkarılır. |
 | Ajans modu (markalar, ekip, avukat bağlantısı, logolu PDF) | **Gerçek.** Yerel Supabase'te RLS ve yetki testleri, tarayıcıda uçtan uca test edildi. Davet e-postası Resend tanımlıysa gider; yoksa bağlantı ekranda bir kez gösterilir. |
 | Uyarı geri bildirimi | **Gerçek.** Kural sürümüyle birlikte saklanır. Geri bildirimleri okuyacak bir yönetim ekranı yok; veritabanından sorgulanır. |
-| Ücretsiz kontrol sayfası | **Gerçek.** Kural motoru, yapay zekâ yok, saklama yok. Hız sınırı bellek içidir (tek sunucu). |
-| Kurumsal API | **Gerçek.** Anahtar özeti veritabanında; anahtar başına dakikada 30 istek (bellek içi). OpenAPI belgesi yok, `/panel/api` sayfasında örnek var. |
+| Ücretsiz kontrol sayfası | **Gerçek.** Kural motoru, yapay zekâ yok, saklama yok. Hız sınırı veritabanında, tüm sunucularda ortaktır. |
+| Kurumsal API | **Gerçek.** Anahtar özeti veritabanında; anahtar başına dakikada 30 istek (veritabanında paylaşılan sayaç). OpenAPI 3.1 belgesi `/api/v1/openapi.json`, günlük kullanım grafiği `/panel/api`. |
+| Müşteri webhook'ları | **Gerçek, gerçek bir alıcıyla denenmedi.** `analysis.completed` olayı HMAC-SHA256 imzayla, iş kuyruğundan gönderilir; birim testte sahte gönderici, uçtan uca testte yönetim ekranı doğrulandı. |
+| İş kuyruğu ve paylaşılan hız sınırı | **Gerçek, şema yerel Postgres 16'da doğrulandı.** `claim_jobs` ve `rate_limit_hit` fonksiyonları denendi; yerel Supabase (Docker) bu ortamda yok, entegrasyon testleri yazıldı ama burada çalıştırılamadı. |
+| Hata izleme (Sentry) | **Adaptör hazır, hesap yok.** `SENTRY_DSN` tanımlanınca temizlenmiş olay gönderilir; SDK kullanılmaz. Gerçek Sentry projesiyle denenmedi. |
+| Anonim ziyaret istatistiği | **Kapalı, sağlayıcı seçilmedi.** `ANALYTICS_SCRIPT_URL` ve `ANALYTICS_DOMAIN` tanımlanınca yalnızca herkese açık sayfalarda, onaydan sonra yüklenir. |
+| Kurulabilir uygulama (PWA) | **Gerçek.** Manifest, ikonlar, service worker (yalnızca derleme dosyalarını önbelleğe alır), çevrimdışı sayfa, telefondan paylaşma. Gerçek iOS ve Android cihazda denenmedi; adımlar aşağıda. |
 | Aylık mevzuat bülteni | **Adaptör hazır, hesap yok.** İçerik katalogdaki `lastVerifiedAt` tarihlerinden üretilir; Resend ve zamanlayıcı kurulmadı. |
 | Meta Reklam Kütüphanesi ilham panosu | **Adaptör hazır, anahtar yok.** Sahte Graph API sunucusuyla birim ve uçtan uca test edildi; gerçek API ile denenmedi. Ticari reklamlar API'de yalnızca AB için açık. |
 | Tarayıcı eklentisi | **Gerçek, mağazada değil.** Geliştirici modunda yüklenir; Chrome Web Mağazası hesabı gerekir. Yardımcı işlevleri birim testli; eklentinin kendisi tarayıcıda otomatik test edilmedi. |
@@ -169,7 +174,21 @@ Faz 6 kapanışı (P6.2, P6.4, P6.5, 18.11.2026):
 - Erişilebilirlik ve mobil denetimi: `tests/e2e/responsive.spec.ts` 360, 768 ve 1280 px genişlikte 10 herkese açık sayfa ve 16 panel sayfasını gezer; yana kaydırma ve 44 px'ten küçük dokunma hedefi (onay kutuları 20 px; metin içindeki bağlantılar ve sezon çizelgesindeki noktalar WCAG 2.5.8 istisnasıyla hariç) olursa düşer. Bulunan ve düzeltilenler: `/panel/uret` sekmeleri 360 px'te 24 px taşıyordu; rehber sayfasında uzun kural kimlikleri 30 px taşıyordu; panel menüsü, üst çubuk, duyuru şeridi, site menüsü, sekmeler, takvim süzgeçleri, onay kutuları ve açılır bölümler 44 px'e çıktı. Hareket azaltma tercihinde ana sayfada hiçbir animasyon çalışmadığı da test ediliyor.
 - Lighthouse (mobil, demo modu, production derlemesi): ana sayfa performans 97, erişilebilirlik 100, en iyi uygulamalar 100; fiyatlandırma 100/100/100; rehber 94/100/100; bütçe hesaplayıcı 100/100/100. SEO puanı 63–66, çünkü site bilerek `noindex` (`SITE_INDEXABLE` kapalı). Not: yerel Supabase adresiyle derlenip veritabanı çalışmazken ölçülürse sayfalar 7 saniye bekler ve puan düşer; ölçüm demo modunda yapılmalı.
 
+Faz 7 (P7.1–P7.4, 18.11.2026):
+
+- Hız sınırı: giriş/kayıt, ücretsiz kontrol, kupon, analiz ve kurumsal API artık `rate_limit_hit` ile veritabanında tek sayaç kullanır (sabit pencere, anahtarlar özet). Veritabanına ulaşılamazsa sunucu içi sınıra düşer. Üretim araçları gibi az kullanılan uçlarda sunucu içi sınır kaldı.
+- İş kuyruğu: `jobs` tablosu ve `claim_jobs` (`for update skip locked`, kilit süresi dolunca iş yeniden alınır). `/api/cron/jobs` 5 dakikada bir çalışır; yeni iş, isteği oluşturan yanıt gönderildikten hemen sonra (`after()`) bir kez denenir. Yeniden deneme: 1 dk, 5 dk, 30 dk, 2 sa, 6 sa; en fazla 5 deneme. Video kareleri, kreatif ve toplu kontrol bilerek tarayıcıda ya da istek içinde kaldı; kuyruk yalnızca isteği aşması gereken işi (webhook teslimi) taşır.
+- Kurumsal API: istek şeması `src/lib/api/schemas.ts`'te; OpenAPI belgesi aynı Zod şemalarından üretilir. Webhook adresi yalnızca herkese açık https (443) olabilir, en fazla 3 adres. Gönderimde her DNS yanıtı özel/yerel ağ aralıklarına karşı bağlantı anında denetlenir, yönlendirme izlenmez, 5 sn zaman aşımı. İmza anahtarı yalnızca oluşturulurken gösterilir; istemci rolü bu sütunu okuyamaz. Olayda reklam metni yoktur.
+- İzleme: `src/instrumentation.ts` sunucu hatalarını `SENTRY_DSN` varsa Sentry'ye yollar. E-posta, telefon, TC kimlik numarası olabilecek 11 haneli sayılar, anahtarlar, JWT, UUID, IP, URL ve uzun tırnaklı metin ayıklanır; yalnızca rota şablonu gider.
+- Analitik ve huni: çerez onayı yalnızca analitik tanımlıysa görünür, "Yalnızca gerekli" ve "İzin ver" eşit ağırlıkta. Yönetim özetinde son 30 günde açılan hesaplardan ilk analize ve ilk satın almaya geçiş oranı mevcut tablolardan hesaplanır; kişi bazında iz tutulmaz.
+- PWA test adımları (gerçek cihaz, production derlemesi, https):
+  1. Android Chrome: siteyi aç, menüden "Uygulamayı yükle". Ana ekrandan açınca `/panel` açılmalı. Galeride bir reklam görselini "Paylaş > AdScope" ile gönder; "Yeni analiz" sihirbazı görsel yüklenmiş olarak açılmalı ve "Telefonundan paylaştığın içerik aktarıldı" notu görünmeli. Uçak modunda bir sayfayı yenile; çevrimdışı sayfası gelmeli.
+  2. iOS Safari: Paylaş > "Ana Ekrana Ekle". iOS paylaşım hedefini (share target) desteklemediği için AdScope paylaşım listesinde görünmez; uygulama ana ekrandan açılmalı ve ikon lacivert zeminde görünmeli.
+  3. Her iki cihazda: panelde çıkış yapıp geri tuşuna basınca rapor önbellekten gelmemeli (HTML önbelleğe alınmaz).
+
 ## Bitti
+
+18.11.2026 (4): Faz 7. Veritabanında paylaşılan hız sınırı, iş kuyruğu, OpenAPI belgesi, imzalı webhook'lar, API kullanım grafiği, temizlenmiş hata izleme, çerez onayı, dönüşüm hunisi, kurulabilir uygulama ve telefondan paylaşma. Birim 212/212.
 
 18.11.2026 (3): Faz 6 kapanışı. Landing'de canlı kontrol ve sektör seçici, raporda tek cümlelik sonuç, PDF'te aynı hiyerarşi, 360/768/1280 denetimi ve düzeltmeleri, Lighthouse ölçümü.
 
@@ -197,4 +216,4 @@ Kapsam dışı (ürün kararı, 17.11.2026):
 
 Yapılmayan PDF maddesi: **Reklam Kurulu ilke kararları** kural tabanına eklenmedi; resmî karar metinleri okunmadan kart yazmak uydurma kaynak riski taşıyor. Ajans paketi şimdilik tek seferlik kredi paketidir; aylık otomatik yenileme ödeme sağlayıcısı (Shopier) bağlanınca eklenecek.
 
-Diğer: şifre sıfırlama ekranı, uyarı geri bildirimleri için yönetim görünümü, API için OpenAPI belgesi.
+Diğer: şifre sıfırlama ekranı, uyarı geri bildirimleri için yönetim görünümü, webhook için "test olayı gönder" düğmesi.

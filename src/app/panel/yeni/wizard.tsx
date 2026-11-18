@@ -160,6 +160,45 @@ export function AnalysisWizard({
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }, [initial?.templateTitle]);
 
+  // Shared from the phone's share sheet (installed app): the service worker kept the item in a local
+  // cache on this device only. It is read once and deleted; nothing was sent to the server.
+  const [fromShare, setFromShare] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("paylasim") !== "1" || !("caches" in window)) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const cache = await caches.open("adscope-share");
+        const metaRes = await cache.match("/__share/meta");
+        const fileRes = await cache.match("/__share/file");
+        await Promise.all([cache.delete("/__share/meta"), cache.delete("/__share/file")]);
+        if (!metaRes || cancelled) return;
+        const meta = (await metaRes.json()) as { title?: string; text?: string; url?: string; at?: number; file?: { name: string; type: string } | null };
+        if (typeof meta.at !== "number" || Date.now() - meta.at > 15 * 60_000) return;
+        const clean = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").trim().slice(0, max) : "");
+        const text = clean(meta.text, 2200);
+        const title = clean(meta.title, 255);
+        const url = clean(meta.url, 2048) || (/^https?:\/\/\S+$/i.test(text) ? text : "");
+        if (text && text !== url) setPrimaryText(text);
+        if (title) setHeadline(title);
+        if (/^https?:\/\//i.test(url)) setLandingUrl(url);
+        if (fileRes && meta.file && /^(image|video)\//.test(meta.file.type)) {
+          const blob = await fileRes.blob();
+          acceptAny(new File([blob], meta.file.name || "paylasim", { type: meta.file.type }));
+        }
+        setFromShare(true);
+      } catch {
+        /* nothing to restore */
+      } finally {
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time read on mount
+  }, []);
+
   // Text-only draft in this browser (files are never stored). Offered back once on the next visit.
   const [draft, setDraft] = useState<{
     headline: string;
@@ -463,6 +502,11 @@ export function AnalysisWizard({
 
   return (
     <div className="mt-8">
+      {fromShare ? (
+        <p role="status" className="mb-6 max-w-3xl rounded-xl bg-info-tint px-4 py-3 text-body text-info">
+          Telefonundan paylaştığın içerik aktarıldı. Göndermeden önce metni ve görseli kontrol et.
+        </p>
+      ) : null}
       {fromLink ? (
         <p className="mb-6 max-w-3xl rounded-xl bg-info-tint px-4 py-3 text-body text-info">
           Metin başka bir sayfadan aktarıldı (üretici, ilham panosu veya tarayıcı eklentisi). Göndermeden önce kontrol et; görseli ilk adımda sen ekleyeceksin.

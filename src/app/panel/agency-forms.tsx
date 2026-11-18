@@ -9,6 +9,7 @@ import type { ActionState } from "./actions";
 import { createApiKeyAction, createReviewShareAction, findingFeedbackAction, inviteMemberAction, saveBrandAction, sendReportEmailAction, suggestBrandFromSiteAction, type SiteSuggestionState } from "./agency-actions";
 import { BRAND_FONTS, contrastNote, normalizeHex } from "@/lib/brand/kit";
 import { ActionMessage, CopyButton } from "./forms";
+import { createWebhookAction } from "./api/webhook-actions";
 
 const initial: ActionState = { error: null };
 
@@ -309,6 +310,29 @@ export function ApiKeyForm() {
       <Dialog open={!!state.link && seen !== state.link} onClose={() => setSeen(state.link ?? null)} title="Yeni API anahtarın" wide>
         <p>Anahtarı şimdi kopyala ve güvenli bir yerde sakla. Bu pencere kapandıktan sonra bir daha gösterilmez; kaybedersen iptal edip yenisini oluştur.</p>
         {state.link ? <div className="mt-4 text-ink"><OneTimeSecret value={state.link} label="API anahtarı (bir daha gösterilmez)" /></div> : null}
+        <div className="mt-4 flex justify-end">
+          <Button type="button" variant="primary" onClick={() => setSeen(state.link ?? null)}>Kopyaladım, kapat</Button>
+        </div>
+      </Dialog>
+    </form>
+  );
+}
+
+export function WebhookForm() {
+  const [state, action, pending] = useActionState(createWebhookAction, initial);
+  const [seen, setSeen] = useState<string | null>(null);
+  return (
+    <form action={action} className="grid gap-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Webhook adresi" htmlFor="webhook-url" hint="https:// ile başlayan, herkese açık bir adres" className="min-w-[16rem] flex-1">
+          <input id="webhook-url" name="url" type="url" required maxLength={500} inputMode="url" placeholder="https://ornek.com/adscope" className={inputClass} />
+        </Field>
+        <Button type="submit" variant="ghost" disabled={pending}>{pending ? "Ekleniyor…" : "Webhook ekle"}</Button>
+      </div>
+      <ActionMessage state={state} />
+      <Dialog open={!!state.link && seen !== state.link} onClose={() => setSeen(state.link ?? null)} title="Webhook imza anahtarı" wide>
+        <p>Gelen isteklerin AdScope&apos;tan geldiğini bu anahtarla doğrularsın. Pencere kapandıktan sonra bir daha gösterilmez; kaybedersen webhook&apos;u silip yeniden ekle.</p>
+        {state.link ? <div className="mt-4 text-ink"><OneTimeSecret value={state.link} label="İmza anahtarı (bir daha gösterilmez)" /></div> : null}
         <div className="mt-4 flex justify-end">
           <Button type="button" variant="primary" onClick={() => setSeen(state.link ?? null)}>Kopyaladım, kapat</Button>
         </div>

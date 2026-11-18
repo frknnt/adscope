@@ -3,7 +3,8 @@ import { AnalysisFormSchema, runAnalysisRequest, type MediaUpload } from "@/lib/
 import { MAX_VIDEO_FRAMES } from "@/lib/engine/video";
 import { getCurrentUser } from "@/lib/data";
 import { MAX_AUDIO_BYTES } from "@/lib/security/audio-validation";
-import { rateLimit } from "@/lib/security/rate-limit";
+import { limit } from "@/lib/security/limiter";
+import { afterAnalysisCompleted } from "@/lib/jobs/runner";
 
 export const maxDuration = 120;
 
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
   if (!user) return json(401, { ok: false, code: "unauthorized", message: "Oturumunuzun süresi doldu. Lütfen yeniden giriş yapın." });
 
   // Short burst guard on top of the hourly limit enforced in the database.
-  const burst = rateLimit(`analysis:${user.id}`, 6, 60_000);
+  const burst = await limit(`analysis:${user.id}`, 6, 60_000);
   if (!burst.ok) {
     return json(429, { ok: false, code: "rate_limited", message: "Kısa sürede çok fazla istek gönderdiniz. Lütfen bir dakika sonra tekrar deneyin." });
   }
@@ -64,6 +65,9 @@ export async function POST(request: NextRequest) {
         };
   const landingScreenshot = shot instanceof File && shot.size > 0 ? { bytes: new Uint8Array(await shot.arrayBuffer()), mime: shot.type } : null;
   const outcome = await runAnalysisRequest(parsed.data, media, { landingScreenshot });
-  if (outcome.ok) return json(200, { ok: true, analysisId: outcome.analysisId, reused: outcome.reused });
+  if (outcome.ok) {
+    if (!outcome.reused) afterAnalysisCompleted(user.id, outcome.analysisId);
+    return json(200, { ok: true, analysisId: outcome.analysisId, reused: outcome.reused });
+  }
   return json(outcome.status, { ok: false, code: outcome.code, message: outcome.message, analysisId: outcome.analysisId });
 }

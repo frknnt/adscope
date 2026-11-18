@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/data";
 import { Logo } from "./logo";
 import { SiteNav } from "./site-nav";
+import { ConsentSettingsButton } from "./consent";
 
 export async function SiteHeader() {
   const user = await getCurrentUser();
@@ -40,7 +41,7 @@ const FOOTER = [
   },
 ] as const;
 
-export function SiteFooter() {
+export function SiteFooter({ consentSettings = false }: { consentSettings?: boolean }) {
   return (
     <footer className="no-print mt-auto bg-navy-950 text-paper">
       <div className="mx-auto grid max-w-[75rem] gap-10 px-5 pb-10 pt-16 sm:px-6 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
@@ -70,7 +71,10 @@ export function SiteFooter() {
           <p>
             <strong className="font-semibold text-paper">Risk değerlendirmesidir, hukuki görüş değildir.</strong> AdScope reklamın onaylanacağını garanti etmez.
           </p>
-          <p>© {new Date().getFullYear()} AdScope</p>
+          <p className="flex flex-wrap items-center gap-x-4">
+            {consentSettings ? <ConsentSettingsButton /> : null}
+            <span>© {new Date().getFullYear()} AdScope</span>
+          </p>
         </div>
       </div>
     </footer>

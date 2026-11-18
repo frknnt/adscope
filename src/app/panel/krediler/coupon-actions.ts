@@ -5,7 +5,8 @@ import { headers } from "next/headers";
 import { getAdminRepo } from "@/lib/data";
 import { couponCodeSchema } from "@/lib/growth/codes";
 import { findPackage } from "@/lib/payments/packages";
-import { clientIp, hashKey, rateLimit } from "@/lib/security/rate-limit";
+import { clientIp, hashKey } from "@/lib/security/rate-limit";
+import { limit } from "@/lib/security/limiter";
 import { requirePanelUser } from "@/app/panel/guard";
 
 export type CouponState = { error: string | null; ok?: string; code?: string; packageId?: string };
@@ -28,8 +29,7 @@ export async function reserveCouponAction(_prev: CouponState, form: FormData): P
   if (!pkg) return { error: "Bir paket seç.", ...keep };
   // Guessing codes is slowed down per user and per IP.
   const h = await headers();
-  const a = rateLimit(await hashKey("coupon", user.id), 10, 10 * 60_000);
-  const b = rateLimit(await hashKey("coupon-ip", clientIp(h)), 30, 10 * 60_000);
+  const [a, b] = await Promise.all([limit(await hashKey("coupon", user.id), 10, 10 * 60_000), limit(await hashKey("coupon-ip", clientIp(h)), 30, 10 * 60_000)]);
   if (!a.ok || !b.ok) return { error: "Çok fazla deneme yapıldı. Birkaç dakika sonra tekrar dene.", ...keep };
   const status = await getAdminRepo().reserveCoupon({ code: code.data, userId: user.id, packageId: pkg.id });
   if (status !== "ok") return { error: MESSAGES[status] ?? MESSAGES.invalid, ...keep };

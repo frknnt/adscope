@@ -1,33 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { z } from "zod";
 import { AnalysisFormSchema, runAnalysisRequest } from "@/lib/analysis/service";
 import { apiError, apiJson, authenticate, serializeAnalysis } from "@/lib/api/v1";
-import { PLATFORM_IDS } from "@/lib/platforms";
-import { SECTOR_IDS } from "@/lib/sectors";
+import { AnalysisRequestSchema } from "@/lib/api/schemas";
+import { afterAnalysisCompleted } from "@/lib/jobs/runner";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
-
-const BodySchema = z.object({
-  /** Same value = same analysis (safe retries). */
-  client_request_id: z.uuid().optional(),
-  brand_id: z.uuid().nullable().optional(),
-  sector: z.enum(SECTOR_IDS).default("genel"),
-  platform: z.enum(PLATFORM_IDS).default("meta"),
-  headline: z.string().max(255).default(""),
-  primary_text: z.string().min(1).max(2200),
-  description: z.string().max(255).default(""),
-  landing_url: z.string().max(2048).nullable().optional(),
-  rejection_message: z.string().max(3000).nullable().optional(),
-  flags: z
-    .object({ influencer_post: z.boolean().default(false), ai_human_character: z.boolean().default(false), ai_real_person_copy: z.boolean().default(false) })
-    .default({ influencer_post: false, ai_human_character: false, ai_real_person_copy: false }),
-  image: z.object({
-    mime: z.enum(["image/jpeg", "image/png", "image/webp"]),
-    /** Base64 of the image file (≤ 5 MB decoded). */
-    data_base64: z.string().min(16).max(7_200_000),
-  }),
-});
 
 /**
  * Enterprise API: run one image analysis as the API key's owner. Credits are consumed exactly as in
@@ -43,7 +21,7 @@ export async function POST(req: Request) {
   } catch {
     return apiError(400, "bad_json", "Gövde geçerli bir JSON değil.");
   }
-  const body = BodySchema.safeParse(raw);
+  const body = AnalysisRequestSchema.safeParse(raw);
   if (!body.success) {
     const i = body.error.issues[0];
     return apiError(400, "invalid_request", `${i?.path.join(".") || "gövde"}: ${i?.message ?? "geçersiz"}`);
@@ -74,6 +52,7 @@ export async function POST(req: Request) {
   }
   const outcome = await runAnalysisRequest(form.data, { kind: "image", file: { bytes, mime: b.image.mime } }, { repo: auth.repo });
   if (!outcome.ok) return apiError(outcome.status, outcome.code, outcome.message, outcome.analysisId ? { "X-Analysis-Id": outcome.analysisId } : {});
+  if (!outcome.reused) afterAnalysisCompleted(auth.user.id, outcome.analysisId);
   const a = await auth.repo.getAnalysis(outcome.analysisId);
   if (!a) return apiError(500, "error", "Rapor okunamadı.");
   return apiJson(outcome.reused ? 200 : 201, { ok: true, reused: outcome.reused, analysis: serializeAnalysis(a) });

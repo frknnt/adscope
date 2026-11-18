@@ -489,7 +489,7 @@ describe.skipIf(!reachable)("Supabase: agency mode, feedback, review links, API 
 describe.skipIf(!reachable)("Supabase: client role privileges", () => {
   it("client roles have no blanket privileges on newer tables", async () => {
     const anon = createClient(URL_, PUB, opts);
-    for (const t of ["team_members", "team_invites", "finding_feedback", "review_shares", "newsletter_log", "api_keys", "inspiration_pins", "season_reminder_log", "generations", "audiences", "performance_imports", "performance_rows", "competitor_watches", "admin_audit_log", "coupons", "coupon_redemptions", "invite_codes", "referrals", "referral_email_claims", "affiliate_commissions", "welcome_email_log"]) {
+    for (const t of ["team_members", "team_invites", "finding_feedback", "review_shares", "newsletter_log", "api_keys", "inspiration_pins", "season_reminder_log", "generations", "audiences", "performance_imports", "performance_rows", "competitor_watches", "admin_audit_log", "coupons", "coupon_redemptions", "invite_codes", "referrals", "referral_email_claims", "affiliate_commissions", "welcome_email_log", "rate_limit_buckets", "jobs", "api_webhooks", "api_usage"]) {
       const r = await anon.from(t).select("*").limit(1);
       expect(r.error?.code, t).toBe("42501");
     }
@@ -555,5 +555,58 @@ describe.skipIf(!reachable)("Supabase: invites, coupons, commissions", () => {
     await admin().from("referral_email_claims").delete().eq("email_hash", hash);
     expect((await admin().from("referral_email_claims").insert({ email_hash: hash })).error).toBeNull();
     expect((await admin().from("referral_email_claims").insert({ email_hash: hash })).error?.code).toBe("23505");
+  });
+});
+
+describe.skipIf(!reachable)("Supabase: limiter, job queue, webhooks, API usage", () => {
+  it("rate_limit_hit counts across callers and blocks after the limit; clients cannot call it", async () => {
+    const key = `it:${randomUUID()}`;
+    const hits = [];
+    for (let i = 0; i < 4; i++) hits.push((await admin().rpc("rate_limit_hit", { p_key: key, p_limit: 3, p_window_seconds: 60 })).data?.[0]);
+    expect(hits.map((h) => h?.allowed)).toEqual([true, true, true, false]);
+    expect(hits[3]?.retry_after).toBeGreaterThan(0);
+    const u = await newUser();
+    expect((await u.client.rpc("rate_limit_hit", { p_key: key, p_limit: 3, p_window_seconds: 60 })).error).not.toBeNull();
+    expect((await u.client.from("rate_limit_buckets").select("key").limit(1)).error?.code).toBe("42501");
+  });
+
+  it("claim_jobs never hands the same job to two workers; owners see progress, not the payload", async () => {
+    const owner = await newUser();
+    const stranger = await newUser();
+    const dedupe = `it:${randomUUID()}`;
+    const ins = await admin().from("jobs").insert({ user_id: owner.id, kind: "webhook_delivery", payload: { secret: "never-visible" }, dedupe_key: dedupe }).select("id").single();
+    expect(ins.error).toBeNull();
+    expect((await admin().from("jobs").insert({ user_id: owner.id, kind: "webhook_delivery", payload: {}, dedupe_key: dedupe })).error?.code).toBe("23505");
+    const claims = await Promise.all([0, 1, 2, 3].map(() => admin().rpc("claim_jobs", { p_limit: 50, p_lock_seconds: 60 })));
+    const mine = claims.flatMap((c) => (c.data ?? []) as { id: string }[]).filter((j) => j.id === ins.data!.id);
+    expect(mine).toHaveLength(1);
+    expect((await owner.client.from("jobs").select("status,attempts").eq("id", ins.data!.id)).data).toEqual([{ status: "running", attempts: 1 }]);
+    expect((await owner.client.from("jobs").select("payload")).error).not.toBeNull();
+    expect((await stranger.client.from("jobs").select("id").eq("id", ins.data!.id)).data ?? []).toHaveLength(0);
+    expect((await owner.client.from("jobs").insert({ user_id: owner.id, kind: "webhook_delivery" })).error).not.toBeNull();
+    expect((await owner.client.rpc("claim_jobs", { p_limit: 1, p_lock_seconds: 60 })).error).not.toBeNull();
+    await admin().from("jobs").delete().eq("id", ins.data!.id);
+  });
+
+  it("webhooks: https only, the secret is never readable by the client, owners read their own rows", async () => {
+    const owner = await newUser();
+    const stranger = await newUser();
+    expect((await admin().from("api_webhooks").insert({ user_id: owner.id, url: "http://ornek.com/h", secret: "s".repeat(40) })).error).not.toBeNull();
+    expect((await admin().from("api_webhooks").insert({ user_id: owner.id, url: "https://ornek.com/h", secret: "s".repeat(40) })).error).toBeNull();
+    expect((await owner.client.from("api_webhooks").select("url")).data).toEqual([{ url: "https://ornek.com/h" }]);
+    expect((await owner.client.from("api_webhooks").select("secret")).error).not.toBeNull();
+    expect((await stranger.client.from("api_webhooks").select("url").eq("user_id", owner.id)).data ?? []).toHaveLength(0);
+    expect((await owner.client.from("api_webhooks").insert({ user_id: owner.id, url: "https://x.com/", secret: "s".repeat(40) })).error).not.toBeNull();
+  });
+
+  it("api_usage: api_usage_hit counts per key and day; owners read their own counts only", async () => {
+    const owner = await newUser();
+    const stranger = await newUser();
+    const key = await admin().from("api_keys").insert({ user_id: owner.id, name: "it", key_prefix: "ads_live_itxx", key_hash: randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "") }).select("id").single();
+    expect(key.error).toBeNull();
+    for (let i = 0; i < 3; i++) expect((await admin().rpc("api_usage_hit", { p_key_id: key.data!.id, p_user_id: owner.id })).error).toBeNull();
+    expect((await owner.client.from("api_usage").select("count")).data).toEqual([{ count: 3 }]);
+    expect((await stranger.client.from("api_usage").select("count").eq("user_id", owner.id)).data ?? []).toHaveLength(0);
+    expect((await owner.client.rpc("api_usage_hit", { p_key_id: key.data!.id, p_user_id: owner.id })).error).not.toBeNull();
   });
 });

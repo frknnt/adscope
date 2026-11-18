@@ -8,7 +8,9 @@ import { RULE_CATALOG, type Sector } from "@/lib/rules/catalog";
 import type { Platform } from "@/lib/platforms";
 import { findPackage } from "@/lib/payments/packages";
 import { COUPON_RESERVATION_MS, commissionOf, emailHash, newCode } from "@/lib/growth/codes";
-import { API_KEY_LIMIT, PERFORMANCE_IMPORT_LIMIT, PIN_LIMIT, TEAM_LIMIT, WATCH_LIMIT } from "./limits";
+import { API_KEY_LIMIT, PERFORMANCE_IMPORT_LIMIT, PIN_LIMIT, TEAM_LIMIT, WATCH_LIMIT, WEBHOOK_LIMIT } from "./limits";
+import { rateLimit } from "@/lib/security/rate-limit";
+import { istanbulDay, lastDays } from "./days";
 import type {
   ActiveCampaign,
   AdminCommissionRow,
@@ -45,7 +47,7 @@ import type {
   StartAnalysisResult,
 } from "./types";
 import { BRAND_KIT_KEYS } from "./types";
-import type { AdminAuditEntry, AdminErrorStats, AdminFeedbackRow, AdminPurchaseRow, AdminUserRow } from "./types";
+import type { AdminAuditEntry, AdminErrorStats, AdminFeedbackRow, AdminFunnel, AdminPurchaseRow, AdminUserRow, JobFinish, JobInput, JobRecord, WebhookView } from "./types";
 import type { CompetitorSummary, CompetitorWatch, PerformanceImport, PerformanceImportInput, PerformanceRow } from "./types";
 import type { Audience, AudienceInput, GenerationKind, GenerationRecord, RecordGenerationInput, RecordGenerationResult } from "./types";
 
@@ -136,6 +138,9 @@ interface Store {
   welcomeLog?: { userId: string; step: number; sentAt: string }[];
   welcomeOptOut?: string[];
   commissions?: (AdminCommissionRow & { inviteeId: string | null; purchaseRef: string })[];
+  jobs?: (JobRecord & { status: "queued" | "running" | "succeeded" | "failed"; runAfter: string; lockedUntil: string | null; dedupeKey: string | null; lastError: string | null; result: Record<string, unknown> | null; createdAt: string; finishedAt: string | null })[];
+  webhooks?: (WebhookView & { userId: string; secret: string })[];
+  apiUsage?: { keyId: string; userId: string; day: string; count: number }[];
 }
 
 type StoredBrand = Store["brands"][number];
@@ -1625,8 +1630,128 @@ export class MemoryAdminRepo implements AdminRepo {
     const u = s.users.find((x) => x.id === k.userId);
     if (!u) return null;
     k.lastUsedAt = new Date().toISOString();
+    s.apiUsage ??= [];
+    const day = istanbulDay(new Date());
+    const row = s.apiUsage.find((r) => r.keyId === k.id && r.day === day);
+    if (row) row.count += 1;
+    else s.apiUsage.push({ keyId: k.id, userId: u.id, day, count: 1 });
     persist();
     return { id: u.id, email: u.email };
+  }
+
+  async rateLimitHit(key: string, limit: number, windowSec: number) {
+    return rateLimit(`shared:${key}`, limit, windowSec * 1000);
+  }
+
+  async purgeScaleTables() {
+    const s = store();
+    const cutoff = new Date(Date.now() - 30 * 86400_000).toISOString();
+    s.jobs = (s.jobs ?? []).filter((j) => !(j.finishedAt && j.finishedAt < cutoff));
+    persist();
+  }
+
+  async enqueueJob(j: JobInput) {
+    const s = store();
+    s.jobs ??= [];
+    if (j.dedupeKey && s.jobs.some((x) => x.dedupeKey === j.dedupeKey)) return null;
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    s.jobs.push({ id, userId: j.userId, kind: j.kind, attempts: 0, maxAttempts: j.maxAttempts ?? 5, payload: structuredClone(j.payload), status: "queued", runAfter: now, lockedUntil: null, dedupeKey: j.dedupeKey ?? null, lastError: null, result: null, createdAt: now, finishedAt: null });
+    persist();
+    return id;
+  }
+
+  async claimJobs(limit: number, lockSec: number) {
+    return withLock("jobs", () => {
+      const s = store();
+      const now = new Date().toISOString();
+      const due = (s.jobs ?? [])
+        .filter((j) => (j.status === "queued" && j.runAfter <= now) || (j.status === "running" && j.lockedUntil !== null && j.lockedUntil < now))
+        .sort((a, b) => a.runAfter.localeCompare(b.runAfter))
+        .slice(0, limit);
+      for (const j of due) {
+        j.status = "running";
+        j.attempts += 1;
+        j.lockedUntil = new Date(Date.now() + lockSec * 1000).toISOString();
+      }
+      persist();
+      return due.map((j) => ({ id: j.id, userId: j.userId, kind: j.kind, attempts: j.attempts, maxAttempts: j.maxAttempts, payload: structuredClone(j.payload) }));
+    });
+  }
+
+  async finishJob(id: string, r: JobFinish) {
+    const j = (store().jobs ?? []).find((x) => x.id === id);
+    if (!j) return;
+    j.lockedUntil = null;
+    if (r.ok) {
+      j.status = "succeeded";
+      j.result = r.result ?? null;
+      j.finishedAt = new Date().toISOString();
+    } else if (r.retryAt) {
+      j.status = "queued";
+      j.runAfter = r.retryAt;
+      j.lastError = r.error.slice(0, 120);
+    } else {
+      j.status = "failed";
+      j.lastError = r.error.slice(0, 120);
+      j.finishedAt = new Date().toISOString();
+    }
+    persist();
+  }
+
+  async listWebhooks(userId: string) {
+    return (store().webhooks ?? []).filter((w) => w.userId === userId).map(({ userId: _u, secret: _s, ...w }) => w);
+  }
+
+  async createWebhook(userId: string, url: string, secret: string) {
+    return withLock(`webhooks:${userId}`, () => {
+      const s = store();
+      s.webhooks ??= [];
+      if (s.webhooks.filter((w) => w.userId === userId).length >= WEBHOOK_LIMIT) return "limit" as const;
+      s.webhooks.push({ id: randomUUID(), userId, url, secret, active: true, lastStatus: null, lastDeliveryAt: null, createdAt: new Date().toISOString() });
+      persist();
+      return "ok" as const;
+    });
+  }
+
+  async deleteWebhook(userId: string, id: string) {
+    const s = store();
+    const before = (s.webhooks ?? []).length;
+    s.webhooks = (s.webhooks ?? []).filter((w) => !(w.userId === userId && w.id === id));
+    persist();
+    return s.webhooks.length < before;
+  }
+
+  async getWebhookTarget(userId: string, id: string) {
+    const w = (store().webhooks ?? []).find((x) => x.userId === userId && x.id === id);
+    return w ? { id: w.id, url: w.url, secret: w.secret, active: w.active } : null;
+  }
+
+  async recordWebhookDelivery(id: string, status: string) {
+    const w = (store().webhooks ?? []).find((x) => x.id === id);
+    if (!w) return;
+    w.lastStatus = status.slice(0, 40);
+    w.lastDeliveryAt = new Date().toISOString();
+    persist();
+  }
+
+  async getApiUsage(userId: string, days: number) {
+    const rows = (store().apiUsage ?? []).filter((r) => r.userId === userId);
+    return lastDays(days).map((day) => ({ day, count: rows.filter((r) => r.day === day).reduce((n, r) => n + r.count, 0) }));
+  }
+
+  async adminFunnel(sinceIso: string): Promise<AdminFunnel> {
+    const s = store();
+    const users = s.users.filter((u) => u.createdAt >= sinceIso).map((u) => u.id);
+    const analyzed = new Set(s.analyses.filter((a) => a.status === "completed").map((a) => a.userId));
+    const bought = new Set(s.purchases.map((p) => p.userId));
+    return {
+      signups: users.length,
+      firstAnalysis: users.filter((id) => analyzed.has(id)).length,
+      firstPurchase: users.filter((id) => bought.has(id)).length,
+      queuedJobs: (s.jobs ?? []).filter((j) => j.status === "queued" || j.status === "running").length,
+      failedJobs: (s.jobs ?? []).filter((j) => j.status === "failed" && j.createdAt >= sinceIso).length,
+    };
   }
 
   repoForUser(user: SessionUser): DataRepo {

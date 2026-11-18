@@ -579,6 +579,42 @@ export interface AdminCommissionRow extends CommissionView {
 }
 
 /** Privileged operations not tied to a signed-in session (webhooks, cron). Server-only. */
+/** Background jobs (P7.1). The payload is never shown to users. */
+export type JobKind = "webhook_delivery";
+export interface JobInput {
+  userId: string | null;
+  kind: JobKind;
+  payload: Record<string, unknown>;
+  /** Same key = same job (a second enqueue is ignored). */
+  dedupeKey?: string;
+  maxAttempts?: number;
+}
+export interface JobRecord {
+  id: string;
+  userId: string | null;
+  kind: JobKind;
+  attempts: number;
+  maxAttempts: number;
+  payload: Record<string, unknown>;
+}
+export type JobFinish = { ok: true; result?: Record<string, unknown> } | { ok: false; error: string; retryAt: string | null };
+/** Customer webhook (P7.2). The signing secret is shown once and never returned to the browser again. */
+export interface WebhookView {
+  id: string;
+  url: string;
+  active: boolean;
+  lastStatus: string | null;
+  lastDeliveryAt: string | null;
+  createdAt: string;
+}
+export interface AdminFunnel {
+  signups: number;
+  firstAnalysis: number;
+  firstPurchase: number;
+  queuedJobs: number;
+  failedJobs: number;
+}
+
 export interface AdminRepo {
   applyPurchase(p: {
     provider: string;
@@ -654,4 +690,26 @@ export interface AdminRepo {
   resolveApiKey(keyHash: string): Promise<SessionUser | null>;
   /** A data repo acting as this user without a browser session (enterprise API). */
   repoForUser(user: SessionUser): DataRepo;
+  // Scale (P7.1) --------------------------------------------------------------------------------
+  /** Shared fixed-window limiter across instances. Keys are hashes, never raw e-mails or IPs. */
+  rateLimitHit(key: string, limit: number, windowSec: number): Promise<{ ok: boolean; retryAfterSec: number }>;
+  /** Drops limiter buckets older than a day and finished jobs older than 30 days. */
+  purgeScaleTables(): Promise<void>;
+  /** Returns the job id, or null when a job with the same dedupe key already exists. */
+  enqueueJob(j: JobInput): Promise<string | null>;
+  /** Locks up to `limit` due jobs for `lockSec` seconds (skip locked); expired locks are reclaimed. */
+  claimJobs(limit: number, lockSec: number): Promise<JobRecord[]>;
+  finishJob(id: string, r: JobFinish): Promise<void>;
+  // Enterprise API (P7.2) ----------------------------------------------------------------------
+  listWebhooks(userId: string): Promise<WebhookView[]>;
+  createWebhook(userId: string, url: string, secret: string): Promise<"ok" | "limit" | "error">;
+  deleteWebhook(userId: string, id: string): Promise<boolean>;
+  /** Server-only: the target with its signing secret. */
+  getWebhookTarget(userId: string, id: string): Promise<{ id: string; url: string; secret: string; active: boolean } | null>;
+  recordWebhookDelivery(id: string, status: string): Promise<void>;
+  /** API calls per day (Europe/Istanbul) for the user's keys, oldest first, `days` days including today. */
+  getApiUsage(userId: string, days: number): Promise<{ day: string; count: number }[]>;
+  // Analytics (P7.3) ---------------------------------------------------------------------------
+  /** Accounts created since the date, how many ran an analysis and how many bought credits (no personal data). */
+  adminFunnel(sinceIso: string): Promise<AdminFunnel>;
 }
