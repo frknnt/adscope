@@ -450,12 +450,46 @@ describe.skipIf(!reachable)("Supabase: agency mode, feedback, review links, API 
     const viewerEdit = await viewer.client.from("audiences").update({ name: "Değişti" }, { count: "exact" }).eq("id", ok.data!.id);
     expect(viewerEdit.count ?? 0).toBe(0);
   });
+
+  it("performance imports: owner-only, rows only into own imports, consent is the only editable field", async () => {
+    const imp = await owner.client.from("performance_imports").insert({ user_id: owner.id, label: "Kasım" }).select("id,share_consent").single();
+    expect(imp.error).toBeNull();
+    expect(imp.data!.share_consent).toBe(false);
+    const row = { import_id: imp.data!.id, user_id: owner.id, ad_name: "Kış seti", spend: 10, impressions: 1000, clicks: 20 };
+    expect((await owner.client.from("performance_rows").insert(row)).error).toBeNull();
+    expect((await stranger.client.from("performance_rows").insert({ ...row, user_id: stranger.id })).error).not.toBeNull();
+    expect((await owner.client.from("performance_rows").insert({ ...row, spend: -1 })).error).not.toBeNull();
+    expect((await stranger.client.from("performance_imports").select("id").eq("id", imp.data!.id)).data ?? []).toHaveLength(0);
+    expect((await viewer.client.from("performance_rows").select("id").eq("import_id", imp.data!.id)).data ?? []).toHaveLength(0);
+    expect((await owner.client.from("performance_imports").update({ label: "Değişti" }).eq("id", imp.data!.id)).error).not.toBeNull();
+    expect((await owner.client.from("performance_imports").update({ share_consent: true }, { count: "exact" }).eq("id", imp.data!.id)).count).toBe(1);
+    expect((await owner.client.from("performance_rows").update({ spend: 1 }).eq("import_id", imp.data!.id)).error).not.toBeNull();
+  });
+
+  it("admin: client roles cannot read the audit log or call admin functions, and cannot make themselves admin", async () => {
+    expect((await owner.client.from("admin_audit_log").select("id").limit(1)).error?.code).toBe("42501");
+    expect((await owner.client.from("admin_audit_log").insert({ admin_id: owner.id, action: "credit_adjustment" })).error).not.toBeNull();
+    expect((await owner.client.rpc("admin_user_balances", { p_user_ids: [owner.id] })).error).not.toBeNull();
+    // user_metadata is user-editable; the app only trusts app_metadata, which the client cannot change.
+    await owner.client.auth.updateUser({ data: { role: "admin" } });
+    const { data } = await owner.client.auth.getUser();
+    expect(data.user?.app_metadata?.role).toBeUndefined();
+  });
+
+  it("competitor watches: owner-only, results are written by the server only", async () => {
+    const w = await owner.client.from("competitor_watches").insert({ user_id: owner.id, term: `kahve ${randomUUID().slice(0, 6)}`, country: "DE" }).select("id").single();
+    expect(w.error).toBeNull();
+    expect((await stranger.client.from("competitor_watches").select("id").eq("id", w.data!.id)).data ?? []).toHaveLength(0);
+    expect((await stranger.client.from("competitor_watches").insert({ user_id: owner.id, term: "x y", country: "DE" })).error).not.toBeNull();
+    expect((await owner.client.from("competitor_watches").update({ last_summary: { newCount: 99 } }).eq("id", w.data!.id)).error).not.toBeNull();
+    expect((await owner.client.from("competitor_watches").select("seen_ids").eq("id", w.data!.id)).error).not.toBeNull();
+  });
 });
 
 describe.skipIf(!reachable)("Supabase: client role privileges", () => {
   it("client roles have no blanket privileges on newer tables", async () => {
     const anon = createClient(URL_, PUB, opts);
-    for (const t of ["team_members", "team_invites", "finding_feedback", "review_shares", "newsletter_log", "api_keys", "inspiration_pins", "season_reminder_log", "generations", "audiences"]) {
+    for (const t of ["team_members", "team_invites", "finding_feedback", "review_shares", "newsletter_log", "api_keys", "inspiration_pins", "season_reminder_log", "generations", "audiences", "performance_imports", "performance_rows", "competitor_watches", "admin_audit_log"]) {
       const r = await anon.from(t).select("*").limit(1);
       expect(r.error?.code, t).toBe("42501");
     }

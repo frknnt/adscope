@@ -2,13 +2,14 @@ import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/manrope";
 import "./globals.css";
 import { DemoBanner } from "@/components/ui";
-import { appMode } from "@/lib/env";
+import { appMode, siteIndexable, siteUrl } from "@/lib/env";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl()),
   title: { default: "AdScope · Reklamını yayınlamadan önce test et", template: "%s · AdScope" },
   description:
     "Türk KOBİ'leri ve ajanslar için Meta ret riski, Türk reklam mevzuatı risk değerlendirmesi ve kreatif kalite skorunu tek raporda veren ön kontrol aracı.",
-  robots: { index: false, follow: false },
+  robots: siteIndexable() ? { index: true, follow: true } : { index: false, follow: false },
 };
 
 export const viewport: Viewport = { themeColor: "#ffffff" };

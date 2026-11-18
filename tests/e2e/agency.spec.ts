@@ -46,6 +46,7 @@ test.afterAll(async () => {
 });
 
 async function axeClean(page: Page) {
+  await expect(page).toHaveTitle(/AdScope/);
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
 }
@@ -177,14 +178,40 @@ test("agency workflow: report exports, DM kit, brands, team, API and inspiration
   await noHorizontalScroll(page);
   await axeClean(page);
 
-  // "Benzerini kontrol et" carries the text in the fragment into the wizard.
-  await page.getByRole("region", { name: "Panom" }).getByRole("link", { name: "Benzerini kontrol et" }).click();
+  // "Benzerini kontrol et" opens the wizard for the user's own text; the competitor's text is not carried.
+  await page.getByRole("region", { name: "Panom" }).getByRole("link", { name: /Benzerini kontrol et/ }).click();
   await page.waitForURL("**/panel/yeni");
-  await expect(page.getByText(/başka bir sayfadan aktarıldı/)).toBeVisible();
+  await expect(page.getByText(/başka bir sayfadan aktarıldı/)).toHaveCount(0);
   expect(page.url()).not.toContain("#");
   await page.locator("input[type=file]").setInputFiles("tests/fixtures/ad.png");
   await page.getByRole("button", { name: "Devam" }).click();
-  await expect(page.getByLabel("Ana metin")).toHaveValue(/mucize çay/);
+  await expect(page.getByLabel("Ana metin")).toHaveValue("");
+
+  // Competitor watch: saved terms, limit message, EU-only note; the weekly cron fills the summary.
+  await page.goto("/panel/ilham#rakip-izleme");
+  await page.getByRole("tab", { name: "Rakip izleme" }).click();
+  await expect(page.getByText(/yalnızca Türkiye'de yayınlanan reklamlar bu izlemede görünmez/i)).toBeVisible();
+  await page.getByLabel("Sayfa adı ya da anahtar kelime").fill("Örnek Takviye");
+  await page.getByRole("button", { name: "İzlemeye al" }).click();
+  const watched = page.getByRole("list", { name: "İzlenen aramalar" });
+  await expect(watched.getByText("Örnek Takviye")).toBeVisible();
+  await expect(watched.getByText("ilk haftalık kontrol bekleniyor")).toBeVisible();
+  await page.getByLabel("Sayfa adı ya da anahtar kelime").fill("örnek takviye");
+  await page.getByRole("button", { name: "İzlemeye al" }).click();
+  await expect(page.getByText("Bu aramayı zaten izliyorsun.")).toBeVisible();
+  graphCalls = [];
+  expect((await page.request.get(`${baseURL}/api/cron/competitors`)).status()).toBe(401);
+  const cron = await page.request.get(`${baseURL}/api/cron/competitors`, { headers: { Authorization: `Bearer ${process.env.CRON_SECRET ?? "e2e-cron-secret-0123456789"}` } });
+  expect(cron.status()).toBe(200);
+  expect((await cron.json()).checked).toBeGreaterThan(0);
+  await page.reload();
+  await page.getByRole("tab", { name: "Rakip izleme" }).click();
+  await expect(watched.getByText(/reklam yayında/)).toBeVisible();
+  await expect(watched.getByText("En uzun süredir yayında")).toBeVisible();
+  expect(await page.content()).not.toContain("LEAK");
+  await axeClean(page);
+  await watched.getByRole("button", { name: /izlemesini sil/ }).click();
+  await expect(page.getByText("Henüz izlenen arama yok.")).toBeVisible();
 });
 
 test("bulk check, account restriction guide and rule-change rescan", async ({ page }) => {

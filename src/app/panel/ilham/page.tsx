@@ -13,6 +13,7 @@ import { isSector, SECTOR_IDS, SECTOR_INFO, type Sector } from "@/lib/sectors";
 import { hashKey, rateLimit } from "@/lib/security/rate-limit";
 import { deletePinAction } from "./actions";
 import { PinButton } from "./pin-button";
+import { CompetitorWatchSection } from "./watch-section";
 
 export const metadata = { title: "İlham panosu" };
 
@@ -46,11 +47,12 @@ function signals(ad: { title: string; body: string }, rules: RuleRecord[]) {
   };
 }
 
-function checkHref(title: string, body: string) {
-  const q = new URLSearchParams({ platform: "meta" });
-  if (body) q.set("metin", body.slice(0, 1500));
-  if (title) q.set("baslik", title.slice(0, 200));
-  return `/panel/yeni#${q}`;
+/**
+ * "Benzerini kontrol et" opens the wizard empty so the user writes their own ad there. The other
+ * advertiser's text is never carried over: AdScope is not a tool for copying competitors' ads.
+ */
+function checkHref(_title: string, _body: string) {
+  return "/panel/yeni#platform=meta&kaynak=ilham";
 }
 
 function SignalLine({ s }: { s: ReturnType<typeof signals> }) {
@@ -109,7 +111,7 @@ function AdCard({ ad, country, rules, saved }: { ad: LibraryAd; country: string;
       <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-dashed border-line pt-3">
         <PinButton adArchiveId={ad.id} pageName={ad.pageName} title={title} body={body} country={country} deliveryStart={ad.deliveryStart} saved={saved} />
         <Link href={checkHref(title, body)} className="rounded-full border border-line-strong px-3 py-1.5 text-meta font-semibold no-underline hover:bg-paper-2">
-          Benzerini kontrol et
+          Benzerini kontrol et<span className="sr-only"> (kendi metninle)</span>
         </Link>
         <a href={ad.libraryUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-meta font-semibold">
           Kütüphanede aç <IconExternal className="size-3.5" aria-hidden />
@@ -300,7 +302,7 @@ export default async function InspirationPage({ searchParams }: { searchParams: 
                             <SignalLine s={s} />
                             <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-dashed border-line pt-3">
                               <Link href={checkHref(p.title, p.body)} className="rounded-full border border-line-strong px-3 py-1.5 text-meta font-semibold no-underline hover:bg-paper-2">
-                                Benzerini kontrol et
+                                Benzerini kontrol et<span className="sr-only"> (kendi metninle)</span>
                               </Link>
                               <a
                                 href={`https://www.facebook.com/ads/library/?id=${p.adArchiveId}`}
@@ -328,11 +330,17 @@ export default async function InspirationPage({ searchParams }: { searchParams: 
                 </section>
               ),
             },
+            {
+              title: "Rakip izleme",
+              hash: "rakip-izleme",
+              content: <CompetitorWatchSection enabled={library.enabled} />,
+            },
           ]}
         />
       </div>
 
       <div className="mt-10 grid gap-3 text-meta text-muted">
+        <p>“Benzerini kontrol et” sihirbazı boş açar: rakibin metni taşınmaz, kendi reklam metnini yazıp kontrol edersin.</p>
         <p>
           Bir reklamın kütüphanede yayında görünmesi, Meta tarafından kalıcı olarak onaylandığı ya da mevzuata uygun olduğu anlamına gelmez. Sinyaller yalnızca AdScope kural setindeki eşleşmelerdir.
           Reklam metinleri sahiplerine aittir; birebir kopyalamak yerine fikir almak için kullan.

@@ -152,6 +152,64 @@ export type RecordGenerationResult =
   | { status: "created" | "exists"; generation: GenerationRecord }
   | { status: "insufficient_credits" | "brand_not_found" | "error" };
 
+/** An imported Ads Manager report (P4.1). Only per-ad totals are stored, never the file. */
+export interface PerformanceImport {
+  id: string;
+  label: string;
+  currency: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  adCount: number;
+  /** Opt-in: anonymous totals may be used to calibrate creative score weights. Off by default. */
+  shareConsent: boolean;
+  createdAt: string;
+}
+
+export interface PerformanceRow {
+  id: string;
+  adName: string;
+  /** The user's own AdScope analysis whose text matched this ad. */
+  analysisId: string | null;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  revenue: number;
+}
+
+export interface PerformanceImportInput {
+  label: string;
+  currency: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  shareConsent: boolean;
+  rows: Omit<PerformanceRow, "id">[];
+}
+
+/** Weekly competitor watch on a Meta Ad Library search term (P4.2). */
+export interface CompetitorAdSummary {
+  id: string;
+  pageName: string;
+  title: string;
+  body: string;
+  deliveryStart: string | null;
+  days: number;
+  libraryUrl: string;
+}
+export interface CompetitorSummary {
+  newCount: number;
+  activeCount: number;
+  longest: CompetitorAdSummary[];
+}
+export interface CompetitorWatch {
+  id: string;
+  term: string;
+  country: string;
+  lastCheckedAt: string | null;
+  lastSummary: CompetitorSummary | null;
+  createdAt: string;
+}
+
 export interface PurchaseRecord {
   id: string;
   provider: string;
@@ -348,6 +406,16 @@ export interface DataRepo {
   removeGenerationFiles(paths: string[]): Promise<void>;
   listPurchases(): Promise<PurchaseRecord[]>;
 
+  listPerformanceImports(): Promise<PerformanceImport[]>;
+  getPerformanceImport(id: string): Promise<{ import: PerformanceImport; rows: PerformanceRow[] } | null>;
+  savePerformanceImport(input: PerformanceImportInput): Promise<{ id: string } | "limit" | "error">;
+  setPerformanceShareConsent(id: string, on: boolean): Promise<boolean>;
+  deletePerformanceImport(id: string): Promise<boolean>;
+
+  listWatches(): Promise<CompetitorWatch[]>;
+  addWatch(term: string, country: string): Promise<"ok" | "limit" | "exists" | "error">;
+  deleteWatch(id: string): Promise<boolean>;
+
   startAnalysis(params: StartAnalysisParams): Promise<StartAnalysisResult>;
   uploadAsset(analysisId: string, bytes: Uint8Array, meta: ImageMeta, ext: string, sha256: string, opts?: AssetUploadOptions): Promise<boolean>;
   completeAnalysis(analysisId: string, result: AnalysisResult): Promise<"completed" | "already_completed" | "already_failed" | "insufficient_credits" | "error">;
@@ -401,6 +469,39 @@ export interface SharedReview {
   expiresAt: string;
 }
 
+/** Admin panel rows (P4.3). Ad creatives are never part of them. */
+export interface AdminUserRow {
+  id: string;
+  email: string;
+  createdAt: string;
+  balance: number;
+  analyses: number;
+}
+export interface AdminPurchaseRow extends PurchaseRecord {
+  userId: string | null;
+  eventId: string;
+}
+export interface AdminFeedbackRow {
+  ruleId: string;
+  title: string;
+  total: number;
+  wrong: number;
+  unclear: number;
+  helpful: number;
+}
+export interface AdminErrorStats {
+  analyses: { total: number; failed: number; byCode: Record<string, number> };
+  aiRuns: { total: number; failed: number; schemaInvalid: number; fallback: number };
+}
+export interface AdminAuditEntry {
+  id: string;
+  adminId: string;
+  action: string;
+  targetUserId: string | null;
+  details: Record<string, unknown>;
+  createdAt: string;
+}
+
 /** Privileged operations not tied to a signed-in session (webhooks, cron). Server-only. */
 export interface AdminRepo {
   applyPurchase(p: {
@@ -425,6 +526,21 @@ export interface AdminRepo {
   listNewsletterRecipients(): Promise<{ userId: string; email: string; displayName: string | null; sector: Sector | null }[]>;
   claimNewsletter(userId: string, period: string): Promise<boolean>;
   releaseNewsletter(userId: string, period: string): Promise<void>;
+  /** app_metadata.role of a user, read with the secret key (never from user_metadata or the browser). */
+  getAppRole(userId: string): Promise<string | null>;
+  adminListUsers(query?: string): Promise<AdminUserRow[]>;
+  /** Adds an admin_adjustment ledger entry (append-only) and an audit log row; idempotent per request id. */
+  adminAdjustCredits(p: { adminId: string; userId: string; delta: number; reason: string; requestId: string }): Promise<"ok" | "exists" | "not_found" | "negative_balance" | "error">;
+  adminListPurchases(limit?: number): Promise<AdminPurchaseRow[]>;
+  adminFeedbackStats(): Promise<AdminFeedbackRow[]>;
+  adminErrorStats(sinceIso: string): Promise<AdminErrorStats>;
+  recordAudit(e: { adminId: string; action: string; targetUserId: string | null; details: Record<string, unknown> }): Promise<void>;
+  listAudit(limit?: number): Promise<AdminAuditEntry[]>;
+  /** All competitor watches with their owner and the ids already seen (weekly cron). */
+  listAllWatches(): Promise<(CompetitorWatch & { userId: string; seenIds: string[] })[]>;
+  saveWatchResult(id: string, r: { seenIds: string[]; summary: CompetitorSummary }): Promise<void>;
+  /** Confirmed e-mail address and name of a user (for digests); null when unknown. */
+  getUserContact(userId: string): Promise<{ email: string; displayName: string | null } | null>;
   /** Lawyer review link: valid, unrevoked, unexpired token → read-only report (counts the view). */
   getSharedReview(tokenHash: string): Promise<SharedReview | null>;
   /** Creative / frame / screenshot bytes behind a valid review link (does not count a view). */

@@ -5,7 +5,7 @@ import { siteUrl } from "@/lib/env";
 import type { AppealOut, RuleRecord, VideoMeta } from "@/lib/engine/types";
 import type { RuleCardDef, Sector } from "@/lib/rules/catalog";
 import { findPackage } from "@/lib/payments/packages";
-import { API_KEY_LIMIT, PIN_LIMIT, TEAM_LIMIT } from "./limits";
+import { API_KEY_LIMIT, PERFORMANCE_IMPORT_LIMIT, PIN_LIMIT, TEAM_LIMIT, WATCH_LIMIT, WATCH_SEEN_CAP } from "./limits";
 import type {
   AdminRepo,
   AnalysisDetail,
@@ -22,6 +22,15 @@ import type {
   DataRepo,
   FindingFeedback,
   InspirationPinInput,
+  AdminAuditEntry,
+  AdminErrorStats,
+  AdminFeedbackRow,
+  AdminPurchaseRow,
+  AdminUserRow,
+  CompetitorSummary,
+  CompetitorWatch,
+  PerformanceImport,
+  PerformanceImportInput,
   FindingView,
   ReportBranding,
   SessionUser,
@@ -905,6 +914,90 @@ export class SupabaseRepo implements DataRepo {
     return !error && (count ?? 0) > 0;
   }
 
+  async listPerformanceImports() {
+    const u = await this.requireUser();
+    const { data } = await (await this.db())
+      .from("performance_imports")
+      .select("id,label,currency,period_start,period_end,ad_count,share_consent,created_at")
+      .eq("user_id", u.id)
+      .order("created_at", { ascending: false })
+      .limit(PERFORMANCE_IMPORT_LIMIT);
+    return (data ?? []).map(perfImportView);
+  }
+
+  async getPerformanceImport(id: string) {
+    const u = await this.requireUser();
+    const db = await this.db();
+    const { data: imp } = await db.from("performance_imports").select("id,label,currency,period_start,period_end,ad_count,share_consent,created_at").eq("id", id).eq("user_id", u.id).maybeSingle();
+    if (!imp) return null;
+    const { data: rows } = await db.from("performance_rows").select("id,ad_name,analysis_id,spend,impressions,clicks,conversions,revenue").eq("import_id", id).limit(5000);
+    return {
+      import: perfImportView(imp),
+      rows: (rows ?? []).map((r) => ({ id: r.id, adName: r.ad_name, analysisId: r.analysis_id, spend: Number(r.spend), impressions: Number(r.impressions), clicks: Number(r.clicks), conversions: Number(r.conversions), revenue: Number(r.revenue) })),
+    };
+  }
+
+  async savePerformanceImport(input: PerformanceImportInput) {
+    const u = await this.requireUser();
+    const db = await this.db();
+    const { count } = await db.from("performance_imports").select("id", { count: "exact", head: true }).eq("user_id", u.id);
+    if ((count ?? 0) >= PERFORMANCE_IMPORT_LIMIT) return "limit" as const;
+    const { data: imp, error } = await db
+      .from("performance_imports")
+      .insert({ user_id: u.id, label: input.label, currency: input.currency, period_start: input.periodStart, period_end: input.periodEnd, share_consent: input.shareConsent, ad_count: input.rows.length })
+      .select("id")
+      .single();
+    if (error || !imp) return "error" as const;
+    for (let i = 0; i < input.rows.length; i += 500) {
+      const chunk = input.rows.slice(i, i + 500).map((r) => ({ import_id: imp.id, user_id: u.id, ad_name: r.adName, analysis_id: r.analysisId, spend: r.spend, impressions: r.impressions, clicks: r.clicks, conversions: r.conversions, revenue: r.revenue }));
+      const { error: rowError } = await db.from("performance_rows").insert(chunk);
+      if (rowError) {
+        await db.from("performance_imports").delete().eq("id", imp.id).eq("user_id", u.id);
+        return "error" as const;
+      }
+    }
+    return { id: imp.id as string };
+  }
+
+  async setPerformanceShareConsent(id: string, on: boolean) {
+    const u = await this.requireUser();
+    const { error, count } = await (await this.db()).from("performance_imports").update({ share_consent: on }, { count: "exact" }).eq("id", id).eq("user_id", u.id);
+    return !error && (count ?? 0) > 0;
+  }
+
+  async deletePerformanceImport(id: string) {
+    const u = await this.requireUser();
+    const { error, count } = await (await this.db()).from("performance_imports").delete({ count: "exact" }).eq("id", id).eq("user_id", u.id);
+    return !error && (count ?? 0) > 0;
+  }
+
+  async listWatches() {
+    const u = await this.requireUser();
+    const { data } = await (await this.db())
+      .from("competitor_watches")
+      .select("id,term,country,last_checked_at,last_summary,created_at")
+      .eq("user_id", u.id)
+      .order("created_at", { ascending: true })
+      .limit(WATCH_LIMIT);
+    return (data ?? []).map(watchView);
+  }
+
+  async addWatch(term: string, country: string) {
+    const u = await this.requireUser();
+    const db = await this.db();
+    const { count } = await db.from("competitor_watches").select("id", { count: "exact", head: true }).eq("user_id", u.id);
+    if ((count ?? 0) >= WATCH_LIMIT) return "limit" as const;
+    const { error } = await db.from("competitor_watches").insert({ user_id: u.id, term, country });
+    if (error?.code === "23505") return "exists" as const;
+    return error ? ("error" as const) : ("ok" as const);
+  }
+
+  async deleteWatch(id: string) {
+    const u = await this.requireUser();
+    const { error, count } = await (await this.db()).from("competitor_watches").delete({ count: "exact" }).eq("id", id).eq("user_id", u.id);
+    return !error && (count ?? 0) > 0;
+  }
+
   async listPins() {
     const u = await this.requireUser();
     const { data } = await (await this.db())
@@ -950,6 +1043,14 @@ export class SupabaseRepo implements DataRepo {
     const { error, count } = await (await this.db()).from("inspiration_pins").delete({ count: "exact" }).eq("id", id).eq("user_id", u.id);
     return !error && (count ?? 0) > 0;
   }
+}
+
+function watchView(w: { id: string; term: string; country: string; last_checked_at: string | null; last_summary: unknown; created_at: string }): CompetitorWatch {
+  return { id: w.id, term: w.term, country: w.country, lastCheckedAt: w.last_checked_at, lastSummary: (w.last_summary as CompetitorSummary | null) ?? null, createdAt: w.created_at };
+}
+
+function perfImportView(p: { id: string; label: string; currency: string; period_start: string | null; period_end: string | null; ad_count: number; share_consent: boolean; created_at: string }): PerformanceImport {
+  return { id: p.id, label: p.label, currency: p.currency, periodStart: p.period_start, periodEnd: p.period_end, adCount: p.ad_count, shareConsent: p.share_consent, createdAt: p.created_at };
 }
 
 /**
@@ -1106,6 +1207,122 @@ export class SupabaseAdminRepo implements AdminRepo {
     if (paths.length) await this.admin.storage.from(BUCKET).remove(paths);
     await this.admin.from("generations").delete().in("id", gens.map((g) => g.id));
     return gens.length;
+  }
+
+  async getAppRole(userId: string) {
+    const { data } = await this.admin.auth.admin.getUserById(userId);
+    const role = (data?.user?.app_metadata as { role?: unknown } | undefined)?.role;
+    return typeof role === "string" ? role : null;
+  }
+
+  async adminListUsers(query?: string): Promise<AdminUserRow[]> {
+    const { data } = await this.admin.auth.admin.listUsers({ page: 1, perPage: 200 });
+    const q = (query ?? "").trim().toLowerCase();
+    const users = (data?.users ?? []).filter((u) => !q || (u.email ?? "").toLowerCase().includes(q));
+    const ids = users.map((u) => u.id);
+    if (!ids.length) return [];
+    const [{ data: bal }, { data: an }] = await Promise.all([
+      this.admin.rpc("admin_user_balances", { p_user_ids: ids }),
+      this.admin.from("analyses").select("user_id").in("user_id", ids).limit(20_000),
+    ]);
+    const balance = new Map(((bal ?? []) as { user_id: string; balance: number }[]).map((b) => [b.user_id, Number(b.balance)]));
+    const count = new Map<string, number>();
+    for (const a of an ?? []) count.set(a.user_id, (count.get(a.user_id) ?? 0) + 1);
+    return users.map((u) => ({ id: u.id, email: u.email ?? "", createdAt: u.created_at, balance: balance.get(u.id) ?? 0, analyses: count.get(u.id) ?? 0 }));
+  }
+
+  async adminAdjustCredits(p: { adminId: string; userId: string; delta: number; reason: string; requestId: string }) {
+    const { data: u } = await this.admin.auth.admin.getUserById(p.userId);
+    if (!u?.user) return "not_found" as const;
+    const key = `admin:${p.requestId}`;
+    const { data: existing } = await this.admin.from("credit_ledger").select("id").eq("idempotency_key", key).maybeSingle();
+    if (existing) return "exists" as const;
+    const { data: bal } = await this.admin.rpc("admin_user_balances", { p_user_ids: [p.userId] });
+    const current = Number(((bal ?? []) as { balance: number }[])[0]?.balance ?? 0);
+    if (current + p.delta < 0) return "negative_balance" as const;
+    const { error } = await this.admin.from("credit_ledger").insert({ user_id: p.userId, delta: p.delta, reason: "admin_adjustment", idempotency_key: key, note: p.reason });
+    if (error) return error.code === "23505" ? ("exists" as const) : ("error" as const);
+    await this.recordAudit({ adminId: p.adminId, action: "credit_adjustment", targetUserId: p.userId, details: { delta: p.delta, reason: p.reason } });
+    return "ok" as const;
+  }
+
+  async adminListPurchases(limit = 100): Promise<AdminPurchaseRow[]> {
+    const { data } = await this.admin
+      .from("purchase_events")
+      .select("id,user_id,provider,provider_event_id,package_id,credits,amount_minor,currency,status,is_demo,created_at")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    return (data ?? []).map((p) => ({
+      id: p.id,
+      userId: p.user_id,
+      eventId: `${p.provider}:${p.provider_event_id}`,
+      provider: p.provider,
+      packageId: p.package_id,
+      credits: p.credits,
+      amountMinor: p.amount_minor,
+      currency: p.currency,
+      status: p.status,
+      isDemo: p.is_demo,
+      createdAt: p.created_at,
+    }));
+  }
+
+  async adminFeedbackStats(): Promise<AdminFeedbackRow[]> {
+    const { data } = await this.admin.from("finding_feedback").select("verdict, rule_versions(rule_card_id,title)").limit(20_000);
+    const out = new Map<string, AdminFeedbackRow>();
+    for (const f of (data ?? []) as unknown as { verdict: "wrong" | "unclear" | "helpful"; rule_versions: { rule_card_id: string; title: string } | null }[]) {
+      if (!f.rule_versions) continue;
+      const id = f.rule_versions.rule_card_id;
+      const row = out.get(id) ?? { ruleId: id, title: f.rule_versions.title, total: 0, wrong: 0, unclear: 0, helpful: 0 };
+      row.total++;
+      row[f.verdict]++;
+      out.set(id, row);
+    }
+    return [...out.values()].sort((a, b) => b.wrong / b.total - a.wrong / a.total || b.total - a.total);
+  }
+
+  async adminErrorStats(sinceIso: string): Promise<AdminErrorStats> {
+    const [{ data: an }, { data: runs }] = await Promise.all([
+      this.admin.from("analyses").select("status,failure_code").gte("created_at", sinceIso).limit(50_000),
+      this.admin.from("ai_runs").select("status").gte("created_at", sinceIso).limit(50_000),
+    ]);
+    const byCode: Record<string, number> = {};
+    for (const a of an ?? []) if (a.status === "failed") byCode[a.failure_code ?? "unknown"] = (byCode[a.failure_code ?? "unknown"] ?? 0) + 1;
+    const r = runs ?? [];
+    return {
+      analyses: { total: (an ?? []).length, failed: (an ?? []).filter((a) => a.status === "failed").length, byCode },
+      aiRuns: { total: r.length, failed: r.filter((x) => x.status === "failed").length, schemaInvalid: r.filter((x) => x.status === "schema_invalid").length, fallback: r.filter((x) => x.status === "fallback").length },
+    };
+  }
+
+  async recordAudit(e: { adminId: string; action: string; targetUserId: string | null; details: Record<string, unknown> }) {
+    const { error } = await this.admin.from("admin_audit_log").insert({ admin_id: e.adminId, action: e.action, target_user_id: e.targetUserId, details: e.details });
+    if (error) console.error("[admin] audit_write_failed");
+  }
+
+  async listAudit(limit = 100): Promise<AdminAuditEntry[]> {
+    const { data } = await this.admin.from("admin_audit_log").select("id,admin_id,action,target_user_id,details,created_at").order("created_at", { ascending: false }).limit(limit);
+    return (data ?? []).map((a) => ({ id: a.id, adminId: a.admin_id, action: a.action, targetUserId: a.target_user_id, details: a.details ?? {}, createdAt: a.created_at }));
+  }
+
+  async listAllWatches() {
+    const { data } = await this.admin.from("competitor_watches").select("id,user_id,term,country,seen_ids,last_checked_at,last_summary,created_at").order("user_id").limit(10_000);
+    return (data ?? []).map((w) => ({ ...watchView(w), userId: w.user_id as string, seenIds: (w.seen_ids as string[]) ?? [] }));
+  }
+
+  async saveWatchResult(id: string, r: { seenIds: string[]; summary: CompetitorSummary }) {
+    await this.admin
+      .from("competitor_watches")
+      .update({ seen_ids: r.seenIds.slice(-WATCH_SEEN_CAP), last_summary: r.summary, last_checked_at: new Date().toISOString() })
+      .eq("id", id);
+  }
+
+  async getUserContact(userId: string) {
+    const { data } = await this.admin.auth.admin.getUserById(userId);
+    const u = data?.user;
+    if (!u?.email || !u.email_confirmed_at) return null;
+    const { data: p } = await this.admin.from("profiles").select("display_name").eq("id", userId).maybeSingle();
+    return { email: u.email, displayName: (p?.display_name as string | null) ?? null };
   }
 
   async listSeasonReminderRecipients() {

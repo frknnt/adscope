@@ -64,3 +64,8 @@ export function demoSessionSecret() {
   if (!g.__adscopeDemoSecret) g.__adscopeDemoSecret = crypto.randomUUID() + crypto.randomUUID();
   return g.__adscopeDemoSecret;
 }
+
+/** Search engines may index public pages only when SITE_INDEXABLE=true and the app runs in production. */
+export function siteIndexable() {
+  return process.env.SITE_INDEXABLE === "true" && appMode() === "production";
+}

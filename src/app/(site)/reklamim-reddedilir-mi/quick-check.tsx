@@ -16,11 +16,11 @@ const SEV = {
   info: "border-info/30 [&_.sev]:bg-info-tint [&_.sev]:text-info",
 } as const;
 
-export function QuickCheck() {
+export function QuickCheck({ defaultSector = "genel" }: { defaultSector?: string } = {}) {
   const [state, action, pending] = useActionState(quickCheckAction, initial);
   // Controlled fields: React resets uncontrolled forms after an action, which would make the
   // result look like it belongs to the default sector.
-  const [v, setV] = useState({ platform: "meta", sector: "genel", headline: "", primaryText: "" });
+  const [v, setV] = useState({ platform: "meta", sector: defaultSector, headline: "", primaryText: "" });
   const bind = (k: keyof typeof v) => ({ value: v[k], onChange: (e: { target: { value: string } }) => setV((o) => ({ ...o, [k]: e.target.value })) });
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,26rem)_1fr] lg:items-start">

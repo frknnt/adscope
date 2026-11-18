@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type ComponentType, type SVGProps } from "react";
 import { signOutAction } from "@/app/(auth)/actions";
 import {
+  IconChart,
   IconAppeal,
   IconSpark,
   IconTools,
@@ -51,6 +52,7 @@ const GROUPS: { title: string | null; items: Item[] }[] = [
     items: [
       { href: "/panel/takvim", label: "Sezon takvimi", Icon: IconCalendar },
       { href: "/panel/ilham", label: "İlham panosu", Icon: IconBoard },
+      { href: "/panel/performans", label: "Performans", Icon: IconChart },
     ],
   },
   {

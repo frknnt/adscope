@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { DISCLAIMER, FORBIDDEN, noHorizontalScroll } from "./helpers";
 
-const PAGES = ["/", "/nasil-calisir", "/fiyatlandirma", "/kurallar", "/gizlilik", "/kvkk", "/kullanim-kosullari", "/mesafeli-satis-sozlesmesi", "/on-bilgilendirme-formu", "/giris", "/kayit"];
+const PAGES = ["/", "/nasil-calisir", "/fiyatlandirma", "/kurallar", "/rehber", "/rehber/takviye-gida", "/rehber/estetik-klinik", "/rehber/kozmetik", "/rehber/kurs-egitim", "/rehber/emlak", "/rehber/finans", "/gizlilik", "/kvkk", "/kullanim-kosullari", "/mesafeli-satis-sozlesmesi", "/on-bilgilendirme-formu", "/giris", "/kayit"];
 
 for (const path of PAGES) {
   test(`${path} renders, is accessible and makes no guarantees`, async ({ page }) => {
@@ -65,4 +65,44 @@ test("distance sales documents name the right-of-withdrawal exception and stay m
   }
   await page.goto("/");
   await expect(page.locator("footer").getByRole("link", { name: "Mesafeli satış sözleşmesi" })).toHaveAttribute("href", "/mesafeli-satis-sozlesmesi");
+});
+
+test("ad budget calculator works in the browser, with structured data and no stored data", async ({ page }) => {
+  const posts: string[] = [];
+  page.on("request", (r) => r.method() === "POST" && posts.push(r.url()));
+  await page.goto("/reklam-butce-hesaplama");
+  await expect(page.getByRole("heading", { name: "Reklam bütçe ve kâr hesaplayıcı", level: 1 })).toBeVisible();
+  await expect(page.getByText("Başa baş ROAS", { exact: true })).toBeVisible();
+  await expect(page.getByText("1,89x")).toBeVisible();
+  await page.getByLabel("Ürün maliyeti").fill("700");
+  await expect(page.getByText(/Ürün reklamsız da zarar ediyor/)).toBeVisible();
+  await page.getByLabel("Ürün maliyeti").fill("220");
+  await page.getByLabel("Hedef ROAS (isteğe bağlı)").fill("3");
+  await expect(page.getByText(/Hedef ROAS ile sipariş başına en fazla/)).toBeVisible();
+  await expect(page.getByText("Sonuçlar tahmindir.")).toBeVisible();
+  const ld = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent()) ?? "{}");
+  expect(ld["@graph"].map((x: { "@type": string }) => x["@type"])).toEqual(["WebApplication", "FAQPage"]);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/reklam-butce-hesaplama$/);
+  await expect(page.getByRole("link", { name: "Reklamımı ücretsiz kontrol et" })).toHaveAttribute("href", "/reklamim-reddedilir-mi");
+  await noHorizontalScroll(page);
+  const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+  expect(posts).toEqual([]);
+});
+
+test("sector guides: sourced cards, unverified label, free check with the sector, SEO files", async ({ page, request }) => {
+  await page.goto("/rehber/takviye-gida");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Takviye gıda reklamlarında");
+  await expect(page.getByText(DISCLAIMER).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Resmî kaynaklar" })).toBeVisible();
+  await expect(page.getByLabel("Sektör")).toHaveValue("takviye_gida");
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/rehber\/takviye-gida$/);
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /opengraph-image/);
+  const og = await request.get((await page.locator('meta[property="og:image"]').getAttribute("content"))!.replace(/^https?:\/\/[^/]+/, ""));
+  expect(og.headers()["content-type"]).toContain("image/png");
+  const sitemap = await (await request.get("/sitemap.xml")).text();
+  for (const s of ["takviye-gida", "estetik-klinik", "kozmetik", "kurs-egitim", "emlak", "finans"]) expect(sitemap).toContain(`/rehber/${s}`);
+  // Private by default: robots.txt blocks everything until SITE_INDEXABLE=true in production.
+  expect(await (await request.get("/robots.txt")).text()).toContain("Disallow: /");
+  expect((await request.get("/rehber/yok")).status()).toBe(404);
 });

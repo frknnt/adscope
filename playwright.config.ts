@@ -47,6 +47,7 @@ export default defineConfig({
       // E-mail stays in the demo outbox.
       RESEND_API_KEY: "",
       CRON_SECRET: "e2e-cron-secret-0123456789",
+      DEMO_ADMIN_EMAILS: "@yonetim.adscope.test",
       // Meta Ad Library goes to a mock started by the agency spec on this port.
       META_AD_LIBRARY_TOKEN: "e2e-fake-token",
       META_GRAPH_BASE_URL: "http://127.0.0.1:3198",

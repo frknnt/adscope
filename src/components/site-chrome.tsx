@@ -22,6 +22,8 @@ const FOOTER = [
     title: "Kaynaklar",
     links: [
       ["/kurallar", "Kural kartları ve kaynaklar"],
+      ["/reklam-butce-hesaplama", "Reklam bütçe hesaplayıcı"],
+      ["/rehber", "Sektör rehberleri"],
       ["/#sss", "Sık sorulan sorular"],
       ["/kayit", "Ücretsiz hesap aç"],
     ],

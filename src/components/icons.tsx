@@ -121,3 +121,15 @@ export const IconBoard = (p: SVGProps<SVGSVGElement>) => (
 export const IconKey = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><circle cx="8" cy="15" r="4" /><path d="m11 12 8.5-8.5M16 7l2.5 2.5M14 9l2 2" /></svg>
 );
+export const IconChart = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M4 20h16" /><path d="M7 16v-4M12 16V7M17 16v-6" /></svg>
+);
+export const IconRadar = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4.5" /><path d="M12 12 18 6" /></svg>
+);
+export const IconShield = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M12 3.5 5 6v5.5c0 4.2 2.9 7.6 7 9 4.1-1.4 7-4.8 7-9V6l-7-2.5Z" /></svg>
+);
+export const IconGift = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><rect x="4" y="9" width="16" height="11" rx="1.5" /><path d="M3.5 9h17M12 9v11M12 9c-2.5 0-4.5-1-4.5-2.75S9.5 3.5 12 9Zm0 0c2.5 0 4.5-1 4.5-2.75S14.5 3.5 12 9Z" /></svg>
+);

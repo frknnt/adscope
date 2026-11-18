@@ -2,12 +2,12 @@ import "server-only";
 import { createHmac, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import { dirname } from "node:path";
 import { cookies } from "next/headers";
-import { demoSessionSecret, retentionDefaultDays } from "@/lib/env";
+import { appMode, demoSessionSecret, retentionDefaultDays } from "@/lib/env";
 import type { AnalysisResult, AppealOut, ImageMeta, RuleRecord, VideoMeta } from "@/lib/engine/types";
 import { RULE_CATALOG, type Sector } from "@/lib/rules/catalog";
 import type { Platform } from "@/lib/platforms";
 import { findPackage } from "@/lib/payments/packages";
-import { API_KEY_LIMIT, PIN_LIMIT, TEAM_LIMIT } from "./limits";
+import { API_KEY_LIMIT, PERFORMANCE_IMPORT_LIMIT, PIN_LIMIT, TEAM_LIMIT, WATCH_LIMIT } from "./limits";
 import type {
   AdminRepo,
   AiRunRecord,
@@ -34,6 +34,8 @@ import type {
   StartAnalysisResult,
 } from "./types";
 import { BRAND_KIT_KEYS } from "./types";
+import type { AdminAuditEntry, AdminErrorStats, AdminFeedbackRow, AdminPurchaseRow, AdminUserRow } from "./types";
+import type { CompetitorSummary, CompetitorWatch, PerformanceImport, PerformanceImportInput, PerformanceRow } from "./types";
 import type { Audience, AudienceInput, GenerationKind, GenerationRecord, RecordGenerationInput, RecordGenerationResult } from "./types";
 
 import { generationFiles } from "./generation-files";
@@ -112,6 +114,9 @@ interface Store {
   newsletterLog?: { userId: string; period: string; sentAt: string }[];
   apiKeys?: (ApiKeyView & { userId: string; keyHash: string })[];
   pins?: (InspirationPin & { userId: string })[];
+  perfImports?: (PerformanceImport & { userId: string; rows: PerformanceRow[] })[];
+  watches?: (CompetitorWatch & { userId: string; seenIds: string[] })[];
+  audit?: AdminAuditEntry[];
 }
 
 type StoredBrand = Store["brands"][number];
@@ -874,6 +879,87 @@ export class MemoryRepo implements DataRepo {
     return true;
   }
 
+  async listPerformanceImports() {
+    const u = await this.requireUser();
+    return (store().perfImports ?? []).filter((x) => x.userId === u.id).map(({ userId: _u, rows: _r, ...x }) => x).reverse();
+  }
+
+  async getPerformanceImport(id: string) {
+    const u = await this.requireUser();
+    const x = (store().perfImports ?? []).find((i) => i.id === id && i.userId === u.id);
+    if (!x) return null;
+    const { userId: _u, rows, ...imp } = x;
+    return { import: imp, rows: structuredClone(rows) };
+  }
+
+  async savePerformanceImport(input: PerformanceImportInput) {
+    const u = await this.requireUser();
+    const s = store();
+    s.perfImports ??= [];
+    if (s.perfImports.filter((x) => x.userId === u.id).length >= PERFORMANCE_IMPORT_LIMIT) return "limit" as const;
+    // Matched analyses must be the user's own.
+    const own = new Set(s.analyses.filter((a) => a.userId === u.id).map((a) => a.id));
+    const id = randomUUID();
+    s.perfImports.push({
+      id,
+      userId: u.id,
+      label: input.label,
+      currency: input.currency,
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+      shareConsent: input.shareConsent,
+      adCount: input.rows.length,
+      createdAt: new Date().toISOString(),
+      rows: input.rows.map((r) => ({ ...r, id: randomUUID(), analysisId: r.analysisId && own.has(r.analysisId) ? r.analysisId : null })),
+    });
+    persist();
+    return { id };
+  }
+
+  async setPerformanceShareConsent(id: string, on: boolean) {
+    const u = await this.requireUser();
+    const x = (store().perfImports ?? []).find((i) => i.id === id && i.userId === u.id);
+    if (!x) return false;
+    x.shareConsent = on;
+    persist();
+    return true;
+  }
+
+  async deletePerformanceImport(id: string) {
+    const u = await this.requireUser();
+    const s = store();
+    const before = (s.perfImports ?? []).length;
+    s.perfImports = (s.perfImports ?? []).filter((x) => !(x.id === id && x.userId === u.id));
+    persist();
+    return s.perfImports.length < before;
+  }
+
+  async listWatches() {
+    const u = await this.requireUser();
+    return (store().watches ?? []).filter((w) => w.userId === u.id).map(({ userId: _u, seenIds: _s, ...w }) => structuredClone(w));
+  }
+
+  async addWatch(term: string, country: string) {
+    const u = await this.requireUser();
+    const s = store();
+    s.watches ??= [];
+    const mine = s.watches.filter((w) => w.userId === u.id);
+    if (mine.some((w) => w.term.toLocaleLowerCase("tr-TR") === term.toLocaleLowerCase("tr-TR") && w.country === country)) return "exists" as const;
+    if (mine.length >= WATCH_LIMIT) return "limit" as const;
+    s.watches.push({ id: randomUUID(), userId: u.id, term, country, seenIds: [], lastCheckedAt: null, lastSummary: null, createdAt: new Date().toISOString() });
+    persist();
+    return "ok" as const;
+  }
+
+  async deleteWatch(id: string) {
+    const u = await this.requireUser();
+    const s = store();
+    const before = (s.watches ?? []).length;
+    s.watches = (s.watches ?? []).filter((w) => !(w.id === id && w.userId === u.id));
+    persist();
+    return s.watches.length < before;
+  }
+
   async listPins() {
     const u = await this.requireUser();
     return (store().pins ?? []).filter((p) => p.userId === u.id).map(({ userId: _u, ...p }) => p).reverse();
@@ -957,6 +1043,8 @@ export class MemoryRepo implements DataRepo {
     s.shares = (s.shares ?? []).filter((x) => x.userId !== u.id);
     s.apiKeys = (s.apiKeys ?? []).filter((x) => x.userId !== u.id);
     s.pins = (s.pins ?? []).filter((x) => x.userId !== u.id);
+    s.perfImports = (s.perfImports ?? []).filter((x) => x.userId !== u.id);
+    s.watches = (s.watches ?? []).filter((x) => x.userId !== u.id);
     for (const p of s.purchases) if (p.userId === u.id) p.userId = null;
     persist();
     await this.signOut();
@@ -1091,6 +1179,101 @@ export class MemoryAdminRepo implements AdminRepo {
     s.generations = (s.generations ?? []).filter((g) => Date.parse(g.expiresAt) > now);
     persist();
     return before - s.analyses.length;
+  }
+
+  async getAppRole(userId: string) {
+    // Demo only: DEMO_ADMIN_EMAILS (exact addresses or "@domain") marks admins of the in-memory store.
+    if (appMode() !== "demo") return null;
+    const u = store().users.find((x) => x.id === userId);
+    const list = (process.env.DEMO_ADMIN_EMAILS ?? "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+    if (!u || !list.length) return null;
+    return list.some((e) => (e.startsWith("@") ? u.email.endsWith(e) : u.email === e)) ? "admin" : null;
+  }
+
+  async adminListUsers(query?: string): Promise<AdminUserRow[]> {
+    const s = store();
+    const q = (query ?? "").trim().toLowerCase();
+    return s.users
+      .filter((u) => !q || u.email.includes(q))
+      .slice(-200)
+      .reverse()
+      .map((u) => ({ id: u.id, email: u.email, createdAt: u.createdAt, balance: balanceOf(u.id), analyses: s.analyses.filter((a) => a.userId === u.id).length }));
+  }
+
+  async adminAdjustCredits(p: { adminId: string; userId: string; delta: number; reason: string; requestId: string }) {
+    const s = store();
+    if (!s.users.some((u) => u.id === p.userId)) return "not_found" as const;
+    if (s.ledger.some((l) => l.idempotencyKey === `admin:${p.requestId}`)) return "exists" as const;
+    if (balanceOf(p.userId) + p.delta < 0) return "negative_balance" as const;
+    insertLedger({ userId: p.userId, delta: p.delta, reason: "admin_adjustment", note: p.reason, analysisId: null, idempotencyKey: `admin:${p.requestId}` });
+    await this.recordAudit({ adminId: p.adminId, action: "credit_adjustment", targetUserId: p.userId, details: { delta: p.delta, reason: p.reason } });
+    return "ok" as const;
+  }
+
+  async adminListPurchases(limit = 100): Promise<AdminPurchaseRow[]> {
+    return store()
+      .purchases.slice(-limit)
+      .reverse()
+      .map(({ eventKey, userId, ...p }) => ({ ...p, userId, eventId: eventKey }));
+  }
+
+  async adminFeedbackStats(): Promise<AdminFeedbackRow[]> {
+    const s = store();
+    const out = new Map<string, AdminFeedbackRow>();
+    for (const f of s.feedback ?? []) {
+      const a = s.analyses.find((x) => x.id === f.analysisId);
+      const idx = Number(f.findingId.slice((a?.id.length ?? 0) + 1));
+      const finding = a?.result?.findings[idx];
+      const ruleId = /^demo-(.+)-v\d+$/.exec(finding?.rule_version_id ?? "")?.[1];
+      if (!finding || !ruleId) continue;
+      const row = out.get(ruleId) ?? { ruleId, title: finding.title, total: 0, wrong: 0, unclear: 0, helpful: 0 };
+      row.total++;
+      row[f.verdict]++;
+      out.set(ruleId, row);
+    }
+    return [...out.values()].sort((a, b) => b.wrong / b.total - a.wrong / a.total || b.total - a.total);
+  }
+
+  async adminErrorStats(sinceIso: string): Promise<AdminErrorStats> {
+    const s = store();
+    const an = s.analyses.filter((a) => a.createdAt >= sinceIso);
+    const byCode: Record<string, number> = {};
+    for (const a of an) if (a.status === "failed") byCode[a.failureCode ?? "unknown"] = (byCode[a.failureCode ?? "unknown"] ?? 0) + 1;
+    const runs = s.aiRuns.filter((r) => r.createdAt >= sinceIso);
+    return {
+      analyses: { total: an.length, failed: an.filter((a) => a.status === "failed").length, byCode },
+      aiRuns: { total: runs.length, failed: runs.filter((r) => r.status === "failed").length, schemaInvalid: runs.filter((r) => r.status === "schema_invalid").length, fallback: runs.filter((r) => r.status === "fallback").length },
+    };
+  }
+
+  async recordAudit(e: { adminId: string; action: string; targetUserId: string | null; details: Record<string, unknown> }) {
+    const s = store();
+    s.audit ??= [];
+    s.audit.push({ id: randomUUID(), ...structuredClone(e), createdAt: new Date().toISOString() });
+    persist();
+  }
+
+  async listAudit(limit = 100) {
+    return structuredClone((store().audit ?? []).slice(-limit).reverse());
+  }
+
+  async listAllWatches() {
+    return structuredClone(store().watches ?? []);
+  }
+
+  async saveWatchResult(id: string, r: { seenIds: string[]; summary: CompetitorSummary }) {
+    const w = (store().watches ?? []).find((x) => x.id === id);
+    if (!w) return;
+    w.seenIds = r.seenIds.slice(-1000);
+    w.lastSummary = structuredClone(r.summary);
+    w.lastCheckedAt = new Date().toISOString();
+    persist();
+  }
+
+  async getUserContact(userId: string) {
+    const s = store();
+    const u = s.users.find((x) => x.id === userId);
+    return u ? { email: u.email, displayName: s.profiles[u.id]?.displayName ?? null } : null;
   }
 
   async listSeasonReminderRecipients() {
