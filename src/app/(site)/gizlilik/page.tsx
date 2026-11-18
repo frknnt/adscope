@@ -43,6 +43,7 @@ export default function PrivacyPage() {
         <li>Konuşmayı yazıya dökme (açıksa ve onay verdiyseniz): OpenAI uyumlu bir konuşma tanıma hizmeti.</li>
         <li>Hatırlatma, bülten ve ekip daveti e-postaları: e-posta gönderim sağlayıcısı (Resend).</li>
         <li>İlham panosu araması: Meta Platforms (Reklam Kütüphanesi API). Yalnızca arama terimi ve ülke gönderilir.</li>
+        <li>Yapay zekâ görsel ve video üretimi (açıksa ve siz bir üretim başlattığınızda): Google (Gemini API). Yalnızca yazdığınız sahne açıklaması (e-posta, telefon ve bağlantılar silinerek) ve eklediyseniz dosya bilgileri silinmiş ürün fotoğrafı gönderilir; ad, e-posta veya hesap bilgisi gönderilmez. Google ürettiği görsellere görünmez SynthID filigranı ekler.</li>
         <li>Görsel araçları (açıksa ve siz bir işlem başlattığınızda): Photoroom. Arka plan kaldırma, büyütme ve ürün sahnesi için yalnızca yüklediğiniz fotoğraf, konum ve cihaz gibi dosya bilgileri silinerek gönderilir; ad, e-posta veya hesap bilgisi gönderilmez. Photoroom görselleri ABD&apos;deki sunucularda işler ve API görsellerini saklamadığını belirtir. Boyutlandırma, kırpma ve filigran cihazınızda yapılır, hiçbir yere gönderilmez.</li>
         <li>Kurumsal API webhook&apos;ları (siz bir adres eklediyseniz): yalnızca analiz kimliği, durum ve risk düzeyleri sizin belirlediğiniz adrese gönderilir; reklam metni gönderilmez.</li>
         <li>Ödeme (aktifleştirildiğinde): Shopier. Kart bilgilerinizi Shopier alır; AdScope&apos;a yalnızca sipariş numarası, paket ve tutar bildirilir.</li>

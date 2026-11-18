@@ -125,7 +125,7 @@ export interface Audience {
 }
 export type AudienceInput = Omit<Audience, "id" | "createdAt">;
 
-export type GenerationKind = "copy" | "creative" | "photo" | "tool" | "script";
+export type GenerationKind = "copy" | "creative" | "photo" | "tool" | "script" | "ai_image" | "ai_video";
 
 /** A paid output that is not an analysis (ad copy, creative download, product photo). */
 export interface GenerationRecord {

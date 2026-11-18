@@ -55,6 +55,9 @@ export default defineConfig({
       PHOTOROOM_API_KEY: "e2e-fake-key",
       PHOTOROOM_SDK_URL: "http://127.0.0.1:3197",
       PHOTOROOM_IMAGE_API_URL: "http://127.0.0.1:3197",
+      // Gemini (AI images and videos) goes to a fake provider started by the genai spec on this port.
+      GEMINI_API_KEY: "e2e-fake-gemini-key",
+      GEMINI_API_BASE: "http://127.0.0.1:3196",
     },
   },
 });

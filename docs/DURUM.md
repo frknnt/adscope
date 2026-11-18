@@ -34,6 +34,7 @@
 | Hata izleme (Sentry) | **Adaptör hazır, hesap yok.** `SENTRY_DSN` tanımlanınca temizlenmiş olay gönderilir; SDK kullanılmaz. Gerçek Sentry projesiyle denenmedi. |
 | Anonim ziyaret istatistiği | **Kapalı, sağlayıcı seçilmedi.** `ANALYTICS_SCRIPT_URL` ve `ANALYTICS_DOMAIN` tanımlanınca yalnızca herkese açık sayfalarda, onaydan sonra yüklenir. |
 | Kurulabilir uygulama (PWA) | **Gerçek.** Manifest, ikonlar, service worker (yalnızca derleme dosyalarını önbelleğe alır), çevrimdışı sayfa, telefondan paylaşma. Gerçek iOS ve Android cihazda denenmedi; adımlar aşağıda. |
+| Yapay zekâ görsel ve video üretimi (Google Gemini API) | **Adaptör hazır, anahtar yok.** `GEMINI_API_KEY` tanımlanınca Görsel araçları sayfasındaki iki sekme açılır. Sahte Gemini sunucusuyla birim ve uçtan uca test edildi; gerçek API ile denenmedi. |
 | Aylık mevzuat bülteni | **Adaptör hazır, hesap yok.** İçerik katalogdaki `lastVerifiedAt` tarihlerinden üretilir; Resend ve zamanlayıcı kurulmadı. |
 | Meta Reklam Kütüphanesi ilham panosu | **Adaptör hazır, anahtar yok.** Sahte Graph API sunucusuyla birim ve uçtan uca test edildi; gerçek API ile denenmedi. Ticari reklamlar API'de yalnızca AB için açık. |
 | Tarayıcı eklentisi | **Gerçek, mağazada değil.** Geliştirici modunda yüklenir; Chrome Web Mağazası hesabı gerekir. Yardımcı işlevleri birim testli; eklentinin kendisi tarayıcıda otomatik test edilmedi. |
@@ -186,7 +187,17 @@ Faz 7 (P7.1–P7.4, 18.11.2026):
   2. iOS Safari: Paylaş > "Ana Ekrana Ekle". iOS paylaşım hedefini (share target) desteklemediği için AdScope paylaşım listesinde görünmez; uygulama ana ekrandan açılmalı ve ikon lacivert zeminde görünmeli.
   3. Her iki cihazda: panelde çıkış yapıp geri tuşuna basınca rapor önbellekten gelmemeli (HTML önbelleğe alınmaz).
 
+Yapay zekâ görsel ve video üretimi (18.11.2026, kullanıcı kararı: Google Gemini API):
+
+- Belgeler 18.11.2026'da okundu. Veo 3.1 önizleme modelleri 22.10.2026'da kapatılmış; Gemini API'de video artık Gemini Omni Flash (`gemini-omni-1.1-flash`) ile üretiliyor. Görsel için Nano Banana 2.1 (`gemini-nano-banana-2.1`). İkisi de Interactions uç noktasıyla (`POST /v1beta/interactions`, `x-goog-api-key` başlığı) eşzamanlı çalışır. Model adları `GEMINI_IMAGE_MODEL` ve `GEMINI_VIDEO_MODEL` ile değiştirilebilir.
+- Görsel: 1–4 sonuç, 1:1, 4:5 veya 9:16, 1K, ürün fotoğrafı isteğe bağlı referans (ürün olduğu gibi korunur). Görsel başına 1 kredi; yalnızca gelen sonuçlar için kredi düşer.
+- Video: 3–10 sn, 720p, 9:16 veya 16:9, sesli (yalnızca müzik/ortam sesi istenir), isteğe bağlı başlangıç görseli. 8 kredi. Yanıt 280 sn içinde gelmezse kredi düşmez; uç noktanın süresi 300 sn (Vercel Pro).
+- Sabit talimatlar görsele yazı, fiyat, indirim, sağlık/sonuç iddiası, ünlü kişi, çocuk ve resmî amblem eklenmesini engeller; kullanıcının açıklaması e-posta, telefon ve bağlantıdan temizlenip tırnak içinde eklenir.
+- Doğrulanacaklar: Nano Banana 2.1 ve Omni Flash fiyatları resmî fiyat sayfasında henüz yoktu; kredi tablosu (`src/lib/genai/costs.ts`) ikincil kaynaklardaki ~0,034 $/görsel ve ~0,07 $/sn ile 45 TL/$ varsayımına dayanır. Gemini ücretli API koşullarındaki veri kullanımı ve saklama maddeleri yayından önce okunmalı. Gerçek anahtarla ilk denemede yanıtın `steps[].content[]` yapısı ve uzun videolarda dosya bağlantısıyla (`uri`) indirme doğrulanmalı.
+
 ## Bitti
+
+18.11.2026 (5): Google Gemini ile yapay zekâ görseli (Nano Banana 2.1) ve kısa video (Omni Flash) üretimi, Görsel araçları sayfasında.
 
 18.11.2026 (4): Faz 7. Veritabanında paylaşılan hız sınırı, iş kuyruğu, OpenAPI belgesi, imzalı webhook'lar, API kullanım grafiği, temizlenmiş hata izleme, çerez onayı, dönüşüm hunisi, kurulabilir uygulama ve telefondan paylaşma. Birim 212/212.
 
