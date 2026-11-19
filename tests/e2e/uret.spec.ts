@@ -29,7 +29,7 @@ test("ad copy from a product page: template mode, rule-checked, sent to the wiza
   await signUp(page);
   await onboard(page);
   const start = await balance(page);
-  await page.goto("/panel/uret");
+  await page.goto("/panel/uret?sekme=metin");
   await expect(page.getByRole("heading", { name: "Üret", level: 1 })).toBeVisible();
   await expect(page.getByText("Yapay zekâ bu ortamda kapalı")).toBeVisible();
   await page.getByLabel("Ürün ya da hizmet sayfası").fill(`${origin}/urun`);
@@ -79,7 +79,7 @@ test("audience profiles refuse sensitive categories", async ({ page }) => {
   await expect(dlg.getByText("“Evde kahve demleyenler” profili eklendi.")).toBeVisible();
 
   // The profile can be picked on the copy page for that brand.
-  await page.goto("/panel/uret");
+  await page.goto("/panel/uret?sekme=metin");
   await page.getByLabel("Marka").selectOption({ label: "Çınar" });
   await page.getByLabel("Hedef kitle").selectOption({ label: "Evde kahve demleyenler" });
   await page.getByLabel("Kısa açıklama (adres yoksa gerekli)").fill("Taze çekilmiş kahve");

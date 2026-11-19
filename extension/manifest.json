@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "AdScope ön kontrol",
   "short_name": "AdScope",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Seçtiğin reklam metnini veya açılış sayfasını tek tıkla AdScope ön kontrolüne gönder.",
   "minimum_chrome_version": "116",
   "permissions": ["contextMenus", "storage"],

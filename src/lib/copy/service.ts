@@ -1,6 +1,6 @@
 import "server-only";
 import { getAiProvider } from "@/lib/analysis/service";
-import type { DataRepo, GenerationRecord } from "@/lib/data/types";
+import type { Brand, DataRepo, GenerationRecord } from "@/lib/data/types";
 import { fetchLanding } from "@/lib/landing/fetch";
 import { ruleAppliesTo, type Platform } from "@/lib/platforms";
 import type { Sector } from "@/lib/rules/catalog";
@@ -37,10 +37,6 @@ export async function runCopyGeneration(repo: DataRepo, req: CopyRequest): Promi
   const aiOn = Boolean(ai?.generateCopy);
   if (aiOn && (await repo.getBalance()) < COPY_CREDIT_COST) return { ok: false, error: "Kredin yetersiz. Yapay zekâ ile üretim 1 kredi; Krediler sayfasından paket alabilirsin." };
 
-  const brand = req.brandId ? ((await repo.listBrands()).find((b) => b.id === req.brandId) ?? null) : null;
-  if (req.brandId && !brand) return { ok: false, error: "Marka bulunamadı." };
-  const sector = brand?.sector ?? req.sector;
-
   let product: CopyContext["product"] = { name: req.productName.trim(), summary: req.description.trim(), points: [] };
   let pageText = "";
   if (req.url) {
@@ -55,38 +51,9 @@ export async function runCopyGeneration(repo: DataRepo, req: CopyRequest): Promi
   }
   if (!product.name && !product.summary) return { ok: false, error: "Bir ürün adresi ya da kısa bir açıklama yaz." };
 
-  const ctx: CopyContext = {
-    sector,
-    platform: req.platform,
-    product,
-    brand: brand
-      ? { name: brand.name, tone: brand.tone, bannedWords: brand.bannedWords, requiredPhrases: brand.requiredPhrases, preferredCta: brand.preferredCta, tagline: brand.tagline, audienceNote: brand.audienceNote }
-      : null,
-    audience: req.audience,
-  };
-  const rules = (await repo.getRules(sector)).filter((r) => ruleAppliesTo(r, req.platform));
-
-  let copy: CopyOutput | null = null;
-  let aiFailed = false;
-  if (ai?.generateCopy) {
-    const res = await ai.generateCopy({
-      platform: req.platform,
-      sector,
-      limits: COPY_LIMITS[req.platform],
-      product: { ...product, pageText },
-      brand: ctx.brand ? { ...ctx.brand } : null,
-      audience: req.audience,
-      avoid: rules.filter((r) => r.status === "active").flatMap((r) => r.riskyExamples),
-    });
-    if (res.ok) copy = processAiCopy(res.data, ctx, rules);
-    else aiFailed = true;
-    // A model answer with nothing usable left after the checks falls back to templates, free of charge.
-    if (copy && (!copy.headlines.length || !copy.primaryTexts.length)) {
-      copy = null;
-      aiFailed = true;
-    }
-  }
-  if (!copy) copy = templateCopy(ctx, rules);
+  const composed = await composeCopy(repo, { product, pageText, brandId: req.brandId, platform: req.platform, sector: req.sector, audience: req.audience });
+  if (!composed) return { ok: false, error: "Marka bulunamadı." };
+  const { copy, aiFailed, brand } = composed;
 
   const cost = copy.source === "ai" ? COPY_CREDIT_COST : 0;
   const stored: CopyStored = { input: { url: req.url, productName: product.name, audience: req.audience?.name ?? null }, copy, ...(aiFailed ? { aiFailed } : {}) };
@@ -101,4 +68,59 @@ export async function runCopyGeneration(repo: DataRepo, req: CopyRequest): Promi
   if (rec.status === "insufficient_credits") return { ok: false, error: "Kredin yetersiz. Üretim kaydedilmedi ve kredi düşülmedi." };
   if (rec.status !== "created" && rec.status !== "exists") return { ok: false, error: "Üretim kaydedilemedi. Kredi düşülmedi; lütfen tekrar dene." };
   return { ok: true, generation: rec.generation, stored: rec.generation.output as unknown as CopyStored, charged: rec.status === "created" ? cost : 0 };
+}
+
+export interface ComposeCopyInput {
+  product: CopyContext["product"];
+  /** Untrusted page text, only passed to the model as data. */
+  pageText: string;
+  brandId: string | null;
+  platform: Platform;
+  sector: Sector;
+  audience: CopyAudience | null;
+}
+
+/**
+ * Builds the rule-checked suggestions without storing or charging anything: the model when it is
+ * on (template suggestions when it is off or fails). Callers decide whether and what to charge.
+ */
+export async function composeCopy(repo: DataRepo, req: ComposeCopyInput): Promise<{ copy: CopyOutput; aiFailed: boolean; brand: Brand | null; sector: Sector } | null> {
+  const brand = req.brandId ? ((await repo.listBrands()).find((b) => b.id === req.brandId) ?? null) : null;
+  if (req.brandId && !brand) return null;
+  const sector = brand?.sector ?? req.sector;
+  const product = req.product;
+  const ctx: CopyContext = {
+    sector,
+    platform: req.platform,
+    product,
+    brand: brand
+      ? { name: brand.name, tone: brand.tone, bannedWords: brand.bannedWords, requiredPhrases: brand.requiredPhrases, preferredCta: brand.preferredCta, tagline: brand.tagline, audienceNote: brand.audienceNote }
+      : null,
+    audience: req.audience,
+  };
+  const rules = (await repo.getRules(sector)).filter((r) => ruleAppliesTo(r, req.platform));
+
+  const ai = getAiProvider();
+  let copy: CopyOutput | null = null;
+  let aiFailed = false;
+  if (ai?.generateCopy) {
+    const res = await ai.generateCopy({
+      platform: req.platform,
+      sector,
+      limits: COPY_LIMITS[req.platform],
+      product: { ...product, pageText: req.pageText },
+      brand: ctx.brand ? { ...ctx.brand } : null,
+      audience: req.audience,
+      avoid: rules.filter((r) => r.status === "active").flatMap((r) => r.riskyExamples),
+    });
+    if (res.ok) copy = processAiCopy(res.data, ctx, rules);
+    else aiFailed = true;
+    // A model answer with nothing usable left after the checks falls back to templates, free of charge.
+    if (copy && (!copy.headlines.length || !copy.primaryTexts.length)) {
+      copy = null;
+      aiFailed = true;
+    }
+  }
+  if (!copy) copy = templateCopy(ctx, rules);
+  return { copy, aiFailed, brand, sector };
 }

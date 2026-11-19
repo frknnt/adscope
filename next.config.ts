@@ -12,7 +12,8 @@ const nextConfig: NextConfig = {
     "/inceleme/[token]/pdf": ["./assets/fonts/**/*"],
     // Creative fonts (P2.1): preview route and the Üret page's download action.
     "/api/creative/preview": ["./assets/fonts/creative/**/*"],
-    "/panel/uret": ["./assets/fonts/creative/**/*"],
+    // Campaign package (P9.1) also writes the PDF check report with the report fonts.
+    "/panel/uret": ["./assets/fonts/creative/**/*", "./assets/fonts/*.ttf"],
   },
   // The analysis upload can carry still frames, a short 16 kHz audio clip and a landing screenshot.
   experimental: { proxyClientMaxBodySize: "16mb" },

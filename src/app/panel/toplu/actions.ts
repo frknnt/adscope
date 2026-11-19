@@ -8,6 +8,8 @@ import type { Level } from "@/lib/engine/types";
 import { PLATFORM_IDS, ruleAppliesTo, type Platform } from "@/lib/platforms";
 import { SECTOR_IDS } from "@/lib/sectors";
 import { hashKey, rateLimit } from "@/lib/security/rate-limit";
+import { checkVariantLines } from "@/lib/variants/check";
+import { PASTE_MAX, parseVariantLines, pasteProblem, VARIANT_MAX_CHARS, type VariantRow } from "@/lib/variants/paste";
 
 const BULK_MAX = 20;
 
@@ -104,6 +106,45 @@ export async function bulkCheckAction(_prev: BulkState, form: FormData): Promise
     return { status: "done", platform: d.platform, rows };
   } catch {
     console.error("[bulk-check] failed");
+    return { status: "error", message: "Kontrol şu an yapılamadı. Lütfen biraz sonra tekrar dene." };
+  }
+}
+
+export type VariantState = { status: "idle" } | { status: "error"; message: string } | { status: "done"; platform: Platform; rows: VariantRow[] };
+
+const variantSchema = z.object({
+  platform: z.enum(PLATFORM_IDS).default("meta"),
+  sector: z.enum(SECTOR_IDS).default("genel"),
+  brandId: z.string().max(64).optional(),
+  texts: z.string().max(PASTE_MAX.panel * (VARIANT_MAX_CHARS + 20), "Metin çok uzun."),
+});
+
+/**
+ * "Platformun ürettiği varyantları yapıştır" (P9.3): one variant per line, up to 20, rule engine
+ * only. No credits and nothing stored; shares the bulk check's hourly limit.
+ */
+export async function variantCheckAction(_prev: VariantState, form: FormData): Promise<VariantState> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/giris");
+  const parsed = variantSchema.safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? "Formu kontrol et." };
+  const d = parsed.data;
+  const lines = parseVariantLines(d.texts);
+  const problem = pasteProblem(lines, PASTE_MAX.panel);
+  if (problem) return { status: "error", message: problem };
+  const lim = rateLimit(`bulk:${await hashKey("bulk", user.id)}`, 30, 60 * 60_000);
+  if (!lim.ok) return { status: "error", message: "Bir saatte en fazla 30 toplu kontrol yapılabilir. Biraz sonra tekrar dene." };
+  try {
+    const repo = getRepo();
+    const [rules, brands] = await Promise.all([repo.listAllRules(), repo.listBrands()]);
+    const brand = brands.find((b) => b.id === d.brandId) ?? null;
+    const rows = await checkVariantLines(
+      { rules, platform: d.platform, sector: brand?.sector ?? d.sector, brandVoice: brand ? { bannedWords: brand.bannedWords, preferredCta: brand.preferredCta, voiceNotes: brand.voiceNotes } : null },
+      lines,
+    );
+    return { status: "done", platform: d.platform, rows };
+  } catch {
+    console.error("[variant-check] failed");
     return { status: "error", message: "Kontrol şu an yapılamadı. Lütfen biraz sonra tekrar dene." };
   }
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { HighlightedText } from "@/components/highlighted-text";
+import { LandingPlatformVariants } from "@/components/landing-platform-variants";
 import {
   IconAlert,
   IconAppeal,
@@ -525,6 +526,9 @@ export default async function HomePage() {
           />
         </div>
       </section>
+
+      {/* Platform AI variants: paste them and check against Turkish ad rules (P9.3) */}
+      <LandingPlatformVariants />
 
       {/* Needs selector */}
       <section id="ihtiyac" className={`${WRAP} scroll-mt-24 py-20 lg:py-28`}>

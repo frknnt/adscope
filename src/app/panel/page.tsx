@@ -34,7 +34,15 @@ function QuickTile({ href, title, cost, Icon, text }: { href: string; title: str
 export default async function DashboardPage() {
   await requirePanelUser();
   const repo = getRepo();
-  const [profile, balance, recent, rules, brands, team] = await Promise.all([repo.getProfile(), repo.getBalance(), repo.listAnalyses(200), repo.listAllRules(), repo.listBrands(), repo.getTeam()]);
+  const [profile, balance, recent, rules, brands, team, packages] = await Promise.all([
+    repo.getProfile(),
+    repo.getBalance(),
+    repo.listAnalyses(200),
+    repo.listAllRules(),
+    repo.listBrands(),
+    repo.getTeam(),
+    repo.listGenerations("campaign", 1),
+  ]);
   const rescan = rescanAnalyses(recent.slice(0, 50), rules);
   const stats = dashboardStats(recent, new Date());
   const name = profile?.displayName?.split(" ")[0];
@@ -50,9 +58,9 @@ export default async function DashboardPage() {
       : "Son raporlarında yüksek risk görünmüyor.";
 
   const steps = [
-    { done: brands.length > 0, title: "Marka ekle", text: "Ton, yasaklı kelimeler ve logo raporlara yansır.", href: "/panel/markalar", Icon: IconTag },
-    { done: false, title: "İlk kontrol", text: "Görsel, ana metin ve sektör yeterli; yaklaşık bir dakika.", href: "/panel/yeni", Icon: IconPlus },
-    { done: false, title: "Raporu indir", text: "Markalı PDF ya da varyant tablosu olarak dışa aktar.", href: "/panel/yeni", Icon: IconDoc },
+    { done: brands.length > 0, title: "Siteni ekle", text: "Adresini yaz; marka kiti, sektör ve sitedeki riskli ifadeler tek ekranda gelir.", href: "/panel/baslangic", Icon: IconTag },
+    { done: packages.length > 0, title: "İlk kampanya paketin", text: "10 metin, 4 boyutta görseller ve kontrol raporu; önizleme ücretsiz.", href: "/panel/uret", Icon: IconPlus },
+    { done: false, title: "İlk kontrol", text: "Görsel, ana metin ve sektör yeterli; yaklaşık bir dakika.", href: "/panel/yeni", Icon: IconImage },
     { done: team.members.length + team.invites.length > 0, title: "Ekibini davet et", text: "Ekip üyeleri raporları görür, kredi harcamaz.", href: "/panel/ekip", Icon: IconUsers },
   ];
 
@@ -129,7 +137,7 @@ export default async function DashboardPage() {
           </ol>
           {!profile?.onboardingCompletedAt ? (
             <p className="mt-5 text-body text-ink-soft">
-              <strong className="text-ink">Sektörünü seç,</strong> raporlar ilgili kural paketiyle gelsin. <Link href="/panel/baslangic" className="font-semibold">Başlangıç ayarları</Link>
+              <strong className="text-ink">Web siteni yaz,</strong> marka kitin, sektörün ve ilk paketin tek adımda hazırlansın. <Link href="/panel/baslangic" className="font-semibold">Siteyle başla</Link>
             </p>
           ) : null}
         </section>
