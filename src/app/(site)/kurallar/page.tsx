@@ -1,28 +1,45 @@
 import type { Metadata } from "next";
 import { IconExternal } from "@/components/icons";
 import { DOMAIN_LABEL, RuleStatusPill, SECTOR_LABEL, formatDateTr } from "@/components/rule-status";
+import { SegmentedLinks } from "@/components/panel-ui";
+import { RuleTrustBand } from "@/components/rule-trust-band";
 import { Disclaimer } from "@/components/ui";
 import { getRepo } from "@/lib/data";
+import { matchesRuleStatusFilter, parseRuleStatusFilter, type RuleStatusFilter } from "@/lib/rules/stats";
 
 export const metadata: Metadata = { title: "Kural kartları ve kaynaklar · AdScope" };
 
 const RISK_LABEL = { high: "Yüksek", medium: "Orta", low: "Düşük" } as const;
 const REVIEW_LABEL = { pending: "Bekliyor", reviewed: "İncelendi", changes_requested: "Değişiklik istendi" } as const;
 
-export default async function RulesPage() {
-  const rules = (await getRepo().listAllRules()).filter((r) => r.status !== "draft" && r.status !== "retired");
-  const groups = (["meta_policy", "tr_law"] as const).map((d) => ({ domain: d, rules: rules.filter((r) => r.domain === d) }));
-  const active = rules.filter((r) => r.status === "active").length;
+const FILTER_LABEL: Record<RuleStatusFilter, string> = { hepsi: "Tümü", dogrulandi: "Doğrulandı", inceleme: "İncelemede" };
+const FILTER_HREF: Record<RuleStatusFilter, string> = { hepsi: "/kurallar", dogrulandi: "/kurallar?durum=dogrulandi", inceleme: "/kurallar?durum=inceleme" };
+
+export default async function RulesPage({ searchParams }: { searchParams: Promise<{ durum?: string | string[] }> }) {
+  const filter = parseRuleStatusFilter((await searchParams).durum);
+  const all = (await getRepo().listAllRules()).filter((r) => matchesRuleStatusFilter(r, "hepsi"));
+  const rules = all.filter((r) => matchesRuleStatusFilter(r, filter));
+  const groups = (["meta_policy", "tr_law"] as const).map((d) => ({ domain: d, rules: rules.filter((r) => r.domain === d) })).filter((g) => g.rules.length);
+  const count = (f: RuleStatusFilter) => all.filter((r) => matchesRuleStatusFilter(r, f)).length;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
       <h1 className="max-w-3xl font-display text-4xl font-semibold leading-tight sm:text-[3.4rem]">Kural kartları ve resmî kaynaklar</h1>
       <p className="mt-5 max-w-3xl text-lg leading-relaxed text-ink-soft">
-        AdScope&apos;un gösterdiği her bulgu aşağıdaki kartlardan birine dayanır. {active} kart aktif: içeriği resmî kaynakta okundu ve kırmızı ya da sarı bayrak üretebilir. &quot;Doğrulama bekliyor&quot; olan kartlar yalnızca bilgilendirme notu üretir; ihlal sayılmaz, risk seviyesini değiştirmez. Hiçbir kart henüz bir hukukçu tarafından incelenmedi.
+        AdScope&apos;un gösterdiği her bulgu aşağıdaki kartlardan birine dayanır. Aktif kartların içeriği resmî kaynakta okundu; bu kartlar kırmızı ya da sarı bayrak üretebilir. &quot;Doğrulama bekliyor&quot; olan kartlar yalnızca bilgilendirme notu üretir; ihlal sayılmaz, risk seviyesini değiştirmez.
       </p>
+      <RuleTrustBand className="mt-8" />
+
+      <div className="mt-10 flex flex-wrap items-center gap-3">
+        <SegmentedLinks
+          label="Kart durumu"
+          items={(["hepsi", "dogrulandi", "inceleme"] as const).map((f) => ({ href: FILTER_HREF[f], label: `${FILTER_LABEL[f]} (${count(f)})`, active: filter === f }))}
+        />
+        <p className="text-small text-muted" aria-live="polite">{rules.length} kart gösteriliyor.</p>
+      </div>
 
       {groups.map((g) => (
-        <section key={g.domain} className="mt-14" aria-labelledby={`h-${g.domain}`}>
+        <section key={g.domain} className="mt-10" aria-labelledby={`h-${g.domain}`}>
           <h2 id={`h-${g.domain}`} className="font-display text-2xl font-semibold">
             {DOMAIN_LABEL[g.domain]} <span className="text-base font-normal text-muted">· {g.rules.length} kart</span>
           </h2>

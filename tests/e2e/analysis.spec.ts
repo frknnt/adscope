@@ -142,6 +142,8 @@ test("history delete, demo credits, appeal from the assistant and account deleti
   await expect(page.getByText("İngilizce taslak (Meta destek formu için)")).toBeVisible();
 
   await page.goto("/panel/krediler");
+  await expect(page.getByRole("region", { name: "Nasıl ücretlendiriyoruz" })).toContainText("Kredi yalnızca iş bitince düşer");
+  await expect(page.getByText("Örneğin 100 görsel analizi, 50 video analizi ya da 100 görsel seti indirme.")).toBeVisible();
   const demoButtons = page.getByRole("button", { name: /Demo: 30 kredi ekle/ });
   if (await demoButtons.count()) {
     await demoButtons.click();

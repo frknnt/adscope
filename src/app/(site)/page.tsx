@@ -21,6 +21,8 @@ import { LevelPill, ScaleBar } from "@/components/risk";
 import { ButtonLink, Disclaimer } from "@/components/ui";
 import { CREDIT_PACKAGES, formatTry } from "@/lib/payments/packages";
 import { RULE_CATALOG } from "@/lib/rules/catalog";
+import { ruleTrustStats } from "@/lib/rules/stats";
+import { RuleTrustBand } from "@/components/rule-trust-band";
 import { SAMPLE_AD, sampleReport } from "@/lib/sample";
 import { getRepo } from "@/lib/data";
 import { buildGuide, GUIDE_SLUGS, type GuideSlug } from "@/lib/guides/guides";
@@ -223,7 +225,7 @@ function UploadMock() {
             <p className="mt-1.5 rounded-xl border border-line-strong px-3 py-2 text-small text-ink-soft">{SAMPLE_AD.primaryText}</p>
           </div>
           <div className="flex items-center gap-2 rounded-xl bg-blue-tint px-3 py-2 text-meta font-semibold text-blue">
-            <span className="size-2 rounded-full bg-blue motion-safe:animate-pulse" /> 63 kural kartıyla taranıyor
+            <span className="size-2 rounded-full bg-blue motion-safe:animate-pulse" /> {ruleTrustStats(RULE_CATALOG).total} kural kartıyla taranıyor
           </div>
         </div>
       </div>
@@ -408,6 +410,7 @@ const FAQ: [string, ReactNode][] = [
     "Genel bir sohbet botuna sorsam olmaz mı?",
     "Sohbet botları kaynak göstermeyebilir ve aynı reklama farklı cevaplar verebilir. AdScope'un kural motoru aynı girdiye aynı sonucu verir, her bulguyu kaynağına bağlar ve rapor, güvenli metin, varyant ve itiraz taslağını birlikte üretir.",
   ],
+  ["İptal nasıl olur?", "Abonelik olmadığı için iptal etmen gereken bir şey yok. Kredi paketleri tek seferlik ödemedir; yeni paket almadığın sürece ücret alınmaz."],
   ["Hangi platformları destekliyor?", "Meta (Facebook, Instagram), Google Ads ve TikTok. Türk reklam mevzuatı kontrolleri platformdan bağımsız çalışır."],
   ["Kredi nasıl düşüyor?", "Görsel analizi 1, video/Reels analizi 2 kredidir. Kredi yalnızca rapor başarıyla tamamlandığında düşer. Abonelik yoktur; kayıtta 3 analiz ücretsizdir."],
   ["Yüklediğim reklamlar ne oluyor?", "İçeriklerin model eğitiminde kullanılmaz, saklama süresini sen seçersin ve istediğinde silebilirsin. Ayrıntılar gizlilik politikasında."],
@@ -415,7 +418,7 @@ const FAQ: [string, ReactNode][] = [
 
 export default async function HomePage() {
   const report = await sampleReport();
-  const activeCount = RULE_CATALOG.filter((r) => r.status === "active").length;
+  const ruleStats = ruleTrustStats(RULE_CATALOG);
   const sources = [...new Set(RULE_CATALOG.map((r) => r.sourceOrg))].slice(0, 8);
   const sectors = SECTOR_IDS.filter((s) => s !== "genel");
   const rules = await getRepo().listAllRules();
@@ -464,6 +467,11 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Trust band: counted from the rule catalog */}
+      <div className={`${WRAP} pb-12 lg:pb-16`}>
+        <RuleTrustBand link />
+      </div>
 
       {/* Live mini check: the same rule engine as the free check page, nothing is stored */}
       <section id="dene" aria-labelledby="dene-baslik" className="scroll-mt-24 border-y border-line bg-paper-2 py-16 lg:py-20">
@@ -639,7 +647,7 @@ export default async function HomePage() {
       <section aria-label="AdScope rakamlarla" className={`${WRAP} pb-20 lg:pb-28`}>
         <dl className="grid gap-px overflow-hidden rounded-3xl border border-line bg-line shadow-card sm:grid-cols-2 lg:grid-cols-4">
           {[
-            [String(RULE_CATALOG.length), "kural kartı", `${activeCount} tanesi resmî kaynaktan doğrulandı`],
+            [String(ruleStats.total), "kural kartı", `${ruleStats.active} tanesi resmî kaynaktan doğrulandı`],
             ["3", "reklam platformu", "Meta, Google Ads, TikTok"],
             [String(sectors.length), "sektör paketi", "Takviye gıdadan finansa"],
             ["2 dil", "itiraz taslağı", "Türkçe ve İngilizce"],
@@ -661,7 +669,7 @@ export default async function HomePage() {
           <ol className="mt-12 grid gap-5 md:grid-cols-3">
             {[
               ["Yükle", "Görselini veya videonu, metnini, platformu ve sektörünü seç.", IconUpload],
-              ["Kontrol et", `${RULE_CATALOG.length} kural kartıyla taranır; sonuç yaklaşık bir dakikada hazır.`, IconScale],
+              ["Kontrol et", `${ruleStats.total} kural kartıyla taranır; sonuç yaklaşık bir dakikada hazır.`, IconScale],
               ["Düzelt ve yayınla", "Güvenli metni ve varyantları kullan, raporu PDF olarak indir ya da ekibinle paylaş.", IconCheck],
             ].map(([t, d, I], i) => {
               const Icon = I as typeof IconUpload;

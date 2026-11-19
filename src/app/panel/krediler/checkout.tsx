@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { CreditExamples } from "@/components/pricing-terms";
 import { Button } from "@/components/ui";
 import { formatTry, type CreditPackage } from "@/lib/payments/packages";
 import { DemoPurchaseButton } from "../forms";
@@ -56,6 +57,7 @@ export function PackageGrid({
             <p className="mt-1 text-ink-soft">
               <span className="tabular">{p.credits}</span> analiz · {p.description}
             </p>
+            <CreditExamples credits={p.credits} className="mt-1 text-muted" />
             <div className="mt-5 grid gap-2">
               {providers.map((pr) => (
                 <form key={pr.id} action={action}>
