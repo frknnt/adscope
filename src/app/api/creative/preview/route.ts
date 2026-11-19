@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, getRepo } from "@/lib/data";
 import { parseCreativeQuery } from "@/lib/creative/request";
+import { docFromTemplate, renderDoc } from "@/lib/creative/editor-service";
 import { creativeContext, renderCreative } from "@/lib/creative/service";
 import { rateLimit } from "@/lib/security/rate-limit";
 
@@ -12,9 +13,17 @@ export async function GET(req: Request) {
   const q = parseCreativeQuery((k) => new URL(req.url).searchParams.get(k));
   if (!q.baslik) return new NextResponse(null, { status: 400 });
   try {
-    const ctx = await creativeContext(getRepo(), { brandId: q.marka, platform: q.platform, sector: q.sektor, headline: q.baslik, body: q.metin, cta: q.cta });
+    const repo = getRepo();
+    const ctx = await creativeContext(repo, { brandId: q.marka, platform: q.platform, sector: q.sektor, headline: q.baslik, body: q.metin, cta: q.cta });
     if (!ctx) return new NextResponse(null, { status: 404 });
-    const png = await renderCreative(ctx, q.yerlesim, q.boyut, 0.4);
+    let png: Uint8Array;
+    if (q.sablon) {
+      // A saved brand template with the new copy placed into it (P10.3).
+      const tpl = await repo.getBrandTemplate(q.sablon);
+      const doc = tpl && tpl.brandId === ctx.brandId ? docFromTemplate(ctx, tpl.doc) : null;
+      if (!doc) return new NextResponse(null, { status: 404 });
+      png = (await renderDoc(ctx, doc, q.boyut, 0.4)).png;
+    } else png = await renderCreative(ctx, q.yerlesim, q.boyut, 0.4);
     return new NextResponse(Buffer.from(png), {
       headers: { "Content-Type": "image/png", "Cache-Control": "private, max-age=600", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox" },
     });

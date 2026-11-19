@@ -6,7 +6,7 @@ import type { AppealOut, RuleRecord, VideoMeta } from "@/lib/engine/types";
 import type { RuleCardDef, Sector } from "@/lib/rules/catalog";
 import { findPackage } from "@/lib/payments/packages";
 import { COUPON_RESERVATION_MS, commissionOf, emailHash, newCode } from "@/lib/growth/codes";
-import { API_KEY_LIMIT, PERFORMANCE_IMPORT_LIMIT, PIN_LIMIT, TEAM_LIMIT, WATCH_LIMIT, WATCH_SEEN_CAP, WEBHOOK_LIMIT } from "./limits";
+import { API_KEY_LIMIT, PERFORMANCE_IMPORT_LIMIT, PIN_LIMIT, TEAM_LIMIT, TEMPLATE_LIMIT, WATCH_LIMIT, WATCH_SEEN_CAP, WEBHOOK_LIMIT } from "./limits";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { lastDays } from "./days";
 import type {
@@ -29,6 +29,8 @@ import type {
   BrandInput,
   Audience,
   AudienceInput,
+  BrandTemplate,
+  CreateTemplateResult,
   GenerationKind,
   GenerationRecord,
   RecordGenerationInput,
@@ -62,7 +64,12 @@ import { generationFiles } from "./generation-files";
 
 const BUCKET = "creatives";
 
+
 type Row = Record<string, unknown>;
+
+function templateView(r: Row): BrandTemplate {
+  return { id: r.id as string, brandId: r.brand_id as string, name: r.name as string, doc: (r.doc ?? {}) as Record<string, unknown>, createdAt: r.created_at as string };
+}
 
 const BRAND_COLS = "id,user_id,name,sector,tone,banned_words,voice_notes,preferred_cta,logo_path,logo_mime,primary_color,secondary_color,font,tagline,audience_note,required_phrases,website";
 
@@ -474,6 +481,40 @@ export class SupabaseRepo implements DataRepo {
   async deleteAudience(id: string) {
     const u = await this.requireUser();
     const { error, count } = await (await this.db()).from("audiences").delete({ count: "exact" }).eq("id", id).eq("user_id", u.id);
+    return !error && (count ?? 0) > 0;
+  }
+
+  async listBrandTemplates(brandId?: string) {
+    const u = await this.requireUser();
+    let q = (await this.db()).from("brand_templates").select("id,brand_id,name,doc,created_at").eq("user_id", u.id).order("created_at", { ascending: false }).limit(200);
+    if (brandId) q = q.eq("brand_id", brandId);
+    const { data } = await q;
+    return (data ?? []).map(templateView);
+  }
+
+  async getBrandTemplate(id: string) {
+    const u = await this.requireUser();
+    const { data } = await (await this.db()).from("brand_templates").select("id,brand_id,name,doc,created_at").eq("id", id).eq("user_id", u.id).maybeSingle();
+    return data ? templateView(data) : null;
+  }
+
+  async createBrandTemplate(input: { brandId: string; name: string; doc: Record<string, unknown> }): Promise<CreateTemplateResult> {
+    const u = await this.requireUser();
+    const db = await this.db();
+    const { data: brand } = await db.from("brands").select("id").eq("id", input.brandId).eq("user_id", u.id).maybeSingle();
+    if (!brand) return { status: "brand_not_found" };
+    const { count } = await db.from("brand_templates").select("id", { count: "exact", head: true }).eq("brand_id", input.brandId);
+    if ((count ?? 0) >= TEMPLATE_LIMIT) return { status: "limit" };
+    const { data, error } = await db.from("brand_templates").insert({ user_id: u.id, brand_id: input.brandId, name: input.name, doc: input.doc }).select("id,brand_id,name,doc,created_at").single();
+    // The table's trigger refuses a 31st template even when two saves race.
+    if (error?.message?.includes("brand_templates_limit")) return { status: "limit" };
+    if (error || !data) return { status: "error" };
+    return { status: "created", template: templateView(data) };
+  }
+
+  async deleteBrandTemplate(id: string) {
+    const u = await this.requireUser();
+    const { error, count } = await (await this.db()).from("brand_templates").delete({ count: "exact" }).eq("id", id).eq("user_id", u.id);
     return !error && (count ?? 0) > 0;
   }
 

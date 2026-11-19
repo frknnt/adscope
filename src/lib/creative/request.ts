@@ -17,6 +17,8 @@ export const CreativeQuerySchema = z.object({
   cta: text(30),
   boyut: z.enum(CREATIVE_SIZE_IDS).catch("kare"),
   yerlesim: z.enum(LAYOUT_IDS).catch("manset"),
+  /** A saved brand template (P10.3) instead of one of the eight layouts. */
+  sablon: z.string().regex(UUID).nullable().catch(null),
 });
 
 export type CreativeQuery = z.infer<typeof CreativeQuerySchema>;
@@ -32,6 +34,7 @@ export function parseCreativeQuery(get: (key: string) => string | null | undefin
     cta: pick("cta") ?? "",
     boyut: pick("boyut"),
     yerlesim: pick("yerlesim"),
+    sablon: pick("sablon") || null,
   });
 }
 
@@ -39,5 +42,6 @@ export function creativeQueryString(q: CreativeQuery, over: Partial<CreativeQuer
   const v = { ...q, ...over };
   const p = new URLSearchParams({ platform: v.platform, sektor: v.sektor, baslik: v.baslik, metin: v.metin, cta: v.cta, boyut: v.boyut, yerlesim: v.yerlesim });
   if (v.marka) p.set("marka", v.marka);
+  if (v.sablon) p.set("sablon", v.sablon);
   return p.toString();
 }

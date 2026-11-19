@@ -179,6 +179,27 @@ p {
   border-radius: 2px;
 }
 
+/* Live compliance hints (P10.2): underline drawn behind a transparent field; no padding so the text stays aligned. */
+.live-u-red,
+.live-u-yellow,
+.live-u-info {
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+.live-u-red {
+  text-decoration-color: var(--coral);
+  text-decoration-style: wavy;
+}
+.live-u-yellow {
+  text-decoration-color: var(--caution);
+  text-decoration-style: wavy;
+}
+.live-u-info {
+  text-decoration-color: var(--info);
+  text-decoration-style: dotted;
+}
+
 /* Paper grain for the report sheet */
 .sheet {
   background:

@@ -82,6 +82,8 @@ Her renk bir CSS değişkeni ve aynı adlı Tailwind sınıfıdır (`bg-card`, `
 | `Menu` | panel-client.tsx | Üç nokta menüsü; ok tuşları, Home/End, Esc; ekranın altına taşacaksa yukarı açılır. Kaydırılan tablo içinde kullanma (kırpılır), satır içi düğme koy |
 | `SeverityFilter` | app/panel/analiz/severity-filter.tsx | Rapor bulgularında Tümü / Kırmızı / Sarı / Bilgi süzgeci (`aria-pressed`); grupları CSS ile gizler |
 | `AdPreview`, `PreviewFrame` | app/panel/yeni/preview.tsx | Sihirbazdaki sade akış önizlemesi; platform arayüzünü taklit etmez |
+| `LiveTextField`, `LiveFindings` | live-check.tsx | Yazarken kural uyarısı: alanın içinde dalgalı/noktalı alt çizgi (`.live-u-*`), altında açılır bulgu listesi, "Güvenli sürümü uygula", canlı bölgede bulgu sayısı. Sunucuya istek atmaz |
+| `CreativeEditor` | app/panel/uret/duzenle/editor.tsx | Katmanlı görsel düzenleyici: sunucu önizlemesinin üstünde seçilebilir katman düğmeleri, sağda katman listesi ve özellikler; mobilde katmanlar tuvalin hemen altında |
 | `Tabs` (hash) | interactive.tsx | Sekmeye `hash` verilirse adres `#hash` olduğunda o sekme açılır (ör. `#itiraz`) |
 
 Yeni bir bileşen yazmadan önce bu listeye bak; benzer bir şey varsa onu genişlet.

@@ -5,11 +5,13 @@ import { getRepo } from "@/lib/data";
 import type { Brand } from "@/lib/data/types";
 import { LAYOUTS } from "@/lib/creative/layouts";
 import { creativeQueryString, parseCreativeQuery } from "@/lib/creative/request";
+import { docFromTemplate, docWarnings } from "@/lib/creative/editor-service";
 import { creativeContext, CREATIVE_LIMITS, scoreCreative, warningsFor } from "@/lib/creative/service";
 import { CREATIVE_SIZE_IDS, CREATIVE_SIZES } from "@/lib/creative/sizes";
 import { PLATFORM_IDS, PLATFORM_SHORT } from "@/lib/platforms";
 import type { Sector } from "@/lib/rules/catalog";
 import { SECTOR_IDS, SECTOR_INFO } from "@/lib/sectors";
+import { deleteTemplateAction } from "./creative-actions";
 import { CreativeDownload } from "./creative-download";
 
 const LEGAL_LABEL = { low: "düşük", medium: "orta", high: "yüksek" } as const;
@@ -22,6 +24,35 @@ export async function CreativeStudio({ sp, brands, defaultSector, balance }: { s
   const ctx = q.baslik ? await creativeContext(repo, { brandId: brand?.id ?? null, platform: q.platform, sector: q.sektor, headline: q.baslik, body: q.metin, cta: q.cta }) : null;
   const score = ctx ? await scoreCreative(repo, ctx) : null;
   const size = CREATIVE_SIZES[q.boyut];
+  // Brand templates (P10.3) appear next to the eight layouts; new copy is placed into each.
+  const templates = ctx && brand ? await repo.listBrandTemplates(brand.id) : [];
+  const templateCards = ctx
+    ? (
+        await Promise.all(
+          templates.map(async (t) => {
+            const doc = docFromTemplate(ctx, t.doc);
+            return doc ? { t, warnings: await docWarnings(ctx, doc, q.boyut) } : null;
+          }),
+        )
+      ).filter((x) => x !== null)
+    : [];
+  const cardFoot = (label: string, query: string, warnings: { kind: string; message: string }[], extra?: React.ReactNode) => (
+    <>
+      {warnings.length ? (
+        <ul className="grid gap-1.5" aria-label={`${label}: uyarılar`}>
+          {warnings.map((w, i) => <li key={`${w.kind}-${i}`} className="rounded-lg bg-amber-tint px-3 py-2 text-meta text-ink">{w.message}</li>)}
+        </ul>
+      ) : (
+        <p className="text-meta text-green">Taşma, güvenli alan ve kontrast sorunu yok.</p>
+      )}
+      <div className="mt-auto grid gap-2">
+        <Link href={`/panel/uret/duzenle?${query}`} className="inline-flex min-h-10 w-fit items-center rounded-xl bg-ink px-3.5 text-small font-semibold text-paper no-underline hover:bg-navy-700">
+          Düzenle<span className="sr-only">: {label}</span>
+        </Link>
+        {extra}
+      </div>
+    </>
+  );
 
   return (
     <div className="grid gap-8 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
@@ -110,7 +141,7 @@ export async function CreativeStudio({ sp, brands, defaultSector, balance }: { s
                   <li key={l.id} className="flex flex-col overflow-hidden rounded-2xl border border-line bg-card shadow-card">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={`/api/creative/preview?${creativeQueryString(q, { yerlesim: l.id })}`}
+                      src={`/api/creative/preview?${creativeQueryString(q, { yerlesim: l.id, sablon: null })}`}
                       alt={`${l.label} yerleşimi, ${size.label} önizleme`}
                       width={Math.round(size.w * 0.4)}
                       height={Math.round(size.h * 0.4)}
@@ -125,21 +156,56 @@ export async function CreativeStudio({ sp, brands, defaultSector, balance }: { s
                         </div>
                         <RiskBadge level={score!.metaLevel} score={score!.metaScore} label="Kural puanı" className="shrink-0" />
                       </div>
-                      {warnings.length ? (
-                        <ul className="grid gap-1.5" aria-label={`${l.label}: uyarılar`}>
-                          {warnings.map((w) => <li key={w.kind} className="rounded-lg bg-amber-tint px-3 py-2 text-meta text-ink">{w.message}</li>)}
-                        </ul>
-                      ) : (
-                        <p className="text-meta text-green">Taşma, güvenli alan ve kontrast sorunu yok.</p>
-                      )}
-                      <div className="mt-auto">
-                        <CreativeDownload layout={l.id} layoutLabel={l.label} size={q.boyut} sizeLabel={size.label} query={creativeQueryString(q, { yerlesim: l.id })} disabled={balance < 1} />
-                      </div>
+                      {cardFoot(l.label, creativeQueryString(q, { yerlesim: l.id, sablon: null }), warnings, <CreativeDownload layout={l.id} layoutLabel={l.label} size={q.boyut} sizeLabel={size.label} query={creativeQueryString(q, { yerlesim: l.id, sablon: null })} disabled={balance < 1} />)}
                     </div>
                   </li>
                 );
               })}
             </ul>
+            {brand ? (
+              <section aria-labelledby="marka-sablonlari" className="mt-8">
+                <h3 id="marka-sablonlari" className="text-xl font-bold">{brand.name} şablonları</h3>
+                {templateCards.length ? (
+                  <ul className={`mt-4 grid gap-5 ${q.boyut === "yatay" ? "lg:grid-cols-2" : "sm:grid-cols-2 2xl:grid-cols-3"}`}>
+                    {templateCards.map(({ t, warnings }) => {
+                      const query = creativeQueryString(q, { sablon: t.id });
+                      return (
+                        <li key={t.id} className="flex flex-col overflow-hidden rounded-2xl border border-line bg-card shadow-card">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={`/api/creative/preview?${query}`} alt={`${t.name} şablonu, ${size.label} önizleme`} width={Math.round(size.w * 0.4)} height={Math.round(size.h * 0.4)} loading="lazy" className="h-auto w-full border-b border-line bg-paper-2" />
+                          <div className="flex flex-1 flex-col gap-3 p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <h4 className="font-bold">{t.name}</h4>
+                                <p className="text-meta text-muted">Markanın şablonu. Sığmayan metin küçülür, gerekirse kısaltılır.</p>
+                              </div>
+                              <RiskBadge level={score!.metaLevel} score={score!.metaScore} label="Kural puanı" className="shrink-0" />
+                            </div>
+                            {cardFoot(
+                              t.name,
+                              query,
+                              warnings,
+                              <>
+                                <CreativeDownload layout="manset" layoutLabel={t.name} size={q.boyut} sizeLabel={size.label} query={query} disabled={balance < 1} />
+                                <form action={deleteTemplateAction}>
+                                  <input type="hidden" name="id" value={t.id} />
+                                  <input type="hidden" name="back" value={`/panel/uret?sekme=gorsel&${creativeQueryString(q, { sablon: null })}#marka-sablonlari`} />
+                                  <button type="submit" className="inline-flex min-h-10 items-center rounded-lg px-2 text-meta font-semibold text-coral-deep hover:bg-coral-tint">
+                                    Şablonu sil<span className="sr-only">: {t.name}</span>
+                                  </button>
+                                </form>
+                              </>,
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-small text-ink-soft">Bu markanın kayıtlı şablonu yok. Bir yerleşimi &ldquo;Düzenle&rdquo; ile açıp &ldquo;Şablon olarak kaydet&rdquo; dersen burada çıkar.</p>
+                )}
+              </section>
+            ) : null}
             <Disclaimer className="mt-6" />
           </>
         )}

@@ -182,7 +182,7 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
             <h2 id="sonuc-baslik" className="font-display text-2xl font-semibold">{stored ? `Öneriler: ${stored.input.productName || "ürün"}` : "Öneriler"}</h2>
             <div className="mt-4">
               {stored && result?.platform ? (
-                <CopyResults copy={stored.copy} platform={result.platform} limits={COPY_LIMITS[result.platform]} aiFailed={stored.aiFailed} brandId={result.brandId} />
+                <CopyResults copy={stored.copy} platform={result.platform} sector={brands.find((b) => b.id === result.brandId)?.sector ?? profile?.defaultSector ?? "genel"} limits={COPY_LIMITS[result.platform]} aiFailed={stored.aiFailed} brandId={result.brandId} />
               ) : (
                 <p className="rounded-2xl border border-dashed border-line-strong bg-card px-6 py-10 text-center text-ink-soft">
                   Soldaki formu doldur. 10 başlık, 10 ana metin, 5 açıklama ve 3 harekete geçirici ifade burada listelenir; birini seçip tek tıkla analize aktarabilirsin.

@@ -451,6 +451,23 @@ describe.skipIf(!reachable)("Supabase: agency mode, feedback, review links, API 
     expect(viewerEdit.count ?? 0).toBe(0);
   });
 
+  it("brand templates: owner saves to own brands only, team reads, nobody edits, 30 per brand", async () => {
+    const { data: brand } = await owner.client.from("brands").insert({ user_id: owner.id, name: `Şablon ${randomUUID().slice(0, 6)}` }).select("id").single();
+    const row = { user_id: owner.id, brand_id: brand!.id, name: "Duyuru", doc: { v: 1 } };
+    const ok = await owner.client.from("brand_templates").insert(row).select("id").single();
+    expect(ok.error).toBeNull();
+    expect((await viewer.client.from("brand_templates").select("id").eq("id", ok.data!.id)).data).toHaveLength(1);
+    expect((await stranger.client.from("brand_templates").select("id").eq("id", ok.data!.id)).data ?? []).toHaveLength(0);
+    expect((await stranger.client.from("brand_templates").insert({ ...row, user_id: stranger.id })).error).not.toBeNull();
+    expect((await owner.client.from("brand_templates").insert({ ...row, doc: [1] })).error).not.toBeNull();
+    expect((await owner.client.from("brand_templates").update({ name: "Değişti" }).eq("id", ok.data!.id)).error).not.toBeNull();
+    const viewerDelete = await viewer.client.from("brand_templates").delete({ count: "exact" }).eq("id", ok.data!.id);
+    expect(viewerDelete.count ?? 0).toBe(0);
+    for (let i = 1; i < 30; i++) expect((await owner.client.from("brand_templates").insert({ ...row, name: `Şablon ${i}` })).error).toBeNull();
+    const extra = await owner.client.from("brand_templates").insert({ ...row, name: "Fazla" });
+    expect(extra.error?.message).toContain("brand_templates_limit");
+  });
+
   it("performance imports: owner-only, rows only into own imports, consent is the only editable field", async () => {
     const imp = await owner.client.from("performance_imports").insert({ user_id: owner.id, label: "Kasım" }).select("id,share_consent").single();
     expect(imp.error).toBeNull();
@@ -489,7 +506,7 @@ describe.skipIf(!reachable)("Supabase: agency mode, feedback, review links, API 
 describe.skipIf(!reachable)("Supabase: client role privileges", () => {
   it("client roles have no blanket privileges on newer tables", async () => {
     const anon = createClient(URL_, PUB, opts);
-    for (const t of ["team_members", "team_invites", "finding_feedback", "review_shares", "newsletter_log", "api_keys", "inspiration_pins", "season_reminder_log", "generations", "audiences", "performance_imports", "performance_rows", "competitor_watches", "admin_audit_log", "coupons", "coupon_redemptions", "invite_codes", "referrals", "referral_email_claims", "affiliate_commissions", "welcome_email_log", "rate_limit_buckets", "jobs", "api_webhooks", "api_usage"]) {
+    for (const t of ["team_members", "team_invites", "finding_feedback", "review_shares", "newsletter_log", "api_keys", "inspiration_pins", "season_reminder_log", "generations", "audiences", "performance_imports", "performance_rows", "competitor_watches", "admin_audit_log", "coupons", "coupon_redemptions", "invite_codes", "referrals", "referral_email_claims", "affiliate_commissions", "welcome_email_log", "rate_limit_buckets", "jobs", "api_webhooks", "api_usage", "brand_templates"]) {
       const r = await anon.from(t).select("*").limit(1);
       expect(r.error?.code, t).toBe("42501");
     }

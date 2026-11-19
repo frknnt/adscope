@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { IconAlert, IconImage, IconUpload, IconVideo } from "@/components/icons";
+import { LiveTextField } from "@/components/live-check";
 import { Button, Field, inputClass, selectClass, Stepper } from "@/components/ui";
 import { creditCostFor } from "@/lib/analysis/cost";
 import { AdPreview, PreviewFrame } from "./preview";
@@ -697,22 +698,13 @@ export function AnalysisWizard({
           {step === 1 ? (
             <div className="mt-5 grid gap-5">
               <Field label="Ana metin" htmlFor="primaryText" error={textError} hint={<Counter value={primaryText} soft={125} max={2200} />}>
-                <textarea
-                  id="primaryText"
-                  rows={6}
-                  maxLength={2200}
-                  value={primaryText}
-                  onChange={(e) => setPrimaryText(e.target.value)}
-                  aria-invalid={textError ? true : undefined}
-                  className={inputClass}
-                  placeholder="Reklamın gönderi metni"
-                />
+                <LiveTextField id="primaryText" multiline rows={6} maxLength={2200} value={primaryText} onChange={setPrimaryText} invalid={Boolean(textError)} placeholder="Reklamın gönderi metni" label="Ana metin" sector={sector} platform={platform} />
               </Field>
               <Field label="Başlık (isteğe bağlı)" htmlFor="headline" hint={<Counter value={headline} soft={40} max={255} />}>
-                <input id="headline" maxLength={255} value={headline} onChange={(e) => setHeadline(e.target.value)} className={inputClass} />
+                <LiveTextField id="headline" maxLength={255} value={headline} onChange={setHeadline} label="Başlık" sector={sector} platform={platform} />
               </Field>
               <Field label="Açıklama (isteğe bağlı)" htmlFor="description" hint={<Counter value={description} soft={30} max={255} />}>
-                <input id="description" maxLength={255} value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
+                <LiveTextField id="description" maxLength={255} value={description} onChange={setDescription} label="Açıklama" sector={sector} platform={platform} />
               </Field>
               {media === "video" ? (
                 <Field

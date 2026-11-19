@@ -211,7 +211,7 @@ export function CampaignPackage({
 
   const step = done?.key === key ? 4 : preview?.key === key ? 3 : draft ? (picked.length === pick ? 2 : 1) : 0;
   const brandAudiences = audiences.filter((a) => a.brandId === form.brandId);
-  const q = (v: VariantText): CreativeQuery => ({ marka: draft?.brandId || null, platform: draft?.platform ?? "meta", sektor: draft?.sector ?? "genel", baslik: v.headline.slice(0, 90), metin: v.primaryText.slice(0, 220), cta: v.cta.slice(0, 30), boyut: "kare", yerlesim: layout });
+  const q = (v: VariantText): CreativeQuery => ({ marka: draft?.brandId || null, platform: draft?.platform ?? "meta", sektor: draft?.sector ?? "genel", baslik: v.headline.slice(0, 90), metin: v.primaryText.slice(0, 220), cta: v.cta.slice(0, 30), boyut: "kare", yerlesim: layout, sablon: null });
 
   return (
     <div className="grid gap-6">

@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useState } from "react";
 import type { CopyLine, CopyOutput } from "@/lib/copy/generate";
 import { FRAMEWORK_LABEL } from "@/lib/copy/schema";
+import { LiveTextField } from "@/components/live-check";
 import type { Platform } from "@/lib/platforms";
+import type { Sector } from "@/lib/sectors";
 import { CopyButton } from "../forms";
 
 const RISK = {
@@ -41,7 +43,7 @@ function Line({ line, name, value, selected, onSelect, limit }: { line: CopyLine
   );
 }
 
-export function CopyResults({ copy, platform, limits, aiFailed, brandId }: { copy: CopyOutput; platform: Platform; limits: { headline: number; primaryText: number; description: number; cta: number }; aiFailed?: boolean; brandId?: string | null }) {
+export function CopyResults({ copy, platform, sector, limits, aiFailed, brandId }: { copy: CopyOutput; platform: Platform; sector: Sector; limits: { headline: number; primaryText: number; description: number; cta: number }; aiFailed?: boolean; brandId?: string | null }) {
   const first = (l: CopyLine[]) => (l.find((x) => x.risk === "ok") ?? l[0]) as CopyLine | undefined;
   const [h, setH] = useState(first(copy.headlines)?.text ?? "");
   const [p, setP] = useState(first(copy.primaryTexts)?.text ?? "");
@@ -69,6 +71,27 @@ export function CopyResults({ copy, platform, limits, aiFailed, brandId }: { cop
           </Link>
         </span>
       </div>
+      <section aria-labelledby="secilenler" className="grid gap-4 rounded-2xl border border-line bg-card p-4 shadow-card">
+        <div>
+          <h3 id="secilenler" className="text-lg font-bold">Seçtiklerini düzenle</h3>
+          <p className="text-meta text-muted">Yazarken riskli ifadelerin altı çizilir; bu yalnızca bilgilendirmedir, kredi düşmez ve metin sunucuya gönderilmez. Düğmeler buradaki son hâli kullanır.</p>
+        </div>
+        {([
+          ["sec-baslik", "Seçilen başlık", h, setH, limits.headline, false],
+          ["sec-metin", "Seçilen ana metin", p, setP, limits.primaryText, true],
+          ["sec-aciklama", "Seçilen açıklama", d, setD, limits.description, false],
+        ] as const).map(([id, label, value, set, limit, multi]) => (
+          <div key={id} className="flex flex-col gap-1.5">
+            <label htmlFor={id} className="text-small font-semibold text-ink">{label}</label>
+            {multi ? (
+              <LiveTextField id={id} multiline rows={3} value={value} onChange={set} label={label} sector={sector} platform={platform} maxLength={limit * 2} />
+            ) : (
+              <LiveTextField id={id} value={value} onChange={set} label={label} sector={sector} platform={platform} maxLength={limit * 2} />
+            )}
+            <p className={`text-meta tabular ${[...value].length > limit ? "text-coral-deep" : "text-muted"}`}>{[...value].length}/{limit}</p>
+          </div>
+        ))}
+      </section>
       {groups.map((g) => (
         <section key={g.key} aria-labelledby={`grup-${g.key}`}>
           <h3 id={`grup-${g.key}`} className="text-lg font-bold">{g.title} <span className="text-small font-semibold text-muted">({g.lines.length})</span></h3>

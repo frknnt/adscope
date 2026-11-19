@@ -3,7 +3,7 @@
  * overflow and safe-area warnings and the rendered PNG. Every text line is measured with the real
  * font metrics; nothing is left for the renderer to wrap.
  */
-import { contrastRatio, textOn } from "@/lib/brand/kit";
+import { contrastRatio, textOn, type BrandFontId } from "@/lib/brand/kit";
 import { CREATIVE_SIZES, STORY_UNSAFE, type CreativeSizeId } from "./sizes";
 import { fitBlock, type Measurer } from "./text-fit";
 
@@ -15,7 +15,7 @@ export const DEFAULT_SECONDARY = "#ff6a4d";
 export type TextRole = "headline" | "body" | "cta" | "brand" | "tagline" | "note";
 
 export type PlanElement =
-  | { kind: "rect"; x: number; y: number; w: number; h: number; fill: string; radius?: number }
+  | { kind: "rect"; x: number; y: number; w: number; h: number; fill: string; radius?: number; /** Pill behind a call to action or tagline. */ part?: "cta" | "tagline" }
   | { kind: "circle"; cx: number; cy: number; r: number; fill: string }
   | {
       kind: "text";
@@ -32,8 +32,11 @@ export type PlanElement =
       align: "left" | "center";
       lineHeight: number;
       underline?: boolean;
+      /** Typeface of this line block (editor layers); the layout's brand font when absent. */
+      font?: BrandFontId;
     }
-  | { kind: "logo"; x: number; y: number; size: number };
+  | { kind: "logo"; x: number; y: number; size: number }
+  | { kind: "image"; x: number; y: number; w: number; h: number; src: string; fit: "contain" | "cover"; radius?: number };
 
 export interface Plan {
   w: number;
@@ -192,7 +195,7 @@ function stack(c: Ctx, box: Box, o: StackOpts, out: PlanElement[]): number {
     if (head.height || hasBody) y += gap * 1.2;
     const x = o.align === "center" ? box.x + (box.w - ctaBlock.w) / 2 : box.x;
     if ("fill" in o.cta) {
-      out.push({ kind: "rect", x, y, w: ctaBlock.w, h: ctaBlock.h, fill: o.cta.fill, radius: ctaBlock.h / 2 });
+      out.push({ kind: "rect", x, y, w: ctaBlock.w, h: ctaBlock.h, fill: o.cta.fill, radius: ctaBlock.h / 2, part: "cta" });
       const color = o.cta.color ?? textOn(o.cta.fill);
       out.push({ kind: "text", role: "cta", x, y: y + (ctaBlock.h - ctaBlock.size * 1.2) / 2, w: ctaBlock.w, lines: ctaBlock.lines, size: ctaBlock.size, weight: 800, color, on: o.cta.fill, align: "center", lineHeight: 1.2 });
     } else {
@@ -304,7 +307,7 @@ const BUILDERS: Record<LayoutId, Builder> = {
       const w = c.bold.width(fit.lines[0] ?? "", fit.size) + fit.size * 2.2;
       const h = fit.height + fit.size * 1.1;
       const x = area.x + (area.w - w) / 2;
-      out.push({ kind: "rect", x, y, w, h, fill: c.secondary, radius: h / 2 });
+      out.push({ kind: "rect", x, y, w, h, fill: c.secondary, radius: h / 2, part: "tagline" });
       out.push({ kind: "text", role: "tagline", x, y: y + (h - fit.height) / 2, w, lines: fit.lines, size: fit.size, weight: 800, color: textOn(c.secondary), on: c.secondary, align: "center", lineHeight: 1.2 });
       y += h + c.S * 0.05;
     }
@@ -347,7 +350,7 @@ const BUILDERS: Record<LayoutId, Builder> = {
       const h = fit.height + fit.size * 1.5;
       const x = area.x + area.w - w;
       const y = bandTop + (bandInner - h) / 2;
-      out.push({ kind: "rect", x, y, w, h, fill: c.secondary, radius: h / 2 });
+      out.push({ kind: "rect", x, y, w, h, fill: c.secondary, radius: h / 2, part: "cta" });
       out.push({ kind: "text", role: "cta", x, y: y + (h - fit.height) / 2, w, lines: fit.lines, size: fit.size, weight: 800, color: textOn(c.secondary), on: c.secondary, align: "center", lineHeight: 1.2 });
     }
     const box = { x: area.x, y: area.y, w: area.w * (c.wide ? 0.85 : 1), h: bandTop - c.S * 0.1 - area.y };
@@ -386,7 +389,7 @@ export function buildPlan(layout: LayoutId, size: CreativeSizeId, input: PlanInp
   return { w: W, h: H, background, elements, overflow: [...c.overflow] };
 }
 
-const ROLE_LABEL: Record<TextRole, string> = { headline: "Başlık", body: "Metin", cta: "Çağrı", brand: "Marka adı", tagline: "Slogan", note: "Zorunlu ibare" };
+export const ROLE_LABEL: Record<TextRole, string> = { headline: "Başlık", body: "Metin", cta: "Çağrı", brand: "Marka adı", tagline: "Slogan", note: "Zorunlu ibare" };
 
 export interface PlanWarning {
   kind: "overflow" | "safe_area" | "contrast";

@@ -8,7 +8,7 @@ import { RULE_CATALOG, type Sector } from "@/lib/rules/catalog";
 import type { Platform } from "@/lib/platforms";
 import { findPackage, SIGNUP_BONUS_CREDITS } from "@/lib/payments/packages";
 import { COUPON_RESERVATION_MS, commissionOf, emailHash, newCode } from "@/lib/growth/codes";
-import { API_KEY_LIMIT, PERFORMANCE_IMPORT_LIMIT, PIN_LIMIT, TEAM_LIMIT, WATCH_LIMIT, WEBHOOK_LIMIT } from "./limits";
+import { API_KEY_LIMIT, PERFORMANCE_IMPORT_LIMIT, PIN_LIMIT, TEAM_LIMIT, TEMPLATE_LIMIT, WATCH_LIMIT, WEBHOOK_LIMIT } from "./limits";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { istanbulDay, lastDays } from "./days";
 import type {
@@ -49,7 +49,7 @@ import type {
 import { BRAND_KIT_KEYS } from "./types";
 import type { AdminAuditEntry, AdminErrorStats, AdminFeedbackRow, AdminFunnel, AdminPurchaseRow, AdminUserRow, JobFinish, JobInput, JobRecord, WebhookView } from "./types";
 import type { CompetitorSummary, CompetitorWatch, PerformanceImport, PerformanceImportInput, PerformanceRow } from "./types";
-import type { Audience, AudienceInput, GenerationKind, GenerationRecord, RecordGenerationInput, RecordGenerationResult } from "./types";
+import type { Audience, AudienceInput, BrandTemplate, CreateTemplateResult, GenerationKind, GenerationRecord, RecordGenerationInput, RecordGenerationResult } from "./types";
 
 import { generationFiles } from "./generation-files";
 
@@ -112,6 +112,7 @@ interface Store {
   analyses: StoredAnalysis[];
   ledger: (LedgerEntry & { userId: string; idempotencyKey: string })[];
   audiences?: (Audience & { userId: string })[];
+  brandTemplates?: (BrandTemplate & { userId: string })[];
   generations?: (GenerationRecord & { userId: string; clientRequestId: string; expiresAt: string })[];
   purchases: (PurchaseRecord & { userId: string | null; eventKey: string; orderId?: string })[];
   consents: { userId: string; type: string; version: string; granted: boolean; createdAt: string }[];
@@ -435,6 +436,7 @@ export class MemoryRepo implements DataRepo {
     if (idx < 0) return false;
     s.brands.splice(idx, 1);
     if (s.logos) delete s.logos[id];
+    s.brandTemplates = (s.brandTemplates ?? []).filter((t) => t.brandId !== id);
     for (const a of s.analyses) if (a.brandId === id) a.brandId = null;
     persist();
     return true;
@@ -515,6 +517,44 @@ export class MemoryRepo implements DataRepo {
     s.audiences = (s.audiences ?? []).filter((a) => !(a.id === id && a.userId === u.id));
     persist();
     return s.audiences.length < before;
+  }
+
+  async listBrandTemplates(brandId?: string) {
+    const u = await this.requireUser();
+    return (store().brandTemplates ?? [])
+      .filter((t) => t.userId === u.id && (!brandId || t.brandId === brandId))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(({ userId: _u, ...t }) => structuredClone(t));
+  }
+
+  async getBrandTemplate(id: string) {
+    const u = await this.requireUser();
+    const t = (store().brandTemplates ?? []).find((x) => x.id === id && x.userId === u.id);
+    if (!t) return null;
+    const { userId: _u, ...view } = t;
+    return structuredClone(view);
+  }
+
+  async createBrandTemplate(input: { brandId: string; name: string; doc: Record<string, unknown> }): Promise<CreateTemplateResult> {
+    const u = await this.requireUser();
+    const s = store();
+    if (!s.brands.some((b) => b.id === input.brandId && b.userId === u.id)) return { status: "brand_not_found" };
+    s.brandTemplates ??= [];
+    if (s.brandTemplates.filter((t) => t.brandId === input.brandId).length >= TEMPLATE_LIMIT) return { status: "limit" };
+    const t = { id: randomUUID(), userId: u.id, brandId: input.brandId, name: input.name, doc: structuredClone(input.doc), createdAt: new Date().toISOString() };
+    s.brandTemplates.push(t);
+    persist();
+    const { userId: _u, ...view } = t;
+    return { status: "created", template: structuredClone(view) };
+  }
+
+  async deleteBrandTemplate(id: string) {
+    const u = await this.requireUser();
+    const s = store();
+    const before = (s.brandTemplates ?? []).length;
+    s.brandTemplates = (s.brandTemplates ?? []).filter((t) => !(t.id === id && t.userId === u.id));
+    persist();
+    return s.brandTemplates.length < before;
   }
 
   async recordGeneration(p: RecordGenerationInput): Promise<RecordGenerationResult> {
@@ -1055,6 +1095,7 @@ export class MemoryRepo implements DataRepo {
     delete s.profiles[u.id];
     s.brands = s.brands.filter((x) => x.userId !== u.id);
     s.audiences = (s.audiences ?? []).filter((x) => x.userId !== u.id);
+    s.brandTemplates = (s.brandTemplates ?? []).filter((x) => x.userId !== u.id);
     for (const g of (s.generations ?? []).filter((x) => x.userId === u.id)) for (const f of generationFiles(g.output)) delete s.genFiles?.[f];
     s.generations = (s.generations ?? []).filter((x) => x.userId !== u.id);
     s.analyses = s.analyses.filter((x) => x.userId !== u.id);

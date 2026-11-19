@@ -125,6 +125,16 @@ export interface Audience {
 }
 export type AudienceInput = Omit<Audience, "id" | "createdAt">;
 
+/** A layer layout saved from the editor (P10.3); `doc` is an editor document without uploaded images. */
+export interface BrandTemplate {
+  id: string;
+  brandId: string;
+  name: string;
+  doc: Record<string, unknown>;
+  createdAt: string;
+}
+export type CreateTemplateResult = { status: "created"; template: BrandTemplate } | { status: "limit" | "brand_not_found" | "error" };
+
 export type GenerationKind = "copy" | "creative" | "photo" | "tool" | "script" | "ai_image" | "ai_video" | "campaign";
 
 /** A paid output that is not an analysis (ad copy, creative download, product photo). */
@@ -394,6 +404,11 @@ export interface DataRepo {
   listAudiences(brandId?: string): Promise<Audience[]>;
   createAudience(input: AudienceInput): Promise<Audience | null>;
   deleteAudience(id: string): Promise<boolean>;
+  /** Saved editor layouts of the user's brands (or of one brand), newest first. At most 30 per brand. */
+  listBrandTemplates(brandId?: string): Promise<BrandTemplate[]>;
+  getBrandTemplate(id: string): Promise<BrandTemplate | null>;
+  createBrandTemplate(input: { brandId: string; name: string; doc: Record<string, unknown> }): Promise<CreateTemplateResult>;
+  deleteBrandTemplate(id: string): Promise<boolean>;
   /** Stores a paid output and charges its credits in one step; idempotent per client request id. */
   recordGeneration(input: RecordGenerationInput): Promise<RecordGenerationResult>;
   getGenerationByRequest(clientRequestId: string): Promise<GenerationRecord | null>;
