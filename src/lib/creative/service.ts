@@ -12,8 +12,9 @@ import { renderPlanPng } from "./render";
 import { CREATIVE_SIZE_IDS, CREATIVE_SIZES, type CreativeSizeId } from "./sizes";
 import { cleanForFont } from "./text-fit";
 
-/** Previews are free; a full-size download (one PNG, or every size in a ZIP) costs one credit. */
-export const CREATIVE_CREDIT_COST = 1;
+import { CREATIVE_CREDIT_COST } from "./costs";
+
+export { CREATIVE_CREDIT_COST };
 export const CREATIVE_LIMITS = { headline: 90, body: 220, cta: 30 } as const;
 
 export interface CreativeRequest {

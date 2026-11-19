@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { CreditExamples, PricingTerms } from "@/components/pricing-terms";
 import { ButtonLink, Disclaimer } from "@/components/ui";
 import { getAdminRepo } from "@/lib/data";
 import type { ActiveCampaign } from "@/lib/data/types";
-import { CREDIT_PACKAGES, formatTry } from "@/lib/payments/packages";
+import { CREDIT_PACKAGES, formatTry, SIGNUP_BONUS_CREDITS } from "@/lib/payments/packages";
 
 export const metadata: Metadata = { title: "Fiyatlandırma · AdScope" };
 // The campaign strip must disappear the moment a coupon expires or is used up.
@@ -21,7 +23,7 @@ async function activeCampaigns(): Promise<ActiveCampaign[]> {
 export default async function PricingPage() {
   const campaigns = await activeCampaigns();
   const plans = [
-    { name: "Ücretsiz", price: "0 ₺", credits: 3, note: "Kayıtta bir kez, kart bilgisi gerekmez.", cta: { href: "/kayit", label: "Ücretsiz başla" }, featured: false },
+    { name: "Ücretsiz", price: "0 ₺", credits: SIGNUP_BONUS_CREDITS, note: "Kayıtta bir kez, kart bilgisi gerekmez.", cta: { href: "/kayit", label: "Ücretsiz başla" }, featured: false },
     ...CREDIT_PACKAGES.map((p) => ({
       name: p.name,
       price: formatTry(p.priceMinor),
@@ -59,6 +61,7 @@ export default async function PricingPage() {
               <span className={p.featured ? "text-paper/75" : "text-muted"}>/ {p.credits} analiz</span>
             </p>
             <p className={`mt-3 text-body ${p.featured ? "text-paper/85" : "text-ink-soft"}`}>{p.note}</p>
+            <CreditExamples credits={p.credits} className={`mt-2 ${p.featured ? "text-paper/85" : "text-muted"}`} />
             <ul className={`mt-5 space-y-2 text-body ${p.featured ? "text-paper/90" : "text-ink-soft"}`}>
               <li>Meta ret riski, mevzuat riski, kreatif skoru</li>
               <li>Güvenli metin ve 5 Türkçe varyant</li>
@@ -83,6 +86,8 @@ export default async function PricingPage() {
         </div>
       </section>
 
+      <PricingTerms className="mt-14" />
+
       <section className="mt-14 grid gap-6 border-t border-line pt-10 text-body leading-relaxed text-ink-soft md:grid-cols-2">
         <div>
           <h2 className="text-lg font-bold text-ink">Ödeme nasıl alınıyor?</h2>
@@ -94,6 +99,12 @@ export default async function PricingPage() {
           <h2 className="text-lg font-bold text-ink">Fiyatlar kesin mi?</h2>
           <p className="mt-2">
             Listelenen fiyatlar KDV dahil tüketici fiyatı olarak planlanmıştır ve ödeme sağlayıcısı aktifleştirildiğinde kesinleşir. Ödeme sayfasında gösterilen tutar geçerlidir.
+          </p>
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-ink">İptal nasıl olur?</h2>
+          <p className="mt-2">
+            Abonelik olmadığı için iptal etmen gereken bir şey yok. Paketler tek seferlik ödemedir; yeni paket almadığın sürece ücret alınmaz. Cayma hakkı ve iade koşulları <Link href="/mesafeli-satis-sozlesmesi" className="font-semibold text-blue">mesafeli satış sözleşmesinde</Link> yazar.
           </p>
         </div>
       </section>
