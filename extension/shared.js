@@ -34,3 +34,31 @@ export function checkUrl(site, { text = "", headline = "", landing = "" } = {}) 
   if (/^https?:\/\//i.test(landing)) p.set("url", String(landing).slice(0, 2048));
   return `${site}/panel/yeni#${p.toString()}`;
 }
+
+/** Most variants the panel's platform-variant check takes at once (see src/lib/variants/paste.ts). */
+export const MAX_VARIANTS = 20;
+
+/**
+ * Splits the user's selection into variant lines for the bulk check: one per line, empty lines
+ * dropped, at most MAX_VARIANTS. Chrome may join a multi-element selection into one line; the user
+ * can split it in the panel before checking.
+ */
+export function selectionLines(text) {
+  return String(text || "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .filter((l) => l.length >= 3)
+    .slice(0, MAX_VARIANTS);
+}
+
+/**
+ * Builds the address of the panel's "platform variants" check with only the selected text in the
+ * URL fragment (#…), which browsers never send to the server.
+ */
+export function bulkUrl(site, text) {
+  const lines = selectionLines(text);
+  const p = new URLSearchParams();
+  if (lines.length) p.set("metin", lines.join("\n").slice(0, MAX_VARIANTS * 620));
+  return `${site}/panel/toplu?mod=varyant${lines.length ? `#${p.toString()}` : ""}`;
+}

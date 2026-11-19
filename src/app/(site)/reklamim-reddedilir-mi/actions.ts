@@ -9,6 +9,8 @@ import { PLATFORM_IDS, type Platform } from "@/lib/platforms";
 import { SECTOR_IDS } from "@/lib/sectors";
 import { clientIp, hashKey } from "@/lib/security/rate-limit";
 import { limit } from "@/lib/security/limiter";
+import { checkVariantLines } from "@/lib/variants/check";
+import { PASTE_MAX, parseVariantLines, pasteProblem, VARIANT_MAX_CHARS, type VariantRow } from "@/lib/variants/paste";
 
 export interface QuickFinding {
   severity: "red" | "yellow" | "info";
@@ -98,6 +100,38 @@ export async function quickCheckAction(_prev: QuickCheckState, form: FormData): 
     };
   } catch {
     console.error("[quick-check] failed");
+    return { status: "error", message: "Kontrol şu an yapılamadı. Lütfen biraz sonra tekrar dene." };
+  }
+}
+
+export type QuickVariantState = { status: "idle" } | { status: "error"; message: string } | { status: "done"; platform: Platform; rows: VariantRow[] };
+
+const variantSchema = z.object({
+  platform: z.enum(PLATFORM_IDS).default("meta"),
+  sector: z.enum(SECTOR_IDS).default("genel"),
+  texts: z.string().max(PASTE_MAX.public * (VARIANT_MAX_CHARS + 20), "Metin çok uzun."),
+  website: z.string().max(0).optional(),
+});
+
+/**
+ * No-signup version of the platform-variant check (P9.3): up to 5 lines, rule engine only, nothing
+ * stored or logged. Shares the free check's rate limit, one run counts as one check.
+ */
+export async function quickVariantAction(_prev: QuickVariantState, form: FormData): Promise<QuickVariantState> {
+  const parsed = variantSchema.safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? "Formu kontrol et." };
+  const d = parsed.data;
+  const lines = parseVariantLines(d.texts);
+  const problem = pasteProblem(lines, PASTE_MAX.public);
+  if (problem) return { status: "error", message: lines.length > PASTE_MAX.public ? `${problem} Daha fazlası için ücretsiz hesap aç: panelde 20 varyanta kadar kontrol edebilirsin.` : problem };
+  const ip = clientIp(await headers());
+  const lim = await limit(`quick:${await hashKey("quick", ip)}`, 10, 10 * 60_000);
+  if (!lim.ok) return { status: "error", message: `Kısa sürede çok fazla kontrol yaptın. ${Math.ceil(lim.retryAfterSec / 60)} dakika sonra tekrar dene ya da ücretsiz hesap aç.` };
+  try {
+    const rows = await checkVariantLines({ rules: await getRepo().listAllRules(), platform: d.platform, sector: d.sector }, lines);
+    return { status: "done", platform: d.platform, rows };
+  } catch {
+    console.error("[quick-variant] failed");
     return { status: "error", message: "Kontrol şu an yapılamadı. Lütfen biraz sonra tekrar dene." };
   }
 }

@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import { VariantPaste } from "@/components/variant-paste";
+import { PASTE_MAX } from "@/lib/variants/paste";
+import { quickVariantAction } from "./actions";
 import { QuickCheck } from "./quick-check";
 
 export const metadata: Metadata = {
@@ -16,6 +19,16 @@ export default function QuickCheckPage() {
         yayından önce bakman gerekenlerin listesi.
       </p>
       <div className="mt-10"><QuickCheck /></div>
+
+      <section id="varyantlar" aria-labelledby="varyant-baslik" className="mt-20 scroll-mt-24">
+        <h2 id="varyant-baslik" className="max-w-3xl font-display text-3xl font-semibold leading-tight">Platformun ürettiği varyantları yapıştır</h2>
+        <p className="mt-3 mb-8 max-w-2xl text-ink-soft">
+          Reklam platformlarının yapay zekâ araçları (ör. Meta Advantage+ kreatif önerileri, Google Ads Asset Studio, TikTok Symphony) hızlıca metin varyantı yazıyor, ama Türk reklam
+          mevzuatını kontrol etmiyor. En fazla {PASTE_MAX.public} varyantı satır satır yapıştır; hangisinin riskli olduğunu ve güvenli sürümünü gör. Panelde tek seferde{" "}
+          {PASTE_MAX.panel} varyanta kadar kontrol edebilirsin.
+        </p>
+        <VariantPaste action={quickVariantAction} max={PASTE_MAX.public} publicMode />
+      </section>
     </div>
   );
 }

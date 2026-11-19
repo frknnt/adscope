@@ -18,6 +18,9 @@ export async function signUp(page: Page, email = `e2e-${Date.now()}-${Math.rando
 }
 
 export async function onboard(page: Page) {
+  // The first screen asks for a web site (P9.2); these specs take the "no site" path to the short form.
+  await page.getByRole("link", { name: "Sitem yok" }).click();
+  await page.waitForURL(/site=yok/);
   await page.getByLabel("Marka adı (isteğe bağlı)").fill("Vita Plus");
   await page.locator("input[name=sector][value=takviye_gida]").check({ force: true });
   await page.getByRole("button", { name: "Kaydet ve ilk analize geç" }).click();

@@ -6,6 +6,7 @@ Bir sayfada gördüğün ya da yazdığın reklam metnini tek tıkla AdScope ön
 
 - **Sağ tık → "Seçili metni AdScope ile kontrol et"**: seçili metinle AdScope'ta yeni analiz sihirbazını açar.
 - **Sağ tık → "Bu sayfayı açılış sayfası olarak kontrol et"**: sayfa adresini sihirbazın açılış sayfası alanına koyar.
+- **Sağ tık → "Bu sayfadaki seçili metinleri toplu kontrole gönder"**: seçtiğin metni satır satır (en fazla 20) panelin Toplu kontrol sayfasındaki "Platform varyantları" moduna koyar. Örneğin bir reklam platformunun yapay zekâ aracının yazdığı varyantları seçip gönderebilirsin. Yalnızca senin seçtiğin metin taşınır. Chrome birden çok öğeyi tek satırda birleştirebilir; gerekirse panelde satırlara ayır.
 - **Araç çubuğu düğmesi**: metni yapıştırıp "Kontrol et" ile aynı sihirbazı açar.
 
 Görseli/videoyu sihirbazda sen eklersin; analiz ve kredi kullanımı paneldeki gibidir. Oturum açık değilse önce giriş sayfası açılır.

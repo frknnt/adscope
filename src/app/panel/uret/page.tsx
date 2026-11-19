@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { requirePanelUser } from "@/app/panel/guard";
 import { SegmentedLinks } from "@/components/panel-ui";
-import { IconDoc, IconImage, IconPen, IconVideo } from "@/components/icons";
+import { IconDoc, IconImage, IconPen, IconSpark, IconVideo } from "@/components/icons";
 import { getAiProvider } from "@/lib/analysis/service";
+import { CAMPAIGN_PACKAGE_CREDIT_COST, CAMPAIGN_PICK } from "@/lib/campaign/costs";
 import type { CopyStored } from "@/lib/copy/service";
 import { COPY_LIMITS } from "@/lib/copy/limits";
 import { getRepo } from "@/lib/data";
 import { PLATFORM_SHORT } from "@/lib/platforms";
 import type { ScriptStored } from "@/lib/script/service";
+import { CampaignPackage } from "./campaign-package";
 import { CopyForm } from "./copy-form";
 import { CopyResults } from "./copy-results";
 import { CreativeStudio } from "./creative-studio";
@@ -23,8 +25,9 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
   await requirePanelUser();
   const repo = getRepo();
   const sp = await searchParams;
-  const tab = sp.sekme === "gorsel" || sp.sekme === "video" || sp.sekme === "senaryo" ? sp.sekme : "metin";
-  const [profile, brands, audiences, balance, recent] = await Promise.all([repo.getProfile(), repo.listBrands(), repo.listAudiences(), repo.getBalance(), repo.listGenerations(tab === "senaryo" ? "script" : "copy", 8)]);
+  // The campaign package is the first tab; links to a copy result (?sonuc=) still open the text tab.
+  const tab = sp.sekme === "gorsel" || sp.sekme === "video" || sp.sekme === "senaryo" || sp.sekme === "metin" ? sp.sekme : sp.sonuc ? "metin" : "paket";
+  const [profile, brands, audiences, balance, recent] = await Promise.all([repo.getProfile(), repo.listBrands(), repo.listAudiences(), repo.getBalance(), repo.listGenerations(tab === "senaryo" ? "script" : tab === "paket" ? "campaign" : "copy", 8)]);
   const aiOn = Boolean(getAiProvider()?.generateCopy);
   const resultId = typeof sp.sonuc === "string" ? sp.sonuc : null;
   const result = resultId && /^[0-9a-f-]{36}$/i.test(resultId) ? await repo.getGeneration(resultId) : null;
@@ -37,13 +40,14 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
         <div>
           <h1 className="font-display text-4xl font-semibold leading-tight">Üret</h1>
           <p className="mt-2 max-w-2xl text-ink-soft">
-            Ürün sayfandan reklam metni, marka kitinden görsel, görsellerinden kısa video ve video senaryosu üret. Üretilen her metin kural motorundan geçer; riskli olanların yanında güvenli sürümü gösterilir.
+            Ürün sayfandan tek akışta kampanya paketi hazırla ya da metin, görsel, video ve senaryoyu ayrı ayrı üret. Üretilen her metin kural motorundan geçer; riskli olanların yanında güvenli sürümü gösterilir.
           </p>
         </div>
         <SegmentedLinks
           label="Üretim türü"
           items={[
-            { href: "/panel/uret", label: "Metin", active: tab === "metin", Icon: IconPen },
+            { href: "/panel/uret", label: "Kampanya paketi", active: tab === "paket", Icon: IconSpark },
+            { href: "/panel/uret?sekme=metin", label: "Metin", active: tab === "metin", Icon: IconPen },
             { href: "/panel/uret?sekme=gorsel", label: "Görsel", active: tab === "gorsel", Icon: IconImage },
             { href: "/panel/uret?sekme=video", label: "Video", active: tab === "video", Icon: IconVideo },
             { href: "/panel/uret?sekme=senaryo", label: "Senaryo", active: tab === "senaryo", Icon: IconDoc },
@@ -51,7 +55,42 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
         />
       </div>
 
-      {tab === "senaryo" ? (
+      {tab === "paket" ? (
+        <div className="mt-8 grid gap-8">
+          <CampaignPackage
+            brands={brands.map((b) => ({ id: b.id, name: b.name, sector: b.sector, website: b.website, primaryColor: b.primaryColor, secondaryColor: b.secondaryColor }))}
+            audiences={audiences.map((a) => ({ id: a.id, brandId: a.brandId, name: a.name }))}
+            defaultSector={profile?.defaultSector ?? "genel"}
+            balance={balance}
+            aiOn={aiOn}
+            cost={CAMPAIGN_PACKAGE_CREDIT_COST}
+            pick={CAMPAIGN_PICK}
+            initial={{
+              url: typeof sp.adres === "string" && /^https?:\/\//i.test(sp.adres) ? sp.adres.slice(0, 2048) : "",
+              brandId: typeof sp.marka === "string" ? sp.marka : "",
+              auto: sp.basla === "1",
+            }}
+          />
+          {recent.length ? (
+            <section aria-labelledby="son-paketler">
+              <h2 id="son-paketler" className="text-lg font-bold">Son paketler</h2>
+              <ul className="mt-3 grid gap-2 md:grid-cols-2">
+                {recent.map((g) => (
+                  <li key={g.id}>
+                    <a href={`/api/generations/${g.id}/files/0`} download className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-2.5 text-small no-underline hover:border-line-strong">
+                      <span className="min-w-0 truncate font-semibold text-ink">{String(g.output.productName || "Kampanya paketi")}</span>
+                      <span className="shrink-0 text-meta text-muted">
+                        {g.platform ? PLATFORM_SHORT[g.platform] : ""} · {dateFmt.format(new Date(g.createdAt))}
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-meta text-muted">Paketler 90 gün saklanır. Yeniden indirmek ücretsizdir; tarayıcıda hazırlanan video bu kopyada yer almaz.</p>
+            </section>
+          ) : null}
+        </div>
+      ) : tab === "senaryo" ? (
         <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
           <div className="grid content-start gap-6">
             <ScriptForm

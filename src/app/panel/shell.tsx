@@ -165,7 +165,8 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
     () => [
       { href: "/panel/yeni", label: "Yeni analiz başlat", hint: "Eylem" },
       { href: "/panel/toplu", label: "Toplu kontrol yap", hint: "Eylem" },
-      { href: "/panel/uret", label: "Reklam metni üret", hint: "Eylem" },
+      { href: "/panel/uret", label: "Kampanya paketi hazırla", hint: "Eylem" },
+      { href: "/panel/uret?sekme=metin", label: "Reklam metni üret", hint: "Eylem" },
       { href: "/panel/uret?sekme=gorsel", label: "Reklam görseli üret", hint: "Eylem" },
       { href: "/panel/araclar", label: "Görsel araçları", hint: "Eylem" },
       { href: "/panel/itiraz", label: "İtiraz taslağı hazırla", hint: "Eylem" },
