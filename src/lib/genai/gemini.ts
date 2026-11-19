@@ -36,6 +36,11 @@ export function findMedia(json: unknown, kind: "image" | "video"): Block | null 
 
 export class GeminiProvider {
   readonly name = "Google Gemini";
+  /**
+   * Optional observer of each parsed response, used only by the measurement script to compare the
+   * real answer's structure with what findMedia expects. The app never sets it.
+   */
+  onResponse?: (json: unknown) => void;
   constructor(
     private readonly key: string,
     private readonly base: string,
@@ -66,11 +71,14 @@ export class GeminiProvider {
       console.error("[genai] provider_error", { status: res.status });
       return { ok: false, reason: "unavailable" };
     }
+    let json: unknown;
     try {
-      return { ok: true, json: await res.json() };
+      json = await res.json();
     } catch {
       return { ok: false, reason: "unavailable" };
     }
+    this.onResponse?.(json);
+    return { ok: true, json };
   }
 
   /** Downloads a file URI the API returned. The key is only ever sent to the API's own host. */
