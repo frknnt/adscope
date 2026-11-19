@@ -15,6 +15,7 @@
     "db:seed:generate": "tsx scripts/generate-seed.ts",
     "rules:review:export": "tsx scripts/rule-review.ts export",
     "rules:review:apply": "tsx scripts/rule-review.ts apply",
+    "ai:eval": "tsx --conditions=react-server scripts/ai-eval.ts",
     "db:reset": "supabase db reset",
     "db:advisors": "supabase db advisors --level info"
   },
