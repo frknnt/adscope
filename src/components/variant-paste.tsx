@@ -78,7 +78,7 @@ export function VariantPaste({
               </select>
             </Field>
           ) : null}
-          <Field label="Varyantların sektörü" htmlFor={`${id}-sector`}>
+          <Field label="Faaliyet alanı" htmlFor={`${id}-sector`} hint="Sektör paketi ilgili kural kartlarını ekler.">
             <select id={`${id}-sector`} name="sector" defaultValue={defaultSector} disabled={Boolean(brandId)} className={selectClass}>
               {SECTOR_IDS.map((s) => <option key={s} value={s}>{SECTOR_INFO[s].label}</option>)}
             </select>
