@@ -31,6 +31,52 @@ test("rule cards list official sources", async ({ page }) => {
   for (const href of await links.evaluateAll((els) => els.map((e) => e.getAttribute("href")))) expect(href).toMatch(/^https:\/\/(transparency\.meta\.com|ticaret\.gov\.tr|www\.resmigazete\.gov\.tr|www\.mevzuat\.gov\.tr|www\.saglik\.gov\.tr|support\.google\.com|ads\.tiktok\.com|www\.titck\.gov\.tr)/);
 });
 
+test("trust band on the landing page counts the rule catalog and stays accessible", async ({ page }) => {
+  await page.goto("/");
+  const band = page.getByRole("region", { name: "Kural kartı güven göstergesi" });
+  await expect(band).toBeVisible();
+  await expect(band).toContainText(/\d+ kural kartı/);
+  await expect(band).toContainText(/\d+ tanesi resmî kaynakta doğrulandı/);
+  await expect(band).toContainText(/hukukçu tarafından doğrula/i);
+  await expect(band).toContainText(/Son güncelleme \d{2}\.\d{2}\.\d{4}/);
+  const axe = await new AxeBuilder({ page }).include('[aria-label="Kural kartı güven göstergesi"]').withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations.map((v) => v.id)).toEqual([]);
+  await band.getByRole("link", { name: "Kartları ve kaynakları gör" }).click();
+  await expect(page).toHaveURL(/\/kurallar$/);
+  await expect(page.getByRole("region", { name: "Kural kartı güven göstergesi" })).toBeVisible();
+});
+
+test("rule cards can be filtered by status", async ({ page }) => {
+  await page.goto("/kurallar");
+  const group = page.getByRole("group", { name: "Kart durumu" });
+  const total = await page.locator("article[id]").count();
+  await group.getByRole("link", { name: /^Doğrulandı/ }).click();
+  await expect(page).toHaveURL(/durum=dogrulandi/);
+  await expect(group.getByRole("link", { name: /^Doğrulandı/ })).toHaveAttribute("aria-current", "true");
+  const verified = await page.locator("article[id]").count();
+  expect(verified).toBeGreaterThan(0);
+  await expect(page.locator("article[id]").getByText("Doğrulama bekliyor", { exact: true })).toHaveCount(0);
+  await group.getByRole("link", { name: /^İncelemede/ }).click();
+  await expect(page).toHaveURL(/durum=inceleme/);
+  const inReview = await page.locator("article[id]").count();
+  await expect(page.locator("article[id]").getByText("Aktif", { exact: true })).toHaveCount(0);
+  expect(verified + inReview).toBe(total);
+  const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
+});
+
+test("pricing explains how credits are charged, with examples from the cost tables", async ({ page }) => {
+  await page.goto("/fiyatlandirma");
+  const terms = page.getByRole("region", { name: "Nasıl ücretlendiriyoruz" });
+  await expect(terms).toBeVisible();
+  for (const t of ["Kart istemeden 3 ücretsiz kredi", "Abonelik yok", "Kredi yalnızca iş bitince düşer", "Önizleme ücretsiz, indirme kredili"]) await expect(terms.getByText(t)).toBeVisible();
+  await expect(terms).toContainText("1 video analizi: 2 kredi");
+  await expect(page.getByText("Örneğin 30 görsel analizi, 15 video analizi ya da 30 görsel seti indirme.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "İptal nasıl olur?" })).toBeVisible();
+  await page.goto("/");
+  await expect(page.getByText("İptal nasıl olur?")).toBeVisible();
+});
+
 test("keyboard: skip link and sign-in form are reachable without a mouse", async ({ page, isMobile }) => {
   test.skip(isMobile, "keyboard flow checked on desktop");
   await page.goto("/giris");
