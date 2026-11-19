@@ -11,6 +11,9 @@ export interface CreditPackage {
   description: string;
 }
 
+/** One-time signup gift; no card is asked. Must match v_bonus in app_private.handle_new_user(). */
+export const SIGNUP_BONUS_CREDITS = 3;
+
 export const CREDIT_PACKAGES: CreditPackage[] = [
   {
     id: "baslangic",

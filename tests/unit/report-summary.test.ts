@@ -14,6 +14,15 @@ describe("report summary", () => {
     expect(s).toMatch(/Meta incelemesinde ret riski yüksek/);
   });
 
+  it("does not call a finding a legal violation without an active card behind it", () => {
+    const cases = [
+      f({ severity: "red", domain: "tr_law", rule: null }),
+      f({ severity: "yellow", domain: "tr_law", rule: active }),
+      f({ severity: "red", domain: "meta_policy", rule: active }),
+    ];
+    for (const finding of cases) expect(resultSentence({ platform: "meta", metaRiskLevel: "medium", findings: [finding] })).not.toMatch(/mevzuat/);
+  });
+
   it("never promises approval", () => {
     const quiet = resultSentence({ platform: "tiktok", metaRiskLevel: "low", findings: [] });
     expect(quiet).toMatch(/onaylanacağı anlamına gelmez/);

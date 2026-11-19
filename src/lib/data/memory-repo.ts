@@ -6,7 +6,7 @@ import { appMode, demoSessionSecret, retentionDefaultDays } from "@/lib/env";
 import type { AnalysisResult, AppealOut, ImageMeta, RuleRecord, VideoMeta } from "@/lib/engine/types";
 import { RULE_CATALOG, type Sector } from "@/lib/rules/catalog";
 import type { Platform } from "@/lib/platforms";
-import { findPackage } from "@/lib/payments/packages";
+import { findPackage, SIGNUP_BONUS_CREDITS } from "@/lib/payments/packages";
 import { COUPON_RESERVATION_MS, commissionOf, emailHash, newCode } from "@/lib/growth/codes";
 import { API_KEY_LIMIT, PERFORMANCE_IMPORT_LIMIT, PIN_LIMIT, TEAM_LIMIT, WATCH_LIMIT, WEBHOOK_LIMIT } from "./limits";
 import { rateLimit } from "@/lib/security/rate-limit";
@@ -318,7 +318,7 @@ export class MemoryRepo implements DataRepo {
     s.users.push(user);
     // Mirrors the auth.users trigger: profile + one-time bonus (idempotency key prevents a second grant).
     s.profiles[user.id] = { id: user.id, displayName: null, companyName: null, defaultSector: null, onboardingCompletedAt: null, retentionDays: retentionDefaultDays(), seasonReminders: false, newsletter: false };
-    insertLedger({ userId: user.id, delta: 3, reason: "signup_bonus", note: "Kayıt hediyesi: 3 ücretsiz analiz", analysisId: null, idempotencyKey: `signup_bonus:${user.id}` });
+    insertLedger({ userId: user.id, delta: SIGNUP_BONUS_CREDITS, reason: "signup_bonus", note: "Kayıt hediyesi: 3 ücretsiz analiz", analysisId: null, idempotencyKey: `signup_bonus:${user.id}` });
     const now = new Date().toISOString();
     s.consents.push(
       { userId: user.id, type: "terms", version: input.consents.terms, granted: true, createdAt: now },
@@ -333,7 +333,7 @@ export class MemoryRepo implements DataRepo {
 
   /** Test hook: re-running the bonus grant must not add credits twice. */
   static regrantSignupBonusForTest(userId: string) {
-    return insertLedger({ userId, delta: 3, reason: "signup_bonus", note: "Kayıt hediyesi", analysisId: null, idempotencyKey: `signup_bonus:${userId}` });
+    return insertLedger({ userId, delta: SIGNUP_BONUS_CREDITS, reason: "signup_bonus", note: "Kayıt hediyesi", analysisId: null, idempotencyKey: `signup_bonus:${userId}` });
   }
 
   async signIn(email: string, password: string): Promise<AuthResult> {

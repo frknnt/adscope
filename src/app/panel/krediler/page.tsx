@@ -1,3 +1,4 @@
+import { PricingTerms } from "@/components/pricing-terms";
 import { formatDateTimeTr } from "@/components/rule-status";
 import { Button, DataTable } from "@/components/ui";
 import { getAdminRepo, getRepo } from "@/lib/data";
@@ -70,6 +71,8 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
         </div>
         <PackageGrid packages={CREDIT_PACKAGES} providers={providers.map((pr) => ({ id: pr.id, label: pr.label }))} demo={demo} action={startCheckoutAction} />
       </section>
+
+      <PricingTerms className="mt-12" />
 
       <section aria-labelledby="hareketler" className="mt-12">
         <h2 id="hareketler" className="font-display text-2xl font-semibold">Kredi hareketleri</h2>
