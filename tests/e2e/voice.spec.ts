@@ -134,3 +134,86 @@ test("Turkish voice-over: free preview, red line blocks, one credit for all scen
   await axeClean(page);
   expect(await balance(page)).toBe(start - 1);
 });
+
+/** Reads the recorded file: its length and whether it carries an audio track. */
+async function recorded(page: Page) {
+  const link = page.getByRole("link", { name: /Videoyu indir \((MP4|WebM)\)/ });
+  await expect(link).toBeVisible({ timeout: 60_000 });
+  const duration = await page.getByLabel("Oluşturulan video").evaluate(async (v: HTMLVideoElement) => {
+    // MediaRecorder files often report Infinity until the browser seeks to the end.
+    if (!Number.isFinite(v.duration)) {
+      v.currentTime = 1e6;
+      await new Promise((r) => v.addEventListener("timeupdate", r, { once: true }));
+    }
+    return v.duration;
+  });
+  const download = page.waitForEvent("download");
+  await link.click();
+  const { readFile } = await import("node:fs/promises");
+  const bytes = await readFile((await (await download).path())!);
+  const text = bytes.toString("latin1");
+  return { duration, hasAudio: text.includes("A_OPUS") || text.includes("mp4a") || text.includes("Opus"), name: await link.getAttribute("download") };
+}
+
+test("video with my own sound: 6 second voiced recording, burnt-in SRT, music, AI notice, free", async ({ page }) => {
+  test.setTimeout(150_000);
+  await signUp(page);
+  await onboard(page);
+  const start = await balance(page);
+  await page.goto("/panel/uret?sekme=video");
+  await page.locator("#video-gorsel").setInputFiles("tests/fixtures/ad.png");
+  await page.getByLabel("Ekranda görünecek marka adı").fill("Vita Plus");
+  await page.getByLabel("Teklif (ilk 3 saniye)").fill("Yeni sezon setleri sitede");
+  await page.getByLabel("Kapanış çağrısı (isteğe bağlı)").fill("Hemen incele");
+  await page.getByLabel(/Süre: \d+ saniye/).fill("6");
+  await page.getByText("Kendi sesim", { exact: true }).click();
+  await page.getByLabel("Ses dosyası (en fazla 10 MB)").setInputFiles({ name: "dis-ses.wav", mimeType: "audio/wav", buffer: wav(5) });
+  await page.getByLabel("Altyazı dosyası (SRT, isteğe bağlı)").setInputFiles({ name: "altyazi.srt", mimeType: "application/x-subrip", buffer: Buffer.from("1\n00:00:00,000 --> 00:00:02,500\nYeni sezon setleri\n\n2\n00:00:02,500 --> 00:00:05,000\nAyrıntılar sayfada\n") });
+  await expect(page.getByText("2 altyazı satırı okundu")).toBeVisible();
+  await page.getByLabel(/Bu ses yapay zekâ ile üretildi/).check();
+  await page.getByLabel("Fon müziği").selectOption({ label: "Sakin" });
+  await noHorizontalScroll(page);
+  await axeClean(page);
+
+  await page.getByRole("button", { name: /Videoyu oluştur/ }).click();
+  const r = await recorded(page);
+  expect(r.name).toMatch(/^adscope-video-6sn\.(mp4|webm)$/);
+  expect(r.duration).toBeGreaterThan(4.5);
+  expect(r.duration).toBeLessThan(8);
+  expect(r.hasAudio).toBe(true);
+  await expect(page.getByLabel("Video açıklaması önerisi")).toHaveValue(/Bu videodaki ses yapay zekâ ile üretilmiştir\.$/);
+  await expect(page.getByLabel("Video açıklaması önerisi")).toHaveAttribute("readonly", "");
+  await expect(page.getByLabel("Video kontrolü")).toContainText("altyazı videoya yakılı", { timeout: 15_000 });
+  await axeClean(page);
+  expect(await balance(page)).toBe(start);
+});
+
+test("script voice-over in the video: length from the script, AI notice cannot be turned off", async ({ page }) => {
+  test.setTimeout(180_000);
+  await signUp(page);
+  await onboard(page);
+  await makeScript(page, "Kahve seti");
+  const panel = page.getByRole("region", { name: "Türkçe dış ses" });
+  await panel.getByRole("button", { name: /^Tüm dış sesi seslendir · 1 kredi/ }).click();
+  await expect(panel.getByRole("status")).toContainText("1 kredi düştü");
+  const afterVoice = await balance(page);
+
+  await page.goto("/panel/uret?sekme=video");
+  await page.locator("#video-gorsel").setInputFiles("tests/fixtures/ad.png");
+  await page.getByLabel("Ekranda görünecek marka adı").fill("Vita Plus");
+  await page.getByLabel("Teklif (ilk 3 saniye)").fill("Taze kahve sitede");
+  await page.getByText("Senaryo dış sesi", { exact: true }).click();
+  await expect(page.getByLabel("Seslendirme")).toContainText("Kahve seti · 15 sn");
+  await expect(page.getByText("Süre: 15 saniye")).toBeVisible();
+  await expect(page.getByLabel(/Süre: \d+ saniye/)).toBeDisabled();
+  await expect(page.getByText(/kapatılamaz/)).toBeVisible();
+  await page.getByRole("button", { name: /Videoyu oluştur/ }).click();
+  const r = await recorded(page);
+  expect(r.name).toMatch(/^adscope-video-15sn\.(mp4|webm)$/);
+  expect(r.duration).toBeGreaterThan(13.5);
+  expect(r.duration).toBeLessThan(17);
+  expect(r.hasAudio).toBe(true);
+  await expect(page.getByLabel("Video açıklaması önerisi")).toHaveValue(/yapay zekâ ile üretilmiştir/);
+  // Using the voice-over in a video is free.
+  expect(await balance(page)).toBe(afterVoice);
+});

@@ -91,8 +91,8 @@ export function drawFrame(ctx: Ctx, tl: Timeline, t: number, images: FrameImage[
     const panelW = Math.min(layer.box.w, textW + 64);
     const panelH = lines.length * lh + 36;
     const cx = layer.box.x + layer.box.w / 2;
-    // Captions grow upwards from the bottom of their box; other layers are centred in theirs.
-    const top = layer.role === "caption" ? layer.box.y + layer.box.h - panelH : layer.box.y + (layer.box.h - panelH) / 2;
+    // Captions and subtitles grow upwards from the bottom of their box; other layers are centred in theirs.
+    const top = layer.role === "caption" || layer.role === "subtitle" ? layer.box.y + layer.box.h - panelH : layer.box.y + (layer.box.h - panelH) / 2;
     ctx.globalAlpha = alpha;
     if (layer.role === "cta") {
       ctx.fillStyle = style.accent;

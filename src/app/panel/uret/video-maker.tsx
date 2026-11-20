@@ -5,19 +5,27 @@ import { buttonClass, inputClass, selectClass } from "@/components/ui";
 import { PLATFORM_IDS, PLATFORM_SHORT, type Platform } from "@/lib/platforms";
 import type { Sector } from "@/lib/rules/catalog";
 import { SECTOR_IDS, SECTOR_INFO } from "@/lib/sectors";
+import { duckEnvelope, MUSIC_TRACKS, playMusic, voiceoverSubtitles, voiceSchedule, type MusicId, type VoiceClip } from "@/lib/video-maker/audio";
 import { drawFrame, type DrawStyle, type FrameImage } from "@/lib/video-maker/draw";
-import { buildTimeline, MAX_IMAGES, MAX_SECONDS, MIN_SECONDS, TRANSITIONS, VIDEO_H, VIDEO_W, type Transition } from "@/lib/video-maker/timeline";
 import type { VideoReviewOut } from "@/lib/video-maker/review";
+import { MAX_SRT_BYTES, parseSrt } from "@/lib/video-maker/subtitles";
+import { AI_NOTICE_SECONDS, AI_NOTICE_TEXT, buildTimeline, MAX_IMAGES, MAX_SECONDS, MIN_SECONDS, TRANSITIONS, VIDEO_H, VIDEO_W, type SubtitleCue, type Transition } from "@/lib/video-maker/timeline";
+import { CopyButton } from "../forms";
 import { reviewVideoAction } from "./video-actions";
 
 type BrandOpt = { id: string; name: string; sector: Sector; primaryColor: string | null; secondaryColor: string | null; preferredCta: string | null };
 type Source = { key: string; label: string; image: FrameImage };
+/** A script voice-over the user made in the script tab (P11.1): one WAV per voiced scene. */
+export type VoiceoverOpt = { id: string; label: string; duration: number; scenes: { start: number; end: number; text: string; seconds: number }[] };
+type SoundMode = "none" | "script" | "upload";
 
 const MIMES = ["video/mp4;codecs=avc1.42E01E", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+const AUDIO_MIMES = ["video/mp4;codecs=avc1.42E01E,mp4a.40.2", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 
-function pickMime(): string | null {
+function pickMime(withAudio: boolean): string | null {
   if (typeof MediaRecorder === "undefined") return null;
-  return MIMES.find((m) => MediaRecorder.isTypeSupported(m)) ?? null;
+  return (withAudio ? AUDIO_MIMES : MIMES).find((m) => MediaRecorder.isTypeSupported(m)) ?? null;
 }
 
 async function bitmapFrom(blob: Blob): Promise<FrameImage> {
@@ -27,7 +35,7 @@ async function bitmapFrom(blob: Blob): Promise<FrameImage> {
 
 const SEVERITY_CLASS = { red: "bg-coral-tint", yellow: "bg-amber-tint", info: "bg-info-tint" } as const;
 
-export function VideoMaker({ brands, creatives, defaultSector }: { brands: BrandOpt[]; creatives: { href: string; label: string }[]; defaultSector: Sector }) {
+export function VideoMaker({ brands, creatives, defaultSector, voiceovers = [] }: { brands: BrandOpt[]; creatives: { href: string; label: string }[]; defaultSector: Sector; voiceovers?: VoiceoverOpt[] }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [sources, setSources] = useState<Source[]>([]);
   const [captions, setCaptions] = useState<string[]>([]);
@@ -44,14 +52,36 @@ export function VideoMaker({ brands, creatives, defaultSector }: { brands: Brand
   const [progress, setProgress] = useState<number | null>(null);
   const [video, setVideo] = useState<{ url: string; mime: string; size: number } | null>(null);
   const [review, setReview] = useState<VideoReviewOut | null>(null);
+  const [sound, setSound] = useState<SoundMode>("none");
+  const [voiceoverId, setVoiceoverId] = useState(voiceovers[0]?.id ?? "");
+  const [upload, setUpload] = useState<{ name: string; bytes: ArrayBuffer } | null>(null);
+  const [uploadAi, setUploadAi] = useState(false);
+  const [srtCues, setSrtCues] = useState<SubtitleCue[]>([]);
+  const [music, setMusic] = useState<MusicId | "">("");
+  const [aiNoticeUsed, setAiNoticeUsed] = useState(false);
+  const voiceover = sound === "script" ? (voiceovers.find((v) => v.id === voiceoverId) ?? null) : null;
 
   const style = useMemo<DrawStyle>(() => {
     const font = typeof window === "undefined" ? "sans-serif" : getComputedStyle(document.body).fontFamily || "sans-serif";
     return { font, accent: brand?.secondaryColor ?? "#ff6a4d", accentText: "#0b1b3f", panel: brand?.primaryColor ?? "#0b1b3f" };
   }, [brand]);
+  // A script voice-over fixes the length and the subtitles; a synthetic voice always adds the AI notice.
+  const subtitles = useMemo(() => (voiceover ? voiceoverSubtitles(voiceover.scenes) : sound === "upload" ? srtCues : []), [voiceover, sound, srtCues]);
+  const aiNotice = Boolean(voiceover) || (sound === "upload" && uploadAi);
   const spec = useMemo(
-    () => ({ imageCount: Math.max(1, sources.length), durationSec: seconds, brand: brandName, offer, captions, cta, transition }),
-    [sources.length, seconds, brandName, offer, captions, cta, transition],
+    () => ({
+      imageCount: Math.max(1, sources.length),
+      durationSec: voiceover ? voiceover.duration : seconds,
+      brand: brandName,
+      offer,
+      captions,
+      cta,
+      transition,
+      voice: voiceover ? ("script" as const) : sound === "upload" && upload ? ("upload" as const) : null,
+      subtitles,
+      aiNotice,
+    }),
+    [sources.length, seconds, brandName, offer, captions, cta, transition, voiceover, sound, upload, subtitles, aiNotice],
   );
   const timeline = useMemo(() => buildTimeline(spec), [spec]);
 
@@ -91,28 +121,101 @@ export function VideoMaker({ brands, creatives, defaultSector }: { brands: Brand
     }
   }
 
+  async function addAudio(file: File | undefined) {
+    setError(null);
+    if (!file) return setUpload(null);
+    if (file.size > MAX_AUDIO_BYTES || !(file.type.startsWith("audio/") || /\.(wav|mp3|m4a|aac|ogg|oga|opus|webm)$/i.test(file.name))) return setError("Ses dosyası en fazla 10 MB olabilir (WAV, MP3, M4A ya da OGG).");
+    setUpload({ name: file.name, bytes: await file.arrayBuffer() });
+  }
+
+  async function addSrt(file: File | undefined) {
+    setError(null);
+    if (!file) return setSrtCues([]);
+    if (file.size > MAX_SRT_BYTES) return setError("Altyazı dosyası en fazla 100 KB olabilir.");
+    const cues = parseSrt(await file.text());
+    if (!cues.length) return setError("Altyazı dosyası okunamadı. SRT biçiminde olduğundan emin ol.");
+    setSrtCues(cues);
+  }
+
+  /** Decodes the chosen sound and schedules it (and the music) on a fresh AudioContext. */
+  async function prepareSound(duration: number): Promise<{ actx: AudioContext; stream: MediaStream; start: (at: number) => void; clips: VoiceClip[] } | { error: string } | null> {
+    const wantVoice = sound === "script" ? voiceover : sound === "upload" ? upload : null;
+    if (sound !== "none" && !wantVoice) return { error: sound === "script" ? "Bir seslendirme seç." : "Bir ses dosyası seç ya da Sessiz'i işaretle." };
+    if (!wantVoice && !music) return null;
+    if (typeof AudioContext === "undefined") return { error: "Bu tarayıcı sesli kayıt desteklemiyor." };
+    const actx = new AudioContext();
+    try {
+      await actx.resume();
+      let raw: ArrayBuffer[] = [];
+      if (voiceover) raw = await Promise.all(voiceover.scenes.map(async (_, i) => {
+        const res = await fetch(`/api/generations/${voiceover.id}/files/${i}`);
+        if (!res.ok) throw new Error("fetch");
+        return res.arrayBuffer();
+      }));
+      else if (sound === "upload" && upload) raw = [upload.bytes.slice(0)];
+      const buffers = await Promise.all(raw.map((b) => actx.decodeAudioData(b)));
+      const clips = voiceover ? voiceSchedule(voiceover.scenes.map((s, i) => ({ start: s.start, seconds: buffers[i]?.duration ?? s.seconds })), duration) : buffers[0] ? voiceSchedule([{ start: 0, seconds: buffers[0].duration }], duration) : [];
+      const dest = actx.createMediaStreamDestination();
+      const voiceGain = actx.createGain();
+      voiceGain.connect(dest);
+      const musicGain = actx.createGain();
+      musicGain.gain.value = 0;
+      musicGain.connect(dest);
+      const start = (at: number) => {
+        for (const c of clips) {
+          const src = actx.createBufferSource();
+          src.buffer = buffers[c.file];
+          src.connect(voiceGain);
+          src.start(at + c.at, 0, c.length);
+        }
+        if (music) {
+          duckEnvelope(clips, duration).forEach((p, i) => (i ? musicGain.gain.linearRampToValueAtTime(p.gain, at + p.t) : musicGain.gain.setValueAtTime(p.gain, at + p.t)));
+          playMusic(actx, music, duration, at, musicGain);
+        }
+      };
+      return { actx, stream: dest.stream, start, clips };
+    } catch {
+      void actx.close();
+      return { error: sound === "script" ? "Seslendirme dosyaları yüklenemedi. Sayfayı yenileyip yeniden dene." : "Ses dosyası okunamadı. WAV, MP3 ya da M4A dene." };
+    }
+  }
+
   async function render() {
-    const mime = pickMime();
     const el = canvas.current;
     const ctx = el?.getContext("2d");
-    if (!mime || !el || !ctx || typeof el.captureStream !== "function") return setError("Bu tarayıcı video kaydını desteklemiyor. Güncel Chrome, Edge ya da Safari ile dene.");
+    if (!el || !ctx || typeof el.captureStream !== "function" || typeof MediaRecorder === "undefined") return setError("Bu tarayıcı video kaydını desteklemiyor. Güncel Chrome, Edge ya da Safari ile dene.");
     if (!sources.length) return setError("En az bir görsel ekle.");
     if (!offer.trim()) return setError("İlk 3 saniyede görünecek teklif yazısını gir.");
     setError(null);
     setReview(null);
     setVideo(null);
     setProgress(0);
+    const audio = await prepareSound(timeline.duration);
+    if (audio && "error" in audio) {
+      setProgress(null);
+      return setError(audio.error);
+    }
+    const mime = pickMime(Boolean(audio));
+    if (!mime) {
+      void audio?.actx.close();
+      setProgress(null);
+      return setError("Bu tarayıcı video kaydını desteklemiyor. Güncel Chrome, Edge ya da Safari ile dene.");
+    }
     const images = sources.map((s) => s.image);
     drawFrame(ctx, timeline, 0, images, style);
-    const rec = new MediaRecorder(el.captureStream(30), { mimeType: mime, videoBitsPerSecond: 6_000_000 });
+    const stream = new MediaStream([...el.captureStream(30).getVideoTracks(), ...(audio ? audio.stream.getAudioTracks() : [])]);
+    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6_000_000 });
     const chunks: Blob[] = [];
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
     const stopped = new Promise<void>((r) => (rec.onstop = () => r()));
     rec.start(250);
-    const t0 = performance.now();
+    // Sound and picture share one clock: the drawing loop starts when the scheduled audio does.
+    const lead = 0.1;
+    if (audio) audio.start(audio.actx.currentTime + lead);
+    const t0 = performance.now() + lead * 1000;
     await new Promise<void>((resolve) => {
       const tick = () => {
-        const t = (performance.now() - t0) / 1000;
+        const t = Math.max(0, (performance.now() - t0) / 1000);
         drawFrame(ctx, timeline, Math.min(t, timeline.duration - 0.001), images, style);
         setProgress(Math.min(1, t / timeline.duration));
         if (t >= timeline.duration) resolve();
@@ -122,11 +225,15 @@ export function VideoMaker({ brands, creatives, defaultSector }: { brands: Brand
     });
     rec.stop();
     await stopped;
+    void audio?.actx.close();
     const type = mime.startsWith("video/mp4") ? "video/mp4" : "video/webm";
     const blob = new Blob(chunks, { type });
     setVideo({ url: URL.createObjectURL(blob), mime: type, size: blob.size });
+    setAiNoticeUsed(Boolean(spec.aiNotice));
     setProgress(null);
-    const res = await reviewVideoAction({ spec, mime: type, sizeBytes: Math.max(1, blob.size), sector: brand?.sector ?? sector, platform });
+    const voiced = audio?.clips.reduce((a, c) => a + c.length, 0) ?? 0;
+    const soundInfo = audio ? { firstSoundSec: music ? 0 : (audio.clips[0]?.at ?? 0), silentRatio: music ? 0 : Math.max(0, Math.min(1, 1 - voiced / timeline.duration)) } : null;
+    const res = await reviewVideoAction({ spec, mime: type, sizeBytes: Math.max(1, blob.size), sector: brand?.sector ?? sector, platform, sound: soundInfo });
     if (res.ok) setReview(res.review);
     else setError(res.error);
   }
@@ -167,9 +274,10 @@ export function VideoMaker({ brands, creatives, defaultSector }: { brands: Brand
                 </button>
               </div>
               <label htmlFor={`video-alt-${i}`} className="text-meta text-ink-soft">Altyazı {i + 1} (isteğe bağlı)</label>
-              <input id={`video-alt-${i}`} maxLength={90} value={captions[i] ?? ""} onChange={(e) => setCaptions((c) => Object.assign([...c], { [i]: e.target.value }))} className={inputClass} />
+              <input id={`video-alt-${i}`} maxLength={90} value={captions[i] ?? ""} disabled={subtitles.length > 0} onChange={(e) => setCaptions((c) => Object.assign([...c], { [i]: e.target.value }))} className={inputClass} />
             </div>
           ))}
+          {subtitles.length && sources.length ? <p className="text-meta text-muted">Dış ses altyazısı varken görsel altyazıları kullanılmaz.</p> : null}
         </fieldset>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="video-marka" className="text-sm font-semibold text-ink">Marka</label>
@@ -195,8 +303,9 @@ export function VideoMaker({ brands, creatives, defaultSector }: { brands: Brand
           <input id="video-cta" maxLength={30} value={cta} onChange={(e) => setCta(e.target.value)} className={inputClass} placeholder="ör. Hemen incele" />
         </div>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="video-sure" className="text-sm font-semibold text-ink">Süre: {seconds} saniye</label>
-          <input id="video-sure" type="range" min={MIN_SECONDS} max={MAX_SECONDS} value={seconds} onChange={(e) => setSeconds(Number(e.target.value))} className="h-11 accent-ink" />
+          <label htmlFor="video-sure" className="text-sm font-semibold text-ink">Süre: {timeline.duration} saniye</label>
+          <input id="video-sure" type="range" min={MIN_SECONDS} max={MAX_SECONDS} value={voiceover ? MAX_SECONDS : seconds} disabled={Boolean(voiceover)} onChange={(e) => setSeconds(Number(e.target.value))} className="h-11 accent-ink" />
+          {voiceover ? <p className="text-meta text-muted">Süre senaryodan gelir; her dış ses satırı kendi sahnesinin başında başlar.</p> : null}
         </div>
         <fieldset>
           <legend className="text-small font-semibold text-ink">Geçiş</legend>
@@ -207,6 +316,58 @@ export function VideoMaker({ brands, creatives, defaultSector }: { brands: Brand
                 {t.label}
               </label>
             ))}
+          </div>
+        </fieldset>
+        <fieldset className="grid gap-3 rounded-xl border border-line p-3">
+          <legend className="px-1 text-small font-semibold text-ink">Ses</legend>
+          <div className="grid grid-cols-3 gap-2">
+            {(
+              [
+                ["none", "Sessiz"],
+                ["script", "Senaryo dış sesi"],
+                ["upload", "Kendi sesim"],
+              ] as const
+            ).map(([id, label]) => (
+              <label key={id} className={`flex min-h-12 items-center justify-center rounded-xl border border-line px-2 text-center text-meta font-semibold has-[:checked]:border-ink has-[:checked]:bg-paper-2 ${id === "script" && !voiceovers.length ? "opacity-55" : "cursor-pointer"}`}>
+                <input type="radio" name="ses" value={id} checked={sound === id} disabled={id === "script" && !voiceovers.length} onChange={() => setSound(id)} className="sr-only" />
+                {label}
+              </label>
+            ))}
+          </div>
+          {!voiceovers.length ? <p className="text-meta text-muted">Senaryo sekmesinde bir senaryoyu seslendirince dış sesi burada seçebilirsin.</p> : null}
+          {sound === "script" ? (
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="video-dis-ses" className="text-sm font-semibold text-ink">Seslendirme</label>
+              <select id="video-dis-ses" value={voiceoverId} onChange={(e) => setVoiceoverId(e.target.value)} className={selectClass}>
+                {voiceovers.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+              </select>
+              <p className="text-meta text-muted">Altyazı dış sesten videoya yakılır. Ses yapay zekâ ile üretildiği için son {AI_NOTICE_SECONDS} saniyede “{AI_NOTICE_TEXT}” yazar; bu ibare kapatılamaz.</p>
+            </div>
+          ) : null}
+          {sound === "upload" ? (
+            <div className="grid gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="video-ses-dosyasi" className="text-sm font-semibold text-ink">Ses dosyası (en fazla 10 MB)</label>
+                <input id="video-ses-dosyasi" type="file" accept="audio/*,.wav,.mp3,.m4a,.ogg" onChange={(e) => void addAudio(e.target.files?.[0])} className="text-meta" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="video-srt" className="text-sm font-semibold text-ink">Altyazı dosyası (SRT, isteğe bağlı)</label>
+                <input id="video-srt" type="file" accept=".srt,text/plain,application/x-subrip" onChange={(e) => void addSrt(e.target.files?.[0])} className="text-meta" />
+                {srtCues.length ? <p className="text-meta text-muted">{srtCues.length} altyazı satırı okundu; 9:16 güvenli alanın içinde yakılır.</p> : null}
+              </div>
+              <label className="flex items-start gap-3 text-small text-ink">
+                <input type="checkbox" checked={uploadAi} onChange={(e) => setUploadAi(e.target.checked)} className="mt-0.5 size-5 shrink-0 accent-ink" />
+                <span>Bu ses yapay zekâ ile üretildi<span className="block text-meta text-muted">İşaretlersen son karede ve açıklama önerisinde yapay zekâ ibaresi yer alır.</span></span>
+              </label>
+            </div>
+          ) : null}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="video-muzik" className="text-sm font-semibold text-ink">Fon müziği</label>
+            <select id="video-muzik" value={music} onChange={(e) => setMusic(e.target.value as MusicId | "")} className={selectClass}>
+              <option value="">Yok</option>
+              {MUSIC_TRACKS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+            <p className="text-meta text-muted">Müzikler AdScope&apos;un kendi bestesidir, tarayıcıda çalınır; ticari kullanıma açıktır. Dış ses konuşurken müzik kısılır.</p>
           </div>
         </fieldset>
         <div className="grid grid-cols-2 gap-3">
@@ -226,7 +387,7 @@ export function VideoMaker({ brands, creatives, defaultSector }: { brands: Brand
         <button type="submit" disabled={busy || !sources.length} className={`${buttonClass("accent")} w-full sm:w-auto`}>
           {busy ? `Video kaydediliyor… %${Math.round((progress ?? 0) * 100)}` : "Videoyu oluştur · ücretsiz"}
         </button>
-        <p className="text-meta text-muted">Video bu cihazda, gerçek zamanlı kaydedilir; görseller sunucuya gönderilmez. Kayıt bitene kadar sekmeyi açık tut.</p>
+        <p className="text-meta text-muted">Video bu cihazda, gerçek zamanlı kaydedilir; görseller ve yüklediğin ses sunucuya gönderilmez. Kayıt bitene kadar sekmeyi açık tut.</p>
         {error ? <p role="alert" className="rounded-xl bg-coral-tint px-4 py-3 text-body font-medium text-coral-deep">{error}</p> : null}
       </form>
 
@@ -238,12 +399,22 @@ export function VideoMaker({ brands, creatives, defaultSector }: { brands: Brand
             {!sources.length ? <p className="text-ink-soft">Görsel ekle; önizleme açılış saniyesini gösterir. Üst ve alttaki gri alanlar uygulama arayüzünün altında kalır, yazılar bu alanların dışında tutulur.</p> : null}
             {video ? (
               <>
-                {/* Silent video: no captions track is needed, all text is burnt in. */}
+                {/* All text, subtitles included, is burnt into the picture; no separate captions track. */}
                 {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                 <video src={video.url} controls playsInline aria-label="Oluşturulan video" className="aspect-[9/16] w-full max-w-72 rounded-2xl bg-ink" />
                 <a href={video.url} download={`adscope-video-${timeline.duration}sn.${video.mime === "video/mp4" ? "mp4" : "webm"}`} className={`${buttonClass("primary")} w-full sm:w-auto`}>
                   Videoyu indir ({video.mime === "video/mp4" ? "MP4" : "WebM"})
                 </a>
+                {aiNoticeUsed ? (
+                  <div className="grid gap-1.5">
+                    <label htmlFor="video-aciklama" className="text-sm font-semibold text-ink">Video açıklaması önerisi</label>
+                    <textarea id="video-aciklama" readOnly rows={3} value={[offer.trim(), cta.trim()].filter(Boolean).join(" ") + `\n\n${AI_NOTICE_TEXT}`} className={inputClass} />
+                    <span className="flex flex-wrap items-center gap-2">
+                      <CopyButton text={[offer.trim(), cta.trim()].filter(Boolean).join(" ") + `\n\n${AI_NOTICE_TEXT}`} />
+                      <span className="text-meta text-muted">Sentetik ses kullanıldığı için ibare videoda ve açıklamada yer alır; kaldırılamaz.</span>
+                    </span>
+                  </div>
+                ) : null}
                 {video.mime === "video/webm" ? <p className="text-meta text-muted">Bu tarayıcı MP4 kaydedemiyor; video WebM olarak hazırlandı. Meta WebM kabul eder; TikTok için MP4&apos;e dönüştürmen gerekebilir.</p> : null}
               </>
             ) : null}

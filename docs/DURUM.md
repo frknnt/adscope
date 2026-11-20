@@ -48,6 +48,7 @@
 | Canlı uyum göstergesi (P10.2) | **Gerçek, istemcide.** Paketlenmiş kural kataloğu tarayıcıda çalışır; kredi düşmez, sunucuya istek gitmez. Supabase modunda kartlar veritabanından gelir; katalog ile veritabanı aynı tohumdan üretildiği için aynı sonucu verir, ama veritabanında elle değiştirilen bir kart istemciye yansımaz (bkz. Varsayımlar). |
 | Markaya ait şablonlar (P10.3) | **Gerçek.** Yeni tablo `brand_templates` (RLS, `revoke all`, sahip yazar, ekip okur, marka başına 30, yarışa dayanıklı tetikleyici). Migration ve politikalar yerel Postgres 16'da denendi; Supabase entegrasyon testi yazıldı, bu ortamda Docker olmadığı için çalıştırılamadı. `supabase db advisors` çalıştırılamadı. |
 | Türkçe dış ses (P11.1) | **Adaptör hazır, anahtar yok.** Google Gemini 3.8 Flash TTS, `GEMINI_API_KEY` ile açılır (`TTS_DISABLED=true` kapatır). Sahte Gemini sunucusuyla birim ve uçtan uca test edildi; gerçek sesle, gerçek süre ve fiyatla denenmedi. |
+| Videoya ses, altyazı ve müzik (P11.2) | **Gerçek, tarayıcıda.** Senaryo dış sesi ya da yüklenen ses, SRT'den yakılan altyazı, kodda yazılmış özgün fon müziği ve kapatılamaz yapay zekâ ibaresi. Chromium'da (masaüstü ve mobil öykünmesi) sesli kayıt uçtan uca denendi; Safari ve Firefox'ta, gerçek telefonda denenmedi. |
 | Saklama süresi temizliği | `/api/cron/retention` uç noktası hazır; zamanlayıcı (ör. Vercel Cron) kurulmadı. |
 
 ## Kabul kriterleri ve test karşılığı
@@ -211,6 +212,16 @@ Yapay zekâ görsel ve video üretimi (18.11.2026, kullanıcı kararı: Google G
 - Doğrulanacaklar: Nano Banana 2.1 ve Omni Flash fiyatları resmî fiyat sayfasında henüz yoktu; kredi tablosu (`src/lib/genai/costs.ts`) ikincil kaynaklardaki ~0,034 $/görsel ve ~0,07 $/sn ile 45 TL/$ varsayımına dayanır. Gemini ücretli API koşullarındaki veri kullanımı ve saklama maddeleri yayından önce okunmalı. Gerçek anahtarla ilk denemede yanıtın `steps[].content[]` yapısı ve uzun videolarda dosya bağlantısıyla (`uri`) indirme doğrulanmalı.
 
 ## Bitti
+
+20.11.2026 (P11.2): Videoya ses, altyazı ve müzik.
+
+- **Ses katmanı:** Video sekmesinde "Ses" bölümü: Sessiz, Senaryo dış sesi (P11.1 seslendirmeleri, son 12) ya da Kendi sesim (WAV, MP3, M4A, OGG; en fazla 10 MB, tarayıcıda kalır, sunucuya gitmez). Ses Web Audio ile çözülür ve tuval akışıyla birlikte kaydedilir (`MediaStreamAudioDestinationNode`); MP4 (AAC) desteklenmiyorsa WebM (Opus). Ses ve görüntü aynı başlangıç anına göre planlanır.
+- **Zamanlama:** Senaryo dış sesinde video süresi senaryonun süresidir (15, 30 ya da 45 sn; sessiz video 6–15 sn kalır) ve her satır kendi sahnesinin başında başlar, video bitince kesilir (`voiceSchedule`). Yüklenen ses baştan başlar.
+- **Altyazı:** Senaryo dış sesinde altyazı, Senaryo sekmesinin indirdiği SRT ile aynı metinden üretilip okunur; kendi seste isteğe bağlı SRT yüklenir (`parseSrt`: BOM, CRLF, etiketler temizlenir, en fazla 200 satır). Altyazı 9:16 güvenli alanın altında, koyu zemin üstünde beyaz yazıyla yakılır; varken görsel altyazıları kullanılmaz.
+- **Fon müziği:** Yok, Sakin, Enerjik, Sıcak. Parçalar AdScope'un kodda yazdığı akor dizileridir, tarayıcıda sentezlenir; dışarıdan ses dosyası ya da lisanslı kütüphane yok (SOURCES.md). Dış ses konuşurken müzik kısılır, son saniyede söner (`duckEnvelope`).
+- **Yapay zekâ ibaresi:** Senaryo dış sesi her zaman sentetik olduğundan son 3 saniyede marka satırının altında “Bu videodaki ses yapay zekâ ile üretilmiştir.” yazar; zaman çizelgesi bu durumda ibareyi zorunlu ekler, arayüzde kapatma seçeneği yok. Kendi seste "Bu ses yapay zekâ ile üretildi" işaretlenirse aynısı olur. Kayıttan sonra salt okunur "Video açıklaması önerisi" ibareyi içerir.
+- **Kontrol:** Kayıttan sonra mevcut video kontrolü çalışır; altyazılar kural kartlarından geçer (sabit ibare geçmez), ses bilgisi (ilk ses anı, sessiz oran) video sezgilerine verilir, kanca notu altyazının yakılı olup olmadığını söyler. Video ücretsizdir.
+- **Testler:** `tests/unit/video-sound.test.ts` (SRT okuma, senaryo altyazısı, altyazı ve ibarenin güvenli alanda ve çakışmasız olması, ibarenin son 3 saniyede ve senaryo seste zorunlu olması, süre sınırları, satır zamanlaması, müzik kısma ve sönme, müzik notalarının süre içinde kalması, altyazının kural kontrolü). `tests/e2e/voice.spec.ts`: kendi sesle 6 saniyelik sesli kayıt (SRT, müzik, ibare, süre, indirilen dosyada ses izi, açıklama önerisi, axe, bakiye değişmez) ve senaryo dış sesiyle 15 saniyelik kayıt (süre senaryodan, kaydırıcı kapalı, ses izi, bakiye değişmez); masaüstü ve mobil. Mevcut video, senaryo, kampanya paketi ve Gemini testleri de yeniden geçti.
 
 20.11.2026 (P11.1): Türkçe dış ses adaptörü.
 

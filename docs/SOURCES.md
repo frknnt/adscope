@@ -172,3 +172,9 @@ Takvimdeki uyum hatırlatmaları bulgu değildir; bağlı kural kartının durum
 - Fiyat: https://ai.google.dev/gemini-api/docs/pricing. `gemini-3.8-flash-tts` standart katman 31.12.2026'ya kadar 1M metin token 0,50 $, 1M ses token 9 $; 01.01.2027'den 1 $ ve 18 $. Ses saniyede 25 token. Ücretsiz katmanda içerik ürün iyileştirmede kullanılabilir; yayında ücretli katman kullanılmalı.
 - Sesler: belgedeki hazır seslerden dördü (Kore "Firm", Sulafat "Warm", Charon "Informative", Puck "Upbeat"; cinsiyetler Google Cloud TTS sayfasındaki tablodan). Belgede ses tasarımı ve ses kopyalama da var; AdScope ikisini de istemez, ünlü ya da gerçek kişi sesi seçeneği sunmaz.
 - Doğrulanmadı: gerçek yanıtın alan yapısı ve gerçek süreler (anahtar yok); SynthID ses filigranı belgede geçmiyor.
+
+## Videoda ses ve fon müziği (20.11.2026)
+
+- Ses katmanı tarayıcının Web Audio API'siyle (`AudioContext`, `MediaStreamAudioDestinationNode`; MDN: https://developer.mozilla.org/docs/Web/API/Web_Audio_API) kaydedilen tuval akışına eklenir. Üçüncü taraf kitaplık yok.
+- Fon müziği: dışarıdan hiçbir ses dosyası alınmadı. Üç kısa parça ("Sakin", "Enerjik", "Sıcak") `src/lib/video-maker/audio.ts` içinde akor dizisi olarak AdScope tarafından yazıldı ve tarayıcıda osilatörlerle çalınır; telif ya da lisans bedeli yoktur, ticari kullanıma açıktır. Lisanslı bir kütüphane eklenirse her parçanın lisansı buraya yazılmalı.
+- Altyazı SubRip (SRT) biçiminde okunur; biçim için yaygın tanım kullanıldı (zaman `SS:DD:SS,mmm --> SS:DD:SS,mmm`).

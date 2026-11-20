@@ -5,12 +5,15 @@
  * 9:16 safe area (top 250 px and bottom 340 px are covered by the app interface).
  */
 import { STORY_UNSAFE } from "@/lib/creative/sizes";
+import { AI_VOICE_NOTICE } from "@/lib/speech/voices";
 
 export const VIDEO_W = 1080;
 export const VIDEO_H = 1920;
 export const VIDEO_FPS = 30;
 export const MIN_SECONDS = 6;
 export const MAX_SECONDS = 15;
+/** A script voice-over sets the length to the script's own 15, 30 or 45 seconds. */
+export const MAX_SECONDS_WITH_VOICE = 45;
 export const MAX_IMAGES = 5;
 export const SAFE_TOP = STORY_UNSAFE.top;
 export const SAFE_BOTTOM = VIDEO_H - STORY_UNSAFE.bottom;
@@ -22,6 +25,12 @@ export const TRANSITIONS = [
 ] as const;
 export type Transition = (typeof TRANSITIONS)[number]["id"];
 
+export interface SubtitleCue {
+  start: number;
+  end: number;
+  text: string;
+}
+
 export interface VideoSpec {
   imageCount: number;
   durationSec: number;
@@ -30,6 +39,12 @@ export interface VideoSpec {
   captions: string[];
   cta: string;
   transition: Transition;
+  /** Where the sound comes from; absent or null for a silent video. */
+  voice?: "script" | "upload" | null;
+  /** Burnt-in subtitles (from SRT); they replace the per-image captions. */
+  subtitles?: SubtitleCue[];
+  /** A synthetic voice is used: the AI notice is drawn on the last frames and cannot be removed. */
+  aiNotice?: boolean;
 }
 
 export interface TextBox {
@@ -44,7 +59,7 @@ export interface TextBox {
   align: "center" | "left";
 }
 
-export type LayerRole = "brand" | "offer" | "caption" | "cta" | "endBrand";
+export type LayerRole = "brand" | "offer" | "caption" | "cta" | "endBrand" | "subtitle" | "aiNotice";
 
 export interface TextLayer {
   role: LayerRole;
@@ -76,12 +91,21 @@ const BOX = {
   caption: { x: SIDE, y: SAFE_BOTTOM - 40 - 300, w: VIDEO_W - 2 * SIDE, h: 300, maxSize: 64, minSize: 42, maxLines: 4, align: "center" },
   cta: { x: SIDE, y: 820, w: VIDEO_W - 2 * SIDE, h: 280, maxSize: 96, minSize: 56, maxLines: 3, align: "center" },
   endBrand: { x: SIDE, y: 1160, w: VIDEO_W - 2 * SIDE, h: 120, maxSize: 56, minSize: 36, maxLines: 2, align: "center" },
+  // Subtitles sit where the captions do: bottom of the safe area, readable with or without sound.
+  subtitle: { x: SIDE, y: SAFE_BOTTOM - 40 - 300, w: VIDEO_W - 2 * SIDE, h: 300, maxSize: 58, minSize: 40, maxLines: 3, align: "center" },
+  // Under the brand line at the top of the safe area, clear of the subtitles and the closing card.
+  aiNotice: { x: SIDE, y: SAFE_TOP + 130, w: VIDEO_W - 2 * SIDE, h: 120, maxSize: 40, minSize: 30, maxLines: 2, align: "center" },
 } satisfies Record<LayerRole, TextBox>;
 
 export const clean = (s: string, max: number) => [...s.replace(/\s+/g, " ").trim()].slice(0, max).join("");
 
+/** Seconds of the AI notice at the end of the video. */
+export const AI_NOTICE_SECONDS = 3;
+export const AI_NOTICE_TEXT = AI_VOICE_NOTICE;
+
 export function buildTimeline(spec: VideoSpec): Timeline {
-  const duration = Math.min(MAX_SECONDS, Math.max(MIN_SECONDS, Math.round(spec.durationSec)));
+  const max = spec.voice === "script" ? MAX_SECONDS_WITH_VOICE : MAX_SECONDS;
+  const duration = Math.min(max, Math.max(MIN_SECONDS, Math.round(spec.durationSec)));
   const images = Math.min(MAX_IMAGES, Math.max(1, spec.imageCount));
   const brand = clean(spec.brand, 40);
   const offer = clean(spec.offer, 90);
@@ -94,14 +118,19 @@ export function buildTimeline(spec: VideoSpec): Timeline {
   // Brand stays on screen during the slides; the offer opens the video and stays at least 3 seconds.
   if (brand) layers.push({ role: "brand", text: brand, start: 0, end: body, box: BOX.brand });
   if (offer) layers.push({ role: "offer", text: offer, start: 0, end: round(Math.min(body, Math.max(3.2, slides[0].end))), box: BOX.offer });
-  slides.forEach((s, i) => {
-    const text = clean(spec.captions[i] ?? "", 90);
-    if (text) layers.push({ role: "caption", text, start: s.start, end: s.end, box: BOX.caption });
-  });
+  const subtitles = (spec.subtitles ?? []).map((c) => ({ start: round(Math.max(0, c.start)), end: round(Math.min(duration, c.end)), text: clean(c.text, 120) })).filter((c) => c.text && c.end > c.start);
+  if (subtitles.length) for (const c of subtitles) layers.push({ role: "subtitle", text: c.text, start: c.start, end: c.end, box: BOX.subtitle });
+  else
+    slides.forEach((s, i) => {
+      const text = clean(spec.captions[i] ?? "", 90);
+      if (text) layers.push({ role: "caption", text, start: s.start, end: s.end, box: BOX.caption });
+    });
   if (cta) {
     layers.push({ role: "cta", text: cta, start: body, end: duration, box: BOX.cta });
     if (brand) layers.push({ role: "endBrand", text: brand, start: body, end: duration, box: BOX.endBrand });
   }
+  // A script voice-over is always synthetic (P11.1), so its notice cannot be turned off.
+  if (spec.aiNotice || spec.voice === "script") layers.push({ role: "aiNotice", text: AI_NOTICE_TEXT, start: round(Math.max(0, duration - AI_NOTICE_SECONDS)), end: duration, box: BOX.aiNotice });
   return { duration, slides, layers, endCard, transition: spec.transition };
 }
 

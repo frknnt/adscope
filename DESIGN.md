@@ -84,6 +84,7 @@ Her renk bir CSS değişkeni ve aynı adlı Tailwind sınıfıdır (`bg-card`, `
 | `AdPreview`, `PreviewFrame` | app/panel/yeni/preview.tsx | Sihirbazdaki sade akış önizlemesi; platform arayüzünü taklit etmez |
 | `LiveTextField`, `LiveFindings` | live-check.tsx | Yazarken kural uyarısı: alanın içinde dalgalı/noktalı alt çizgi (`.live-u-*`), altında açılır bulgu listesi, "Güvenli sürümü uygula", canlı bölgede bulgu sayısı. Sunucuya istek atmaz |
 | `CreativeEditor` | app/panel/uret/duzenle/editor.tsx | Katmanlı görsel düzenleyici: sunucu önizlemesinin üstünde seçilebilir katman düğmeleri, sağda katman listesi ve özellikler; mobilde katmanlar tuvalin hemen altında |
+| `VoicePanel`, `AiVoiceNotice` | app/panel/uret/voice-panel.tsx | Senaryo sonucunda Türkçe dış ses: ses ve hız seçimi, satır başına canlı uyarılı alan, ücretsiz ön dinleme, kredili seslendirme ve oynatıcılar. `AiVoiceNotice` kenarlıklı not, kapatılamaz |
 | `Tabs` (hash) | interactive.tsx | Sekmeye `hash` verilirse adres `#hash` olduğunda o sekme açılır (ör. `#itiraz`) |
 
 Yeni bir bileşen yazmadan önce bu listeye bak; benzer bir şey varsa onu genişlet.

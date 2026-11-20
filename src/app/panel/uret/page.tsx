@@ -156,6 +156,10 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
               return f?.mime === "image/png" ? [{ href: `/api/generations/${g.id}/files/0`, label: `${String(g.output.layout ?? "Görsel")} · ${dateFmt.format(new Date(g.createdAt))}` }] : [];
             })}
             defaultSector={profile?.defaultSector ?? "genel"}
+            voiceovers={(await repo.listGenerations("voiceover", 12)).map((g) => {
+              const v = g.output as unknown as VoiceoverStored;
+              return { id: g.id, label: `${v.productName || "Senaryo"} · ${v.duration} sn · ${dateFmt.format(new Date(g.createdAt))}`, duration: v.duration, scenes: v.scenes.map((s) => ({ start: s.start, end: s.end, text: s.text, seconds: s.seconds })) };
+            })}
           />
         </div>
       ) : tab === "gorsel" ? (
