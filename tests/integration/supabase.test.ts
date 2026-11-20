@@ -190,6 +190,31 @@ describe.skipIf(!reachable)("Supabase: auth, RLS, storage, credits", () => {
     expect(await balance(b.client)).toBe(before + 30);
   });
 
+  it("agency package: one period per paid order, chained, monthly credits reason; owner reads only, server writes", async () => {
+    const before = await balance(b.client);
+    const args = (order: string, pkg = "ajans_3", credits = 390) => ({ p_provider: "shopier", p_event_id: `order:${order}`, p_order_id: order, p_user_id: b.id, p_package_id: pkg, p_credits: credits, p_amount_minor: 149700, p_currency: "TRY", p_is_demo: false });
+    const o1 = randomUUID();
+    const [r1, r2] = await Promise.all([admin().rpc("apply_purchase_event", args(o1)), admin().rpc("apply_purchase_event", args(o1))]);
+    expect([r1, r2].map((r) => (r.data as { applied: boolean }[])[0].applied).filter(Boolean)).toHaveLength(1);
+    expect((await admin().rpc("apply_purchase_event", args(randomUUID(), "ajans_5", 650))).error).toBeNull();
+    expect(await balance(b.client)).toBe(before + 1040);
+    const { data: periods } = await b.client.from("plan_periods").select("package_id,starts_at,ends_at,status").order("starts_at");
+    expect(periods?.map((p) => p.package_id)).toEqual(["ajans_3", "ajans_5"]);
+    expect(Date.parse(periods![1].starts_at)).toBe(Date.parse(periods![0].ends_at));
+    const { data: ledger } = await b.client.from("credit_ledger").select("reason").eq("reason", "monthly_credits");
+    expect(ledger).toHaveLength(2);
+    // Clients never write periods; strangers do not see them.
+    expect((await b.client.from("plan_periods").update({ ends_at: new Date(Date.now() + 365 * 864e5).toISOString() }).eq("user_id", b.id).select()).error).not.toBeNull();
+    expect((await b.client.from("plan_periods").delete().eq("user_id", b.id)).error).not.toBeNull();
+    expect((await a.client.from("plan_periods").select("id").eq("user_id", b.id)).data ?? []).toHaveLength(0);
+    // A refund ends the period and takes the credits back once.
+    const { SupabaseAdminRepo } = await import("@/lib/data/supabase-repo");
+    expect((await new SupabaseAdminRepo().applyRefund({ provider: "shopier", orderId: o1 })).applied).toBe(true);
+    expect((await new SupabaseAdminRepo().applyRefund({ provider: "shopier", orderId: o1 })).applied).toBe(false);
+    expect((await b.client.from("plan_periods").select("status").eq("package_id", "ajans_3").single()).data?.status).toBe("refunded");
+    expect(await balance(b.client)).toBe(before + 650);
+  });
+
   it("draft rule versions are not readable by clients", async () => {
     const { data } = await a.client.from("rule_versions").select("status");
     expect((data ?? []).some((r) => r.status === "draft")).toBe(false);
@@ -552,7 +577,7 @@ describe.skipIf(!reachable)("Supabase: agency mode, feedback, review links, API 
 describe.skipIf(!reachable)("Supabase: client role privileges", () => {
   it("client roles have no blanket privileges on newer tables", async () => {
     const anon = createClient(URL_, PUB, opts);
-    for (const t of ["team_members", "team_invites", "finding_feedback", "review_shares", "newsletter_log", "api_keys", "inspiration_pins", "season_reminder_log", "generations", "audiences", "performance_imports", "performance_rows", "competitor_watches", "admin_audit_log", "coupons", "coupon_redemptions", "invite_codes", "referrals", "referral_email_claims", "affiliate_commissions", "welcome_email_log", "rate_limit_buckets", "jobs", "api_webhooks", "api_usage", "brand_templates", "approval_links", "approval_decisions"]) {
+    for (const t of ["team_members", "team_invites", "finding_feedback", "review_shares", "newsletter_log", "api_keys", "inspiration_pins", "season_reminder_log", "generations", "audiences", "performance_imports", "performance_rows", "competitor_watches", "admin_audit_log", "coupons", "coupon_redemptions", "invite_codes", "referrals", "referral_email_claims", "affiliate_commissions", "welcome_email_log", "rate_limit_buckets", "jobs", "api_webhooks", "api_usage", "brand_templates", "approval_links", "approval_decisions", "plan_periods"]) {
       const r = await anon.from(t).select("*").limit(1);
       expect(r.error?.code, t).toBe("42501");
     }

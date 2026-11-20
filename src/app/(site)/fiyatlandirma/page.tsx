@@ -4,7 +4,7 @@ import { CreditExamples, PricingTerms } from "@/components/pricing-terms";
 import { ButtonLink, Disclaimer } from "@/components/ui";
 import { getAdminRepo } from "@/lib/data";
 import type { ActiveCampaign } from "@/lib/data/types";
-import { CREDIT_PACKAGES, formatTry, SIGNUP_BONUS_CREDITS } from "@/lib/payments/packages";
+import { AGENCY_FEATURES, AGENCY_PACKAGES, AGENCY_PER_BRAND_CREDITS, AGENCY_PER_BRAND_MINOR, CREDIT_PACKAGES, formatTry, PLAN_REMINDER_DAYS, SIGNUP_BONUS_CREDITS } from "@/lib/payments/packages";
 
 export const metadata: Metadata = { title: "Fiyatlandırma · AdScope" };
 // The campaign strip must disappear the moment a coupon expires or is used up.
@@ -24,7 +24,7 @@ export default async function PricingPage() {
   const campaigns = await activeCampaigns();
   const plans = [
     { name: "Ücretsiz", price: "0 ₺", credits: SIGNUP_BONUS_CREDITS, note: "Kayıtta bir kez, kart bilgisi gerekmez.", cta: { href: "/kayit", label: "Ücretsiz başla" }, featured: false },
-    ...CREDIT_PACKAGES.map((p) => ({
+    ...CREDIT_PACKAGES.filter((p) => !p.plan).map((p) => ({
       name: p.name,
       price: formatTry(p.priceMinor),
       credits: p.credits,
@@ -32,6 +32,14 @@ export default async function PricingPage() {
       cta: { href: "/panel/krediler", label: `${p.name} paketini al` },
       featured: p.id === "profesyonel",
     })),
+    {
+      name: "Ajans",
+      price: formatTry(AGENCY_PACKAGES[0].priceMinor),
+      credits: AGENCY_PACKAGES[0].credits,
+      note: `Aylık, ${AGENCY_PACKAGES[0].plan!.brands} markadan başlar: marka başına ${formatTry(AGENCY_PER_BRAND_MINOR)} ve ${AGENCY_PER_BRAND_CREDITS} kredi. Kendiliğinden yenilenmez.`,
+      cta: { href: "#ajans-paketi", label: "Ajans paketini incele" },
+      featured: false,
+    },
   ];
   return (
     <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
@@ -44,7 +52,7 @@ export default async function PricingPage() {
           </span>
         </aside>
       ))}
-      <h1 className="max-w-3xl font-display text-4xl font-semibold leading-tight sm:text-[3.4rem]">Analiz başına öde. Abonelik yok.</h1>
+      <h1 className="max-w-3xl font-display text-4xl font-semibold leading-tight sm:text-[3.4rem]">Analiz başına öde. Otomatik yenileme yok.</h1>
       <p className="mt-5 max-w-2xl text-lg leading-relaxed text-ink-soft">
         Görsel analizi 1 kredi, video/Reels analizi 2 kredidir. Kredi yalnızca rapor başarıyla tamamlandığında düşer; analiz yarıda kalırsa krediniz yerinde kalır.
       </p>
@@ -58,7 +66,7 @@ export default async function PricingPage() {
             <h2 className="font-display text-2xl font-semibold">{p.name}</h2>
             <p className="mt-4 flex items-baseline gap-2">
               <span className="font-display text-4xl font-semibold tabular">{p.price}</span>
-              <span className={p.featured ? "text-paper/75" : "text-muted"}>/ {p.credits} analiz</span>
+              <span className={p.featured ? "text-paper/75" : "text-muted"}>/ {p.credits} analiz{p.name === "Ajans" ? " · ay" : ""}</span>
             </p>
             <p className={`mt-3 text-body ${p.featured ? "text-paper/85" : "text-ink-soft"}`}>{p.note}</p>
             <CreditExamples credits={p.credits} className={`mt-2 ${p.featured ? "text-paper/85" : "text-muted"}`} />
@@ -77,13 +85,33 @@ export default async function PricingPage() {
         ))}
       </div>
 
-      <section className="mt-8 flex flex-col gap-2 rounded-2xl border border-dashed border-line-strong px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-bold">Ajanslar için</h2>
-          <p className="mt-1 text-body text-ink-soft">
-            Her pakette çoklu marka, 10 kişiye kadar salt okunur ekip, avukat inceleme bağlantısı, logolu PDF ve API anahtarı var. Krediler hesap sahibinden düşer.
-          </p>
+      <section id="ajans-paketi" aria-labelledby="ajans-baslik" className="mt-8 scroll-mt-24 rounded-2xl border border-line bg-card p-6 sm:p-8">
+        <h2 id="ajans-baslik" className="font-display text-2xl font-semibold">Ajans paketi: aylık, marka başına</h2>
+        <p className="mt-2 max-w-3xl text-body text-ink-soft">
+          Marka başına ayda {formatTry(AGENCY_PER_BRAND_MINOR)} ve {AGENCY_PER_BRAND_CREDITS} kredi. Her ödeme bir aylık dönem açar ve krediler hesaba hemen eklenir. Paket kendiliğinden yenilenmez,
+          kartından otomatik çekim yapılmaz: dönem bitmeden {PLAN_REMINDER_DAYS} gün önce e-postayla hatırlatırız, istersen Krediler sayfasından tek tıkla yenilersin. Erken yenilersen yeni ay, mevcut dönemin bittiği andan başlar.
+        </p>
+        <div tabIndex={0} role="region" aria-label="Ajans paketi fiyat tablosu" className="mt-5 overflow-x-auto">
+          <table className="w-full min-w-[28rem] text-left text-body">
+            <caption className="sr-only">Ajans paketi fiyatları</caption>
+            <thead className="border-b border-line text-meta text-muted">
+              <tr><th scope="col" className="py-2 pr-4 font-semibold">Marka</th><th scope="col" className="py-2 pr-4 font-semibold">Aylık fiyat</th><th scope="col" className="py-2 font-semibold">Aylık kredi</th></tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {AGENCY_PACKAGES.map((p) => (
+                <tr key={p.id}>
+                  <td className="py-2 pr-4 font-semibold text-ink tabular">{p.plan!.brands} marka</td>
+                  <td className="py-2 pr-4 tabular">{formatTry(p.priceMinor)}</td>
+                  <td className="py-2 tabular">{p.credits}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
+        <ul className="mt-5 grid gap-2 text-body text-ink-soft sm:grid-cols-2">
+          {AGENCY_FEATURES.map((f) => <li key={f}>{f} dahil</li>)}
+        </ul>
+        <ButtonLink href="/panel/krediler#ajans-paketi" variant="primary" className="mt-6">Ajans paketini al</ButtonLink>
       </section>
 
       <PricingTerms className="mt-14" />
@@ -104,7 +132,7 @@ export default async function PricingPage() {
         <div>
           <h2 className="text-lg font-bold text-ink">İptal nasıl olur?</h2>
           <p className="mt-2">
-            Abonelik olmadığı için iptal etmen gereken bir şey yok. Paketler tek seferlik ödemedir; yeni paket almadığın sürece ücret alınmaz. Cayma hakkı ve iade koşulları <Link href="/mesafeli-satis-sozlesmesi" className="font-semibold text-blue">mesafeli satış sözleşmesinde</Link> yazar.
+            Otomatik yenilenen abonelik olmadığı için iptal etmen gereken bir şey yok. Kredi paketleri tek seferlik ödemedir; Ajans paketi aylıktır ama kendiliğinden yenilenmez, yenilemediğin sürece ücret alınmaz. Cayma hakkı ve iade koşulları <Link href="/mesafeli-satis-sozlesmesi" className="font-semibold text-blue">mesafeli satış sözleşmesinde</Link> yazar.
           </p>
         </div>
       </section>

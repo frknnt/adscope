@@ -8,7 +8,7 @@ import { SIGNUP_BONUS_CREDITS } from "@/lib/payments/packages";
  */
 export const PRICING_TERMS: { title: string; body: string }[] = [
   { title: `Kart istemeden ${SIGNUP_BONUS_CREDITS} ücretsiz kredi`, body: `Kayıt olduğunda hesabına bir kez ${SIGNUP_BONUS_CREDITS} kredi eklenir. Kart bilgisi istenmez.` },
-  { title: "Abonelik yok", body: "Kredi paketleri tek seferlik ödemedir, kendiliğinden yenilenmez. İhtiyacın olduğunda yeni paket alırsın." },
+  { title: "Otomatik yenileme yok", body: "Kredi paketleri tek seferlik ödemedir. Ajans paketi aylıktır ama kendiliğinden yenilenmez ve karttan otomatik çekim yapılmaz; bitişten önce hatırlatırız, istersen yenilersin." },
   { title: "Kredi yalnızca iş bitince düşer", body: "Analiz yarıda kalırsa ya da üretim başarısız olursa kredin yerinde kalır. Aynı istek iki kez gelirse bir kez düşer." },
   { title: "Önizleme ücretsiz, indirme kredili", body: "Şablonlu görsellerin önizlemesi ücretsizdir. Tam boyutlu dosyayı indirdiğinde kredi düşer." },
 ];

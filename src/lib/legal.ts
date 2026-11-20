@@ -4,9 +4,9 @@ export const LEGAL_VERSIONS = {
   kvkk: "2026-11-16",
   privacy: "2026-11-17",
   /** Mesafeli satış sözleşmesi, accepted before every checkout. */
-  distanceSales: "2026-11-17",
+  distanceSales: "2026-11-20",
   /** Ön bilgilendirme formu, acknowledged before every checkout. */
-  preInfo: "2026-11-17",
+  preInfo: "2026-11-20",
 } as const;
 
 /**

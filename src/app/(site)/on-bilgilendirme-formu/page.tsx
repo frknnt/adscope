@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CompanyDetails, LegalDoc } from "@/components/legal-doc";
 import { PackageTable } from "@/components/legal-packages";
+import { PLAN_REMINDER_DAYS } from "@/lib/payments/packages";
 
 export const metadata: Metadata = { title: "Ön bilgilendirme formu · AdScope" };
 
 export default function PreInfoPage() {
   return (
-    <LegalDoc title="Ön bilgilendirme formu" updated="17.11.2026">
+    <LegalDoc title="Ön bilgilendirme formu" updated="20.11.2026">
       <p>
         Bu form, 6502 sayılı Tüketicinin Korunması Hakkında Kanun ve Mesafeli Sözleşmeler Yönetmeliği uyarınca, kredi paketi satın almadan önce bilmeniz gereken bilgileri içerir. Ödeme sayfasına geçmeden önce bu formu okuduğunuzu onaylamanız istenir.
       </p>
@@ -21,6 +22,11 @@ export default function PreInfoPage() {
       <h2>Fiyatlar</h2>
       <PackageTable />
       <p>Fiyatlar Türk lirasıdır. [KDV DURUMU: fiyatlara KDV dahil mi, muhasebeciyle netleştirilecek.] Ödeme sayfasında gösterilen toplam tutar dışında ek bir ücret alınmaz.</p>
+
+      <h2>Ajans paketi (aylık)</h2>
+      <p>
+        Ajans paketinin fiyatı ve kredisi marka sayısına göre belirlenir (yukarıdaki tablo). Her ödeme bir aylık dönem açar; süren bir dönem varsa yeni dönem onun bittiği anda başlar. Paket kendiliğinden yenilenmez, kartınızdan otomatik çekim yapılmaz. Dönem bitmeden {PLAN_REMINDER_DAYS} gün önce e-postayla hatırlatırız; yenilemek isterseniz Krediler sayfasından yeni bir ödeme yaparsınız. Yenilemezseniz ücret alınmaz.
+      </p>
 
       <h2>Ödeme</h2>
       <p>Ödeme, ödeme aracı hizmet sağlayıcısı Shopier&apos;in güvenli ödeme sayfasında kartla yapılır. Kart bilgileriniz AdScope&apos;a ulaşmaz ve AdScope tarafından saklanmaz.</p>

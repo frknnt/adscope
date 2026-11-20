@@ -145,7 +145,7 @@ export type InspirationPinInput = Omit<InspirationPin, "id" | "createdAt">;
 export interface LedgerEntry {
   id: string;
   delta: number;
-  reason: "signup_bonus" | "analysis" | "purchase" | "refund" | "admin_adjustment" | "generation" | "coupon_bonus" | "referral_bonus" | "referral_clawback";
+  reason: "signup_bonus" | "analysis" | "purchase" | "monthly_credits" | "refund" | "admin_adjustment" | "generation" | "coupon_bonus" | "referral_bonus" | "referral_clawback";
   note: string | null;
   analysisId: string | null;
   createdAt: string;
@@ -270,6 +270,28 @@ export interface PurchaseRecord {
   status: string;
   isDemo: boolean;
   createdAt: string;
+}
+
+/** One paid month of the agency package (P12.3). Periods of one user follow each other without gaps. */
+export interface PlanPeriod {
+  id: string;
+  packageId: string;
+  brands: number;
+  credits: number;
+  startsAt: string;
+  endsAt: string;
+  status: "active" | "refunded";
+  reminderSentAt: string | null;
+}
+
+/** A period ending soon whose owner has not renewed yet. */
+export interface PlanRenewalDue {
+  periodId: string;
+  userId: string;
+  email: string;
+  displayName: string | null;
+  packageId: string;
+  endsAt: string;
 }
 
 export interface AnalysisSummary {
@@ -460,6 +482,8 @@ export interface DataRepo {
   readGenerationFile(generationId: string, path: string): Promise<{ bytes: Uint8Array; mime: string } | null>;
   removeGenerationFiles(paths: string[]): Promise<void>;
   listPurchases(): Promise<PurchaseRecord[]>;
+  /** The caller's agency package periods, newest first (refunded ones included). */
+  listPlanPeriods(): Promise<PlanPeriod[]>;
 
   listPerformanceImports(): Promise<PerformanceImport[]>;
   getPerformanceImport(id: string): Promise<{ import: PerformanceImport; rows: PerformanceRow[] } | null>;
@@ -698,6 +722,14 @@ export interface AdminRepo {
   claimSeasonReminder(userId: string, eventKey: string): Promise<boolean>;
   /** Releases a claim after a failed send so the next run retries. */
   releaseSeasonReminder(userId: string, eventKey: string): Promise<void>;
+  /**
+   * Active agency periods that end within `days` (from `now`), are the owner's last period (not renewed
+   * yet) and have no reminder sent.
+   */
+  listPlanRenewalsDue(now: Date, days: number): Promise<PlanRenewalDue[]>;
+  /** Marks the reminder as sent; false when it already was (a second cron run sends nothing). */
+  claimPlanReminder(periodId: string): Promise<boolean>;
+  releasePlanReminder(periodId: string): Promise<void>;
   /** Users whose latest marketing e-mail consent is granted (confirmed e-mail addresses only). */
   listNewsletterRecipients(): Promise<{ userId: string; email: string; displayName: string | null; sector: Sector | null }[]>;
   claimNewsletter(userId: string, period: string): Promise<boolean>;

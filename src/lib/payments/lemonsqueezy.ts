@@ -18,7 +18,9 @@ export class LemonSqueezyProvider implements PaymentProvider {
   private variants: Record<string, string | undefined> = {
     baslangic: process.env.LEMONSQUEEZY_VARIANT_BASLANGIC,
     profesyonel: process.env.LEMONSQUEEZY_VARIANT_PROFESYONEL,
-    ajans: process.env.LEMONSQUEEZY_VARIANT_AJANS,
+    ajans_3: process.env.LEMONSQUEEZY_VARIANT_AJANS_3,
+    ajans_5: process.env.LEMONSQUEEZY_VARIANT_AJANS_5,
+    ajans_10: process.env.LEMONSQUEEZY_VARIANT_AJANS_10,
   };
 
   isConfigured() {

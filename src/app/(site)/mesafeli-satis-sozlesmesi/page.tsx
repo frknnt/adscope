@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CompanyDetails, LegalDoc } from "@/components/legal-doc";
 import { PackageTable } from "@/components/legal-packages";
+import { PLAN_REMINDER_DAYS } from "@/lib/payments/packages";
 
 export const metadata: Metadata = { title: "Mesafeli satış sözleşmesi · AdScope" };
 
 export default function DistanceSalesPage() {
   return (
-    <LegalDoc title="Mesafeli satış sözleşmesi" updated="17.11.2026">
+    <LegalDoc title="Mesafeli satış sözleşmesi" updated="20.11.2026">
       <h2>1. Taraflar</h2>
       <p>
         Bu sözleşme, aşağıda bilgileri yer alan satıcı ile AdScope hesabı üzerinden kredi paketi satın alan kişi (&quot;alıcı&quot;) arasında, alıcının ödeme sayfasına geçmeden önce sözleşmeyi elektronik ortamda onaylamasıyla kurulur. Alıcının bilgileri, hesabına kayıtlı e-posta adresi ve ödeme sırasında Shopier&apos;e verdiği bilgilerdir.
@@ -23,6 +24,9 @@ export default function DistanceSalesPage() {
       <p>Paketin adı, kredi sayısı ve toplam fiyatı ödeme anında seçilen pakete göre belirlenir. Güncel paketler:</p>
       <PackageTable />
       <p>[KDV DURUMU: fiyatlara KDV dahil mi, muhasebeciyle netleştirilecek.] Ödeme sayfasında gösterilen tutar, alıcının ödeyeceği toplam tutardır.</p>
+      <p>
+        Ajans paketi aylıktır ve fiyatı seçilen marka sayısına göre belirlenir. Her ödeme bir aylık dönem açar: dönem ödemenin onaylandığı anda, alıcının hâlâ süren bir Ajans dönemi varsa o dönemin bittiği anda başlar ve bir takvim ayı sürer. Dönemin kredileri ödeme onaylanınca hesaba bir kez tanımlanır. Paket <strong>kendiliğinden yenilenmez</strong> ve alıcının kartından otomatik çekim yapılmaz. Satıcı, dönem bitmeden {PLAN_REMINDER_DAYS} gün önce alıcının hesabına kayıtlı e-posta adresine yenileme hatırlatması gönderir. Yenileme, alıcının isteğiyle yapılan yeni bir satın alımdır; her yenilemede ön bilgilendirme formu ve bu sözleşmenin o tarihteki sürümü yeniden onaylanır. Müşteri onay bağlantısı ve Düzenleyici rolü pakete dahildir.
+      </p>
       <p>
         Bir görsel analizi bir kredi, bir video analizi iki kredi kullanır. Kredi yalnızca analiz başarıyla tamamlandığında düşer. Analiz sonuçları risk değerlendirmesidir, hukuki görüş değildir; satıcı bir reklamın platform tarafından onaylanacağını ya da mevzuata uygun olduğunu garanti etmez.
       </p>
@@ -42,7 +46,7 @@ export default function DistanceSalesPage() {
 
       <h2>7. Ayıplı hizmet ve iade</h2>
       <p>
-        Ödeme alındığı hâlde kredi tanımlanmaması, mükerrer ödeme ya da hizmetin hiç sunulamaması durumlarında alıcının kanundan doğan hakları saklıdır. Ödeme sağlayıcısından iade ya da ters ibraz bildirimi geldiğinde, iade edilen tutara karşılık gelen krediler alıcının hesabından düşülür.
+        Ödeme alındığı hâlde kredi tanımlanmaması, mükerrer ödeme ya da hizmetin hiç sunulamaması durumlarında alıcının kanundan doğan hakları saklıdır. Ödeme sağlayıcısından iade ya da ters ibraz bildirimi geldiğinde, iade edilen tutara karşılık gelen krediler alıcının hesabından düşülür. İadesi yapılan Ajans dönemi sona ermiş sayılır; o dönem için yenileme hatırlatması gönderilmez.
       </p>
 
       <h2>8. Kişisel veriler</h2>

@@ -160,6 +160,8 @@ Takvimdeki uyum hatırlatmaları bulgu değildir; bağlı kural kartının durum
 | Shopier | Satıcı koşulları ve callback/API belgesi bu ortamdan okunamadı. Bireysel satıcıyı kabul ettiği ikincil kaynaklarda geçiyor. | Yalnızca iskelet; imza şeması yer tutucu. Resmî belge okunmadan açılmamalı. |
 | iyzico, Stripe | Şirket kaydı istiyor; ürün kararıyla ödeme sağlayıcısı şimdilik Shopier. | Kapsam dışı. |
 
+Shopier tekrarlayan ödeme (20.11.2026): "Shopier abonelik / tekrarlayan ödeme / otomatik çekim" araması resmî bir Shopier belgesi döndürmedi (sonuçlar Shopify, Wix ve başka ödeme kuruluşlarının sayfalarıydı). Resmî belge bulunmadığı için Ajans paketi otomatik çekimle değil, bitişten 3 gün önce hatırlatma ve tek tıkla yeni ödeme ile yenilenir. Shopier tekrarlayan ödemeyi resmî olarak belgelerse yeniden değerlendirilmeli.
+
 ## Video üretici ve yapay zekâ etiketi (17.11.2026)
 
 - Görselden video tarayıcının yerleşik `canvas.captureStream` ve `MediaRecorder` arayüzleriyle yapılır (MDN: https://developer.mozilla.org/docs/Web/API/MediaRecorder). Üçüncü taraf kitaplık ya da lisanslı kod kullanılmaz.

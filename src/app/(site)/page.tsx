@@ -19,7 +19,7 @@ import {
 import { Tabs } from "@/components/interactive";
 import { LevelPill, ScaleBar } from "@/components/risk";
 import { ButtonLink, Disclaimer } from "@/components/ui";
-import { CREDIT_PACKAGES, formatTry } from "@/lib/payments/packages";
+import { AGENCY_PACKAGES, AGENCY_PER_BRAND_CREDITS, AGENCY_PER_BRAND_MINOR, CREDIT_PACKAGES, formatTry } from "@/lib/payments/packages";
 import { RULE_CATALOG } from "@/lib/rules/catalog";
 import { ruleTrustStats } from "@/lib/rules/stats";
 import { RuleTrustBand } from "@/components/rule-trust-band";
@@ -410,9 +410,9 @@ const FAQ: [string, ReactNode][] = [
     "Genel bir sohbet botuna sorsam olmaz mı?",
     "Sohbet botları kaynak göstermeyebilir ve aynı reklama farklı cevaplar verebilir. AdScope'un kural motoru aynı girdiye aynı sonucu verir, her bulguyu kaynağına bağlar ve rapor, güvenli metin, varyant ve itiraz taslağını birlikte üretir.",
   ],
-  ["İptal nasıl olur?", "Abonelik olmadığı için iptal etmen gereken bir şey yok. Kredi paketleri tek seferlik ödemedir; yeni paket almadığın sürece ücret alınmaz."],
+  ["İptal nasıl olur?", "Otomatik yenilenen abonelik olmadığı için iptal etmen gereken bir şey yok. Kredi paketleri tek seferlik ödemedir; Ajans paketi aylıktır ama kendiliğinden yenilenmez, yenilemediğin sürece ücret alınmaz."],
   ["Hangi platformları destekliyor?", "Meta (Facebook, Instagram), Google Ads ve TikTok. Türk reklam mevzuatı kontrolleri platformdan bağımsız çalışır."],
-  ["Kredi nasıl düşüyor?", "Görsel analizi 1, video/Reels analizi 2 kredidir. Kredi yalnızca rapor başarıyla tamamlandığında düşer. Abonelik yoktur; kayıtta 3 analiz ücretsizdir."],
+  ["Kredi nasıl düşüyor?", "Görsel analizi 1, video/Reels analizi 2 kredidir. Kredi yalnızca rapor başarıyla tamamlandığında düşer. Otomatik yenileme yoktur; kayıtta 3 analiz ücretsizdir."],
   ["Yüklediğim reklamlar ne oluyor?", "İçeriklerin model eğitiminde kullanılmaz, saklama süresini sen seçersin ve istediğinde silebilirsin. Ayrıntılar gizlilik politikasında."],
 ];
 
@@ -727,17 +727,18 @@ export default async function HomePage() {
             <h3 className="mt-4 font-display text-[1.75rem] leading-tight text-ink sm:text-[2.1rem]">Müşterilerinin reklamlarını tek panelden kontrol et</h3>
             <ul className="mt-6 grid gap-3 sm:grid-cols-2">
               <Check>Marka başına ton, sektör ve yasaklı kelimeler</Check>
-              <Check>10 kişiye kadar salt okunur ekip</Check>
+              <Check>Müşteri onay bağlantısı ve Düzenleyici rolü</Check>
               <Check>Avukat için oturumsuz inceleme bağlantısı</Check>
               <Check>Logolu PDF rapor ve API anahtarı</Check>
             </ul>
           </div>
           <div className="rounded-2xl bg-card p-6 shadow-card">
-            <p className="text-small font-bold text-muted">Ajans paketi</p>
+            <p className="text-small font-bold text-muted">Ajans paketi · aylık</p>
             <p className="mt-1 text-3xl font-extrabold tabular text-ink">
-              {formatTry(CREDIT_PACKAGES.find((p) => p.id === "ajans")?.priceMinor ?? 0)}
-              <span className="ml-2 text-body font-semibold text-muted">/ {CREDIT_PACKAGES.find((p) => p.id === "ajans")?.credits} analiz</span>
+              {formatTry(AGENCY_PER_BRAND_MINOR)}
+              <span className="ml-2 text-body font-semibold text-muted">/ marka · ay</span>
             </p>
+            <p className="mt-2 text-small text-ink-soft">Marka başına {AGENCY_PER_BRAND_CREDITS} kredi, {AGENCY_PACKAGES[0].plan!.brands} markadan başlar. Kendiliğinden yenilenmez.</p>
             <ButtonLink href="/fiyatlandirma" variant="primary" className="mt-5 w-full">
               Paketleri karşılaştır
             </ButtonLink>
@@ -748,7 +749,7 @@ export default async function HomePage() {
       {/* Pricing teaser */}
       <section className="bg-paper-2 py-20 lg:py-28">
         <div className={WRAP}>
-          <SectionHead center eyebrow="Fiyatlar" title="Analiz başına öde, abonelik yok" lead="Kredi yalnızca rapor başarıyla tamamlandığında düşer." />
+          <SectionHead center eyebrow="Fiyatlar" title="Analiz başına öde, otomatik yenileme yok" lead="Kredi yalnızca rapor başarıyla tamamlandığında düşer." />
           <ul className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <li className="flex flex-col rounded-2xl border border-line bg-card p-6 shadow-card">
               <h3 className="text-lg font-extrabold text-ink">Ücretsiz</h3>
@@ -758,7 +759,7 @@ export default async function HomePage() {
                 Ücretsiz başla
               </ButtonLink>
             </li>
-            {CREDIT_PACKAGES.map((p) => {
+            {CREDIT_PACKAGES.filter((p) => !p.plan || p.id === AGENCY_PACKAGES[0].id).map((p) => {
               const featured = p.id === featuredId;
               return (
                 <li
@@ -769,10 +770,10 @@ export default async function HomePage() {
                   {featured ? <span className="absolute right-5 top-5 rounded-full bg-paper/15 px-2.5 py-0.5 text-fine font-bold uppercase tracking-wide">Önerilen</span> : null}
                   <h3 className={`text-lg font-extrabold ${featured ? "" : "text-ink"}`}>{p.name}</h3>
                   <p className={`mt-3 text-3xl font-extrabold tabular ${featured ? "" : "text-ink"}`}>{formatTry(p.priceMinor)}</p>
-                  <p className={`mt-1 text-small ${featured ? "text-paper/80" : "text-muted"}`}>{p.credits} analiz</p>
+                  <p className={`mt-1 text-small ${featured ? "text-paper/80" : "text-muted"}`}>{p.credits} analiz{p.plan ? " · aylık" : ""}</p>
                   <p className={`mb-6 mt-4 text-small leading-relaxed ${featured ? "text-paper/85" : "text-ink-soft"}`}>{p.description}</p>
                   <ButtonLink href="/fiyatlandirma" variant={featured ? "ghost" : "primary"} className={`mt-auto w-full ${featured ? "border-transparent" : ""}`}>
-                    {p.name} paketi
+                    {p.plan ? "Ajans paketleri" : `${p.name} paketi`}
                   </ButtonLink>
                 </li>
               );

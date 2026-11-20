@@ -17,11 +17,14 @@ export function PackageGrid({
   providers,
   demo,
   action,
+  renew = null,
 }: {
   packages: CreditPackage[];
   providers: { id: string; label: string }[];
   demo: boolean;
   action: (form: FormData) => Promise<void>;
+  /** Agency package to renew with one click (the owner's last tier, or the one in the reminder link). */
+  renew?: CreditPackage | null;
 }) {
   const [preInfo, setPreInfo] = useState(false);
   const [contract, setContract] = useState(false);
@@ -47,12 +50,41 @@ export function PackageGrid({
           {ready ? null : <p id="odeme-onay-ipucu" className="mt-3 text-small text-muted">Ödeme düğmeleri iki kutu işaretlenince açılır.</p>}
         </fieldset>
       ) : null}
+      {renew && (providers.length || demo) ? (
+        <div id="yenile" className="mt-4 scroll-mt-24 rounded-2xl border-2 border-blue bg-card p-5 shadow-card">
+          <h3 className="text-lg font-bold">Ajans paketini yenile</h3>
+          <p className="mt-1 text-body text-ink-soft">
+            {renew.name}: <span className="tabular">{formatTry(renew.priceMinor)}</span>, <span className="tabular">{renew.credits}</span> kredi. Yeni ay, süren dönemin bittiği andan başlar.
+          </p>
+          <div className="mt-4 grid gap-2 sm:max-w-sm">
+            {providers.map((pr) => (
+              <form key={pr.id} action={action}>
+                <input type="hidden" name="provider" value={pr.id} />
+                <input type="hidden" name="packageId" value={renew.id} />
+                {ready ? (
+                  <>
+                    <input type="hidden" name="onBilgilendirme" value="on" />
+                    <input type="hidden" name="mesafeliSatis" value="on" />
+                  </>
+                ) : null}
+                <Button type="submit" className="w-full" disabled={!ready} aria-describedby={ready ? undefined : "odeme-onay-ipucu"}>
+                  {pr.label} ile yenile
+                </Button>
+              </form>
+            ))}
+            {demo ? <DemoPurchaseButton packageId={renew.id} label={`Demo: bir ay yenile, ${renew.credits} kredi (ödeme yok)`} /> : null}
+          </div>
+        </div>
+      ) : null}
       <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {packages.map((p) => (
           <div key={p.id} className="flex flex-col rounded-2xl border border-line bg-card p-5 shadow-card">
             <div className="flex items-baseline justify-between gap-3">
               <h3 className="text-lg font-bold">{p.name}</h3>
-              <span className="font-display text-2xl font-semibold tabular">{formatTry(p.priceMinor)}</span>
+              <span className="font-display text-2xl font-semibold tabular">
+                {formatTry(p.priceMinor)}
+                {p.plan ? <span className="text-body font-semibold text-muted"> / ay</span> : null}
+              </span>
             </div>
             <p className="mt-1 text-ink-soft">
               <span className="tabular">{p.credits}</span> analiz · {p.description}
@@ -74,7 +106,7 @@ export function PackageGrid({
                   </Button>
                 </form>
               ))}
-              {demo ? <DemoPurchaseButton packageId={p.id} label={`Demo: ${p.credits} kredi ekle (ödeme yok)`} /> : null}
+              {demo ? <DemoPurchaseButton packageId={p.id} label={p.plan ? `Demo: ${p.plan.brands} marka, bir ay (ödeme yok)` : `Demo: ${p.credits} kredi ekle (ödeme yok)`} /> : null}
             </div>
           </div>
         ))}

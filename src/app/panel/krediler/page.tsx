@@ -5,7 +5,8 @@ import { getAdminRepo, getSessionRepo, getWorkspace } from "@/lib/data";
 import { requirePanelUser } from "@/app/panel/guard";
 import { demoPurchasesAllowed } from "@/lib/env";
 import { getPaymentProviders } from "@/lib/payments";
-import { CREDIT_PACKAGES, formatTry } from "@/lib/payments/packages";
+import { CREDIT_PACKAGES, findPackage, formatTry, PLAN_REMINDER_DAYS } from "@/lib/payments/packages";
+import { planStatus } from "@/lib/payments/plan";
 import { startCheckoutAction } from "../actions";
 import { PackageGrid } from "./checkout";
 import { releaseCouponAction } from "./coupon-actions";
@@ -19,13 +20,19 @@ const ODEME_MSG: Record<string, string> = {
   hata: "Onayın kaydedilemedi, ödeme başlatılmadı. Lütfen tekrar dene.",
 };
 
-const REASON = { signup_bonus: "Kayıt hediyesi", analysis: "Analiz", purchase: "Satın alma", refund: "İade", admin_adjustment: "Düzeltme", generation: "Üretim", coupon_bonus: "Kupon", referral_bonus: "Davet ödülü", referral_clawback: "Davet ödülü iadesi" } as const;
+const REASON = { signup_bonus: "Kayıt hediyesi", analysis: "Analiz", purchase: "Satın alma", monthly_credits: "Ajans aylık kredisi", refund: "İade", admin_adjustment: "Düzeltme", generation: "Üretim", coupon_bonus: "Kupon", referral_bonus: "Davet ödülü", referral_clawback: "Davet ödülü iadesi" } as const;
 
-export default async function CreditsPage({ searchParams }: { searchParams: Promise<{ odeme?: string }> }) {
+const dayFmt = new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Istanbul" });
+const day = (iso: string) => dayFmt.format(new Date(iso));
+
+export default async function CreditsPage({ searchParams }: { searchParams: Promise<{ odeme?: string; yenile?: string }> }) {
   const user = await requirePanelUser();
   // Always the user's own account, also inside a team editor workspace (purchases go to the buyer).
   const repo = getSessionRepo();
-  const [balance, ledger, purchases, sp, reservation, ws] = await Promise.all([repo.getBalance(), repo.listLedger(), repo.listPurchases(), searchParams, getAdminRepo().getCouponReservation(user.id), getWorkspace()]);
+  const [balance, ledger, purchases, sp, reservation, ws, periods] = await Promise.all([repo.getBalance(), repo.listLedger(), repo.listPurchases(), searchParams, getAdminRepo().getCouponReservation(user.id), getWorkspace(), repo.listPlanPeriods()]);
+  const plan = planStatus(periods, new Date());
+  const asked = sp.yenile ? findPackage(sp.yenile) : null;
+  const renew = asked?.plan ? asked : plan.last || periods.length ? findPackage((plan.last ?? periods[0]).packageId) : null;
   const reservedPkg = reservation ? CREDIT_PACKAGES.find((p) => p.id === reservation.packageId) : null;
   const providers = getPaymentProviders().filter((p) => p.isConfigured());
   const demo = demoPurchasesAllowed();
@@ -52,6 +59,28 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
         <p role="alert" className="mt-5 rounded-xl bg-coral-tint px-4 py-3 text-body font-medium text-coral-deep">{ODEME_MSG[sp.odeme]}</p>
       ) : null}
 
+      {periods.length ? (
+        <section id="ajans-paketi" aria-labelledby="ajans-paketi-baslik" className="mt-8 scroll-mt-24 rounded-2xl border border-line bg-card p-5 shadow-card sm:p-6">
+          <h2 id="ajans-paketi-baslik" className="font-display text-2xl font-semibold">Ajans paketin</h2>
+          {plan.current ? (
+            <p className="mt-2 text-body text-ink">
+              {findPackage(plan.current.packageId)?.name ?? "Ajans"} · bu dönem {day(plan.current.startsAt)} – {day(plan.current.endsAt)}.
+              {plan.last && plan.last.id !== plan.current.id ? ` Sonraki ay da alındı; paket ${day(plan.last.endsAt)} tarihine kadar sürer.` : ` Dönemin bitmesine ${plan.daysLeft} gün var.`}
+            </p>
+          ) : (
+            <p className="mt-2 text-body text-ink">Süren bir Ajans dönemin yok.{periods[0] ? ` Son dönemin ${day(periods[0].endsAt)} tarihinde ${periods[0].status === "refunded" ? "iade edildi" : "bitti"}.` : ""}</p>
+          )}
+          {plan.renewSoon ? (
+            <p role="status" className="mt-3 rounded-xl bg-coral-tint px-4 py-3 text-body font-medium text-coral-deep">
+              Ajans dönemin {plan.daysLeft} gün içinde bitiyor. Aşağıdaki &quot;Ajans paketini yenile&quot; kutusundan tek tıkla yenileyebilirsin.
+            </p>
+          ) : null}
+          <p className="mt-3 text-small text-muted">
+            Paket kendiliğinden yenilenmez ve kartından otomatik çekim yapılmaz. Dönem bitmeden {PLAN_REMINDER_DAYS} gün önce e-postayla hatırlatırız. Aylık krediler, kredi hareketlerinde &quot;Ajans aylık kredisi&quot; olarak görünür.
+          </p>
+        </section>
+      ) : null}
+
       <section aria-labelledby="paketler" className="mt-8">
         <h2 id="paketler" className="font-display text-2xl font-semibold">Kredi paketleri</h2>
         {!providers.length ? (
@@ -75,7 +104,7 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
           ) : null}
           <div className="mt-4"><CouponForm packages={CREDIT_PACKAGES.map((p) => ({ id: p.id, name: p.name }))} /></div>
         </div>
-        <PackageGrid packages={CREDIT_PACKAGES} providers={providers.map((pr) => ({ id: pr.id, label: pr.label }))} demo={demo} action={startCheckoutAction} />
+        <PackageGrid packages={CREDIT_PACKAGES} providers={providers.map((pr) => ({ id: pr.id, label: pr.label }))} demo={demo} action={startCheckoutAction} renew={renew} />
       </section>
 
       <PricingTerms className="mt-12" />
@@ -106,7 +135,7 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
           <ul className="mt-4 divide-y divide-line rounded-2xl border border-line bg-card">
             {purchases.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-body">
-                <span>{formatDateTimeTr(p.createdAt)} · {p.packageId} · <span className="tabular">{p.credits}</span> kredi</span>
+                <span>{formatDateTimeTr(p.createdAt)} · {findPackage(p.packageId)?.name ?? p.packageId} · <span className="tabular">{p.credits}</span> kredi{p.status === "refunded" ? " · iade edildi" : ""}</span>
                 <span className="text-ink-soft">{p.isDemo ? "Demo (ödeme alınmadı)" : `${formatTry(p.amountMinor)} · ${p.provider}`}</span>
               </li>
             ))}

@@ -97,8 +97,8 @@ describe("ai-eval cost and credit arithmetic", () => {
   });
 
   it("uses the cheapest package after VAT and payment fee as revenue per credit", () => {
-    // 1490 TL / 400 credits = 3.725 TL; /1.2 VAT; -5% fee.
-    expect(netTlPerCredit({ vatRate: 0.2, paymentFeeRate: 0.05 })).toBeCloseTo((3.725 / 1.2) * 0.95, 6);
+    // Agency package: 499 TL / 130 credits per brand ≈ 3.838 TL; /1.2 VAT; -5% fee.
+    expect(netTlPerCredit({ vatRate: 0.2, paymentFeeRate: 0.05 })).toBeCloseTo((499 / 130 / 1.2) * 0.95, 6);
   });
 
   it("suggests the smallest credit price that keeps at least 50% gross margin", () => {

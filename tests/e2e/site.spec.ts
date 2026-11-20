@@ -69,7 +69,7 @@ test("pricing explains how credits are charged, with examples from the cost tabl
   await page.goto("/fiyatlandirma");
   const terms = page.getByRole("region", { name: "Nasıl ücretlendiriyoruz" });
   await expect(terms).toBeVisible();
-  for (const t of ["Kart istemeden 3 ücretsiz kredi", "Abonelik yok", "Kredi yalnızca iş bitince düşer", "Önizleme ücretsiz, indirme kredili"]) await expect(terms.getByText(t)).toBeVisible();
+  for (const t of ["Kart istemeden 3 ücretsiz kredi", "Otomatik yenileme yok", "Kredi yalnızca iş bitince düşer", "Önizleme ücretsiz, indirme kredili"]) await expect(terms.getByText(t)).toBeVisible();
   await expect(terms).toContainText("1 video analizi: 2 kredi");
   await expect(page.getByText("Örneğin 30 görsel analizi, 15 video analizi ya da 30 görsel seti indirme.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "İptal nasıl olur?" })).toBeVisible();

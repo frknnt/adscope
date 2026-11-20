@@ -10,6 +10,7 @@ import { API_KEY_LIMIT, PERFORMANCE_IMPORT_LIMIT, PIN_LIMIT, TEAM_LIMIT, TEMPLAT
 import { rateLimit } from "@/lib/security/rate-limit";
 import { lastDays } from "./days";
 import type {
+  PlanRenewalDue,
   LedgerEntry,
   ActiveCampaign,
   AdminCommissionRow,
@@ -596,6 +597,26 @@ export class SupabaseRepo implements DataRepo {
     const u = await this.requireUser();
     const { data } = await (await this.db()).from("generations").select(GEN_COLS).eq("user_id", u.id).eq("kind", kind).order("created_at", { ascending: false }).limit(limit);
     return (data ?? []).map(toGeneration);
+  }
+
+  async listPlanPeriods() {
+    const u = await this.requireUser();
+    const { data } = await (await this.db())
+      .from("plan_periods")
+      .select("id,package_id,brands,credits,starts_at,ends_at,status,reminder_sent_at")
+      .eq("user_id", u.id)
+      .order("ends_at", { ascending: false })
+      .limit(60);
+    return (data ?? []).map((r) => ({
+      id: r.id as string,
+      packageId: r.package_id as string,
+      brands: Number(r.brands),
+      credits: Number(r.credits),
+      startsAt: r.starts_at as string,
+      endsAt: r.ends_at as string,
+      status: r.status as "active" | "refunded",
+      reminderSentAt: (r.reminder_sent_at as string | null) ?? null,
+    }));
   }
 
   async listPurchases() {
@@ -1689,6 +1710,8 @@ export class SupabaseAdminRepo implements AdminRepo {
       await this.admin.from("referrals").update({ clawed_back_at: new Date().toISOString() }).eq("invitee_id", userId).is("clawed_back_at", null);
     }
     await this.admin.from("affiliate_commissions").update({ status: "reversed" }).eq("purchase_ref", ref).eq("status", "pending");
+    // A refunded agency month no longer counts (no reminder, no "active" badge); later periods keep their dates.
+    await this.admin.from("plan_periods").update({ status: "refunded" }).eq("purchase_event_id", ev.id);
     const { data: changed } = await this.admin.from("purchase_events").update({ status: "refunded" }).eq("id", ev.id).eq("status", "paid").select("id");
     return { applied: Boolean(changed?.length) };
   }
@@ -1785,6 +1808,42 @@ export class SupabaseAdminRepo implements AdminRepo {
 
   async releaseSeasonReminder(userId: string, eventKey: string) {
     await this.admin.from("season_reminder_log").delete().eq("user_id", userId).eq("event_key", eventKey);
+  }
+
+  async listPlanRenewalsDue(now: Date, days: number) {
+    const until = new Date(now.getTime() + days * 86_400_000).toISOString();
+    const { data: due } = await this.admin
+      .from("plan_periods")
+      .select("id,user_id,package_id,ends_at")
+      .eq("status", "active")
+      .is("reminder_sent_at", null)
+      .gt("ends_at", now.toISOString())
+      .lte("ends_at", until)
+      .limit(500);
+    const out: PlanRenewalDue[] = [];
+    for (const p of due ?? []) {
+      // Already renewed: a later active period exists, so no reminder.
+      const { count } = await this.admin.from("plan_periods").select("id", { count: "exact", head: true }).eq("user_id", p.user_id).eq("status", "active").gt("ends_at", p.ends_at);
+      if (count) continue;
+      const [{ data: auth }, { data: profile }] = await Promise.all([
+        this.admin.auth.admin.getUserById(p.user_id),
+        this.admin.from("profiles").select("display_name").eq("id", p.user_id).maybeSingle(),
+      ]);
+      const u = auth?.user;
+      if (!u?.email || !u.email_confirmed_at) continue;
+      out.push({ periodId: p.id, userId: p.user_id, email: u.email, displayName: profile?.display_name ?? null, packageId: p.package_id, endsAt: p.ends_at });
+    }
+    return out;
+  }
+
+  async claimPlanReminder(periodId: string) {
+    const { data, error } = await this.admin.from("plan_periods").update({ reminder_sent_at: new Date().toISOString() }).eq("id", periodId).is("reminder_sent_at", null).select("id");
+    if (error) return false;
+    return (data ?? []).length > 0;
+  }
+
+  async releasePlanReminder(periodId: string) {
+    await this.admin.from("plan_periods").update({ reminder_sent_at: null }).eq("id", periodId);
   }
 
   async listNewsletterRecipients() {

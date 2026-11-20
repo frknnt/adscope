@@ -181,7 +181,7 @@ describe("Shopier refunds", () => {
     vi.stubEnv("SHOPIER_CALLBACK_SECRET", "test-secret-0123456789");
     vi.stubEnv("SHOPIER_LINK_BASLANGIC", "https://www.shopier.com/x/1");
     vi.stubEnv("SHOPIER_LINK_PROFESYONEL", "https://www.shopier.com/x/2");
-    vi.stubEnv("SHOPIER_LINK_AJANS", "https://www.shopier.com/x/3");
+    vi.stubEnv("SHOPIER_LINK_AJANS_3", "https://www.shopier.com/x/3");
     vi.resetModules();
     const { ShopierProvider } = await import("@/lib/payments/shopier");
     const p = new ShopierProvider();

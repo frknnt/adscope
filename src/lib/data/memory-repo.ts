@@ -50,6 +50,8 @@ import { BRAND_KIT_KEYS } from "./types";
 import type { AdminAuditEntry, AdminErrorStats, AdminFeedbackRow, AdminFunnel, AdminPurchaseRow, AdminUserRow, JobFinish, JobInput, JobRecord, WebhookView } from "./types";
 import type { CompetitorSummary, CompetitorWatch, PerformanceImport, PerformanceImportInput, PerformanceRow } from "./types";
 import type { ApprovalDecisionView, ApprovalLinkView, ApprovalSubmission, ApprovalSubmitResult, SharedApproval, TeamRole } from "./types";
+import type { PlanPeriod } from "./types";
+import { nextPeriod } from "@/lib/payments/plan";
 import { APPROVAL_KEY_RE } from "@/lib/approval";
 import type { Audience, AudienceInput, BrandTemplate, CreateTemplateResult, GenerationKind, GenerationRecord, RecordGenerationInput, RecordGenerationResult } from "./types";
 
@@ -122,6 +124,7 @@ interface Store {
   consents: { userId: string; type: string; version: string; granted: boolean; createdAt: string }[];
   aiRuns: (AiRunRecord & { userId: string; createdAt: string })[];
   reminderLog?: { userId: string; eventKey: string; sentAt: string }[];
+  planPeriods?: (PlanPeriod & { userId: string; purchaseId: string; createdAt: string })[];
   logos?: Record<string, { mime: string; dataB64: string }>;
   /** Files produced by generations (creatives, photos), keyed by storage path. */
   genFiles?: Record<string, { mime: string; dataB64: string }>;
@@ -647,6 +650,14 @@ export class MemoryRepo implements DataRepo {
       .purchases.filter((p) => p.userId === u.id)
       .map(({ userId: _u, eventKey: _k, ...p }) => p)
       .reverse();
+  }
+
+  async listPlanPeriods() {
+    const u = await this.requireUser();
+    return (store().planPeriods ?? [])
+      .filter((p) => p.userId === u.id)
+      .map(({ userId: _u, purchaseId: _p, createdAt: _c, ...p }) => p)
+      .sort((a, b) => Date.parse(b.endsAt) - Date.parse(a.endsAt));
   }
 
   async startAnalysis(p: StartAnalysisParams): Promise<StartAnalysisResult> {
@@ -1176,6 +1187,7 @@ export class MemoryRepo implements DataRepo {
     s.shares = (s.shares ?? []).filter((x) => x.userId !== u.id);
     s.approvalLinks = (s.approvalLinks ?? []).filter((x) => x.userId !== u.id);
     s.approvalDecisions = (s.approvalDecisions ?? []).filter((x) => x.userId !== u.id);
+    s.planPeriods = (s.planPeriods ?? []).filter((x) => x.userId !== u.id);
     s.apiKeys = (s.apiKeys ?? []).filter((x) => x.userId !== u.id);
     s.pins = (s.pins ?? []).filter((x) => x.userId !== u.id);
     s.perfImports = (s.perfImports ?? []).filter((x) => x.userId !== u.id);
@@ -1303,15 +1315,23 @@ export class MemoryAdminRepo implements AdminRepo {
         createdAt: new Date().toISOString(),
       };
       s.purchases.push(purchase);
+      const plan = findPackage(p.packageId)?.plan;
       const applied = insertLedger({
         userId: p.userId,
         delta: p.credits,
-        reason: "purchase",
-        note: p.isDemo ? "Demo satın alma (gerçek ödeme alınmadı)" : "Kredi paketi satın alımı",
+        reason: plan ? "monthly_credits" : "purchase",
+        note: plan ? `Ajans aylık paketi (${plan.brands} marka)${p.isDemo ? ", demo (gerçek ödeme alınmadı)" : ""}` : p.isDemo ? "Demo satın alma (gerçek ödeme alınmadı)" : "Kredi paketi satın alımı",
         analysisId: null,
         idempotencyKey: `purchase:${p.provider}:${p.orderId || p.eventId}`,
       });
       if (!applied) purchase.status = "ignored";
+      if (applied && plan) {
+        // Same lock and same transaction as the credit: one period per paid order.
+        s.planPeriods ??= [];
+        const lastEnd = s.planPeriods.filter((x) => x.userId === p.userId && x.status === "active").reduce<Date | null>((m, x) => (!m || Date.parse(x.endsAt) > m.getTime() ? new Date(x.endsAt) : m), null);
+        const { startsAt, endsAt } = nextPeriod(lastEnd, new Date());
+        s.planPeriods.push({ id: randomUUID(), userId: p.userId, purchaseId: purchase.id, packageId: p.packageId, brands: plan.brands, credits: p.credits, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), status: "active", reminderSentAt: null, createdAt: new Date().toISOString() });
+      }
       persist();
       return { applied };
     });
@@ -1621,6 +1641,8 @@ export class MemoryAdminRepo implements AdminRepo {
         purchase.status = "refunded";
         applied = true;
       }
+      // A refunded agency month no longer counts (no reminder, no "active" badge); later periods keep their dates.
+      for (const pp of s.planPeriods ?? []) if (pp.purchaseId === purchase.id) pp.status = "refunded";
       const red = (s.couponRedemptions ?? []).find((r) => r.purchaseRef === ref);
       const coupon = red && (s.coupons ?? []).find((c) => c.id === red.couponId);
       if (red && coupon?.kind === "bonus_credits" && s.ledger.some((l) => l.idempotencyKey === `coupon:${red.id}`)) take(userId, coupon.value, "refund", `coupon-refund:${red.id}`, `Kupon ek kredisi geri alındı (${coupon.code})`);
@@ -1702,6 +1724,33 @@ export class MemoryAdminRepo implements AdminRepo {
   async releaseSeasonReminder(userId: string, eventKey: string) {
     const s = store();
     s.reminderLog = (s.reminderLog ?? []).filter((r) => !(r.userId === userId && r.eventKey === eventKey));
+    persist();
+  }
+
+  async listPlanRenewalsDue(now: Date, days: number) {
+    const s = store();
+    const until = now.getTime() + days * 86_400_000;
+    const active = (s.planPeriods ?? []).filter((p) => p.status === "active");
+    return active
+      .filter((p) => !p.reminderSentAt && Date.parse(p.endsAt) > now.getTime() && Date.parse(p.endsAt) <= until)
+      .filter((p) => !active.some((o) => o.userId === p.userId && Date.parse(o.endsAt) > Date.parse(p.endsAt)))
+      .flatMap((p) => {
+        const u = s.users.find((x) => x.id === p.userId);
+        return u ? [{ periodId: p.id, userId: p.userId, email: u.email, displayName: s.profiles[u.id]?.displayName ?? null, packageId: p.packageId, endsAt: p.endsAt }] : [];
+      });
+  }
+
+  async claimPlanReminder(periodId: string) {
+    const p = (store().planPeriods ?? []).find((x) => x.id === periodId);
+    if (!p || p.reminderSentAt) return false;
+    p.reminderSentAt = new Date().toISOString();
+    persist();
+    return true;
+  }
+
+  async releasePlanReminder(periodId: string) {
+    const p = (store().planPeriods ?? []).find((x) => x.id === periodId);
+    if (p) p.reminderSentAt = null;
     persist();
   }
 
