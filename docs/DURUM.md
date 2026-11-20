@@ -30,6 +30,7 @@
 | Uyarı geri bildirimi | **Gerçek.** Kural sürümüyle birlikte saklanır. Geri bildirimleri okuyacak bir yönetim ekranı yok; veritabanından sorgulanır. |
 | Ücretsiz kontrol sayfası | **Gerçek.** Kural motoru, yapay zekâ yok, saklama yok. Hız sınırı veritabanında, tüm sunucularda ortaktır. |
 | Kurumsal API | **Gerçek.** Anahtar özeti veritabanında; anahtar başına dakikada 30 istek (veritabanında paylaşılan sayaç). OpenAPI 3.1 belgesi `/api/v1/openapi.json`, günlük kullanım grafiği `/panel/api`. |
+| MCP sunucusu (P12.2) | **Gerçek, sahte istemciyle test edildi.** `/api/mcp`, Streamable HTTP, durumsuz; araçlar `check_ad`, `list_rules`, `get_report`. Kimlik doğrulama, hız sınırı ve kullanım sayacı Kurumsal API ile aynıdır. Gerçek Claude ya da ChatGPT istemcisiyle denenmedi. |
 | Müşteri webhook'ları | **Gerçek, gerçek bir alıcıyla denenmedi.** `analysis.completed` olayı HMAC-SHA256 imzayla, iş kuyruğundan gönderilir; birim testte sahte gönderici, uçtan uca testte yönetim ekranı doğrulandı. |
 | İş kuyruğu ve paylaşılan hız sınırı | **Gerçek, şema yerel Postgres 16'da doğrulandı.** `claim_jobs` ve `rate_limit_hit` fonksiyonları denendi; yerel Supabase (Docker) bu ortamda yok, entegrasyon testleri yazıldı ama burada çalıştırılamadı. |
 | Hata izleme (Sentry) | **Adaptör hazır, hesap yok.** `SENTRY_DSN` tanımlanınca temizlenmiş olay gönderilir; SDK kullanılmaz. Gerçek Sentry projesiyle denenmedi. |
@@ -87,6 +88,7 @@
 | Ekip salt okunur, geri bildirim yalnızca sahibine, inceleme bağlantısı süresi ve sütun yetkileri, API anahtarı gizliliği, logo yolu, ilham panosu | entegrasyon (yerel Supabase) |
 | İstemci rollerinin yeni tablolarda genel yetkisi yok | entegrasyon |
 | Müşteri onayı: yalnızca sahibin tamamlanmış analizi, öğe anahtarları sabit, karar yalnızca sunucudan, rozet hesabı, süre ve iptal, e-postada müşteri adı ve yorum yok; Düzenleyici: rolü yalnızca sahip değiştirir, sahibin bakiyesinden bir kez ve yalnızca başarıda düşer, marka/ekip/bağlantı/silme yok, rol düşünce alan kapanır | `tests/unit/agency-approval.test.ts`, `tests/integration/supabase.test.ts` (yazıldı, çalıştırılamadı), yerel Postgres'te elle, `tests/e2e/approval.spec.ts` |
+| MCP sunucusu: araç şemaları, anahtarsız ve iptal edilmiş anahtarla 401 + `WWW-Authenticate`, API ile ortak dakikada 30 istek, `check_ad` ücretsiz ve saklamıyor, özet cümlede reklam metninden alıntı yok, `list_rules` sektör süzgeci ve durum, `get_report` yalnızca anahtar sahibinin analizi | `tests/unit/mcp.test.ts` (resmî `@modelcontextprotocol/client` ile sahte istemci, uç noktaya doğrudan istek), `tests/e2e/agency.spec.ts` (çalışan sunucuda 2025 protokolüyle `initialize`, `check_ad`, `get_report`) |
 | Ücretsiz kontrol, CSV/PDF indirme, DM bölümü, avukat bağlantısı oturumsuz, markalar, ekip daveti, API anahtarı ile JSON, ilham panosu (anahtar başlıkta, `ad_snapshot_url` sızmıyor), sihirbaza `#` ile metin taşıma | e2e `agency.spec.ts` (demo masaüstü, demo mobil, Supabase) |
 | Meta Reklam Kütüphanesi adaptörü (alan süzme, AB ülkesi, hata eşleme, önbellek ve hız sınırı) | `tests/unit/ad-library.test.ts` |
 | Eklenti: yalnızca https adres, metin `#` içinde, en az izin | `tests/unit/extension.test.ts` |
@@ -214,6 +216,14 @@ Yapay zekâ görsel ve video üretimi (18.11.2026, kullanıcı kararı: Google G
 - Doğrulanacaklar: Nano Banana 2.1 ve Omni Flash fiyatları resmî fiyat sayfasında henüz yoktu; kredi tablosu (`src/lib/genai/costs.ts`) ikincil kaynaklardaki ~0,034 $/görsel ve ~0,07 $/sn ile 45 TL/$ varsayımına dayanır. Gemini ücretli API koşullarındaki veri kullanımı ve saklama maddeleri yayından önce okunmalı. Gerçek anahtarla ilk denemede yanıtın `steps[].content[]` yapısı ve uzun videolarda dosya bağlantısıyla (`uri`) indirme doğrulanmalı.
 
 ## Bitti
+
+20.11.2026 (P12.2): AdScope MCP sunucusu.
+
+- **Uç nokta:** `/api/mcp` (POST; GET ve DELETE durumsuz olduğu için 405). Resmî TypeScript SDK `@modelcontextprotocol/server` 2.4.0 (Apache-2.0) `createMcpHandler` ile; 2026-07-28 sürümlü ve 2025 sürümlü istemcilere yanıt verir, yanıtlar JSON (ara bildirim yok), gövde en fazla 64 KB. Her istekte `Authorization: Bearer ads_live_…` Kurumsal API'nin `authenticate` işleviyle doğrulanır: aynı anahtar, aynı dakikada 30 istek sınırı, aynı günlük kullanım sayacı. Anahtar yoksa ya da geçersizse 401 ve `WWW-Authenticate: Bearer`.
+- **Araçlar (Türkçe açıklamalı, salt okunur):** `check_ad` metin + platform + sektör (+ isteğe bağlı marka) alır; platform ve mevzuat riski, bulgular (kural kartı, durumu ve resmî kaynağıyla), güvenli metin döner. Toplu kontroldeki kuralla aynı: yalnızca kural motoru, yapay zekâ yok, kredi düşmez, hiçbir şey saklanmaz. `list_rules` sektöre ve platforma göre kural kartlarını, durumlarını (`active` doğrulanmış, `requires_review` dikkat) ve kaynaklarını listeler. `get_report` anahtar sahibinin kendi analizini API'deki JSON biçimiyle verir; kimlik verilmezse son 10 analizin özeti. Ekip analizlerine erişmez.
+- **Güvenilmez girdi:** Her yanıtın ilk metin bloğu yalnızca AdScope'un kendi cümlesidir (skor, düzey, bulgu sayısı) ve "Risk değerlendirmesidir, hukuki görüş değildir." ile biter. Reklam metninden gelen alıntılar ve güvenli metin yalnızca JSON değerleri olarak döner; kontrol, sıfır genişlikli ve yön değiştiren karakterler temizlenir, alıntı 300 karakterle sınırlanır. Hatalarda teknik ayrıntı gösterilmez, loglara metin yazılmaz.
+- **Panel:** `/panel/api` sayfasına "Claude ve ChatGPT'ye bağla (MCP)" bölümü: adres, üç araç, Claude Code komutu, OpenAI Responses API notu. Claude.ai ve ChatGPT'nin uygulama içi bağlayıcı ekranları başlık alanı sunmayıp OAuth beklediği için bu ekranlar önerilmiyor (SOURCES.md).
+- Test edilemeyen: gerçek Claude Code, Claude Desktop, ChatGPT ya da OpenAI API bağlantısı (bu ortamdan dış istemci çalıştırılmadı).
 
 20.11.2026 (P12.1): Müşteri onay bağlantısı ve Düzenleyici rolü.
 

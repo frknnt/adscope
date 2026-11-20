@@ -159,6 +159,35 @@ export default async function ApiPage() {
         <pre tabIndex={0} aria-label="Örnek istek" className="mt-5 overflow-x-auto rounded-xl bg-ink p-4 text-meta leading-relaxed text-paper"><code>{example}</code></pre>
         <p className="mt-3 text-small text-muted">Her yanıtta <code>disclaimer</code> alanı bulunur: risk değerlendirmesidir, hukuki görüş değildir. API yanıtını son kullanıcıya gösterirken bu uyarıyı da göster.</p>
       </section>
+
+      <section aria-labelledby="mcp" className="mt-8 rounded-2xl border border-line bg-card p-5 sm:p-7">
+        <h2 id="mcp" className="font-display text-2xl font-semibold">Claude ve ChatGPT&apos;ye bağla (MCP)</h2>
+        <p className="mt-1 max-w-2xl text-body text-ink-soft">
+          AdScope bir uzak MCP sunucusu da sunar. Yapay zekâ asistanın reklam metnini sohbetten kontrol eder, kural kartlarını listeler ve kendi raporlarını okur.
+          Adres <code className="break-all">{base}/api/mcp</code>, kimlik doğrulama yukarıdaki API anahtarıyla yapılır ve aynı sınırlar geçerlidir (dakikada 30 istek).
+        </p>
+        <dl className="mt-4 grid gap-3 text-body sm:grid-cols-[14rem_1fr]">
+          <dt className="font-semibold"><code>check_ad</code></dt>
+          <dd className="text-ink-soft">Metin, platform ve sektör verilir; risk düzeyi, bulgular ve güvenli metin döner. Toplu kontrol gibi yalnızca kural motoruyla çalışır: ücretsizdir, kredi düşmez, metin saklanmaz.</dd>
+          <dt className="font-semibold"><code>list_rules</code></dt>
+          <dd className="text-ink-soft">Sektöre ve platforma göre kural kartları, durumları (doğrulanmış ya da incelemede) ve resmî kaynakları.</dd>
+          <dt className="font-semibold"><code>get_report</code></dt>
+          <dd className="text-ink-soft">Bu anahtarın sahibine ait bir analiz raporu; kimlik verilmezse son 10 analizin özeti. Ekip analizlerine erişmez.</dd>
+        </dl>
+        <h3 className="mt-6 font-semibold">Claude Code</h3>
+        <pre tabIndex={0} aria-label="Claude Code komutu" className="mt-2 overflow-x-auto rounded-xl bg-ink p-4 text-meta leading-relaxed text-paper"><code>{`claude mcp add --transport http adscope ${base}/api/mcp \\
+  --header "Authorization: Bearer ads_live_…"`}</code></pre>
+        <h3 className="mt-6 font-semibold">ChatGPT ve OpenAI API</h3>
+        <p className="mt-1 max-w-2xl text-body text-ink-soft">
+          OpenAI Responses API&apos;de <code>mcp</code> aracını <code>server_url</code> olarak bu adresle ekle ve anahtarı <code>authorization</code> alanında gönder.
+          Başlık ekleyebilen diğer MCP istemcilerinde de aynı adres ve <code>Authorization</code> başlığı yeterlidir.
+        </p>
+        <p className="mt-3 max-w-2xl text-small text-muted">
+          Claude.ai ve ChatGPT&apos;nin uygulama içindeki bağlayıcı ekranları şu an yalnızca OAuth ile oturum açan sunucuları kabul ediyor. AdScope MCP API anahtarı istediği için
+          bu ekranlardan doğrudan eklenemez; başlık gönderebilen istemcileri kullan. Anahtarını kimseyle paylaşma; sızdırırsan buradan iptal et.
+        </p>
+        <p className="mt-3 text-small text-muted">Her araç yanıtı &quot;Risk değerlendirmesidir, hukuki görüş değildir.&quot; uyarısını içerir. Reklam metninden gelen alıntılar yalnızca veri olarak döner.</p>
+      </section>
     </div>
   );
 }

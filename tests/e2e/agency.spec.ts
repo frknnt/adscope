@@ -159,6 +159,27 @@ test("agency workflow: report exports, DM kit, brands, team, API and inspiration
   const json = await list.json();
   expect(JSON.stringify(json)).toContain(id);
   expect((await page.request.get(`${baseURL}/api/v1/analyses`, { headers: { Authorization: "Bearer ads_live_wrong" } })).status()).toBe(401);
+
+  // The same key on the MCP server (2025 protocol, stateless): check_ad and the own report.
+  await expect(page.getByRole("heading", { name: /Claude ve ChatGPT/ })).toBeVisible();
+  const mcp = async (method: string, params: unknown, auth = `Bearer ${key}`) => {
+    const res = await page.request.post(`${baseURL}/api/mcp`, {
+      headers: { Authorization: auth, Accept: "application/json, text/event-stream", "Content-Type": "application/json", "MCP-Protocol-Version": "2025-06-18" },
+      data: { jsonrpc: "2.0", id: 1, method, params },
+    });
+    const text = await res.text();
+    const line = text.split("\n").find((l) => l.startsWith("data: "));
+    return { status: res.status(), body: line ? JSON.parse(line.slice(6)) : text };
+  };
+  const init = await mcp("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "e2e", version: "1" } });
+  expect(init.status).toBe(200);
+  expect(init.body.result.serverInfo.name).toBe("adscope");
+  const check = await mcp("tools/call", { name: "check_ad", arguments: { text: "Bu çay kesin zayıflatır, garantili sonuç!", sector: "takviye_gida" } });
+  expect(check.body.result.content[0].text).toContain("Risk değerlendirmesidir, hukuki görüş değildir.");
+  expect(check.body.result.structuredContent.credit_cost).toBe(0);
+  const report = await mcp("tools/call", { name: "get_report", arguments: { id } });
+  expect(report.body.result.structuredContent.analysis.id).toBe(id);
+  expect((await mcp("tools/list", {}, "Bearer ads_live_wrong")).status).toBe(401);
   await axeClean(page);
 
   // Inspiration board against the mock Ad Library.
