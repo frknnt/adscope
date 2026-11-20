@@ -8,6 +8,8 @@ import { Dialog, useToast } from "@/components/interactive";
 import { AdThumb, Menu } from "@/components/panel-client";
 import { RiskBadge } from "@/components/panel-ui";
 import { LevelPill } from "@/components/risk";
+import { ApprovalPill } from "@/components/approval-badge";
+import type { ApprovalBadge } from "@/lib/approval";
 import { Button, DataTable } from "@/components/ui";
 import type { AnalysisSummary } from "@/lib/data/types";
 import { toCsv } from "@/lib/export/csv";
@@ -47,11 +49,14 @@ export function ReportsView({
   view,
   brands,
   selectable = true,
+  approvals = {},
 }: {
   items: AnalysisSummary[];
   view: "izgara" | "liste";
   brands: Record<string, string>;
   selectable?: boolean;
+  /** Client approval badge per analysis id (P12.1). */
+  approvals?: Record<string, ApprovalBadge>;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -225,6 +230,7 @@ export function ReportsView({
                       <span className="rounded-full bg-paper-2 px-2.5 py-0.5 text-meta font-bold tabular text-ink">
                         Kreatif {a.creativeScore}
                       </span>
+                      {approvals[a.id] ? <ApprovalPill badge={approvals[a.id]} short /> : null}
                     </p>
                   ) : null}
                   <div className="mt-auto flex items-center justify-between gap-2 pt-3">
@@ -287,6 +293,7 @@ export function ReportsView({
                         {dateFmt.format(new Date(a.createdAt))}
                       </time>
                     </span>
+                    {approvals[a.id] ? <span className="mt-1 block"><ApprovalPill badge={approvals[a.id]} short /></span> : null}
                   </td>
                   <td className="px-2 py-2">{PLATFORM_SHORT[a.platform]}</td>
                   <td className="px-2 py-2">

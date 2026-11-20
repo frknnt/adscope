@@ -26,6 +26,7 @@
 | Google Ads ve TikTok | **Gerçek, kartlar doğrulanmadı.** Platform seçimi, platforma göre kural süzme ve etiketler çalışır; 10 platform kartının hepsi `requires_review`. Platformların kendi inceleme sistemleriyle kalibre edilmedi. |
 | WhatsApp / DM şablonu | **Gerçek, deterministik.** Kural motorundan tekrar geçer; marka yasaklı kelimeleri çıkarılır. |
 | Ajans modu (markalar, ekip, avukat bağlantısı, logolu PDF) | **Gerçek.** Yerel Supabase'te RLS ve yetki testleri, tarayıcıda uçtan uca test edildi. Davet e-postası Resend tanımlıysa gider; yoksa bağlantı ekranda bir kez gösterilir. |
+| Müşteri onay bağlantısı ve Düzenleyici rolü (P12.1) | **Gerçek, demo modunda uçtan uca test edildi.** Yeni tablolar `approval_links`, `approval_decisions`; `team_members.role` artık `viewer` ya da `editor`. Migration ve RLS/yetki davranışı yerel Postgres 16'da elle denendi; Supabase entegrasyon testi yazıldı, bu ortamda Docker olmadığı için çalıştırılamadı. Sahibine e-posta Resend tanımlıysa gider (demo modunda demo kutusuna). |
 | Uyarı geri bildirimi | **Gerçek.** Kural sürümüyle birlikte saklanır. Geri bildirimleri okuyacak bir yönetim ekranı yok; veritabanından sorgulanır. |
 | Ücretsiz kontrol sayfası | **Gerçek.** Kural motoru, yapay zekâ yok, saklama yok. Hız sınırı veritabanında, tüm sunucularda ortaktır. |
 | Kurumsal API | **Gerçek.** Anahtar özeti veritabanında; anahtar başına dakikada 30 istek (veritabanında paylaşılan sayaç). OpenAPI 3.1 belgesi `/api/v1/openapi.json`, günlük kullanım grafiği `/panel/api`. |
@@ -85,6 +86,7 @@
 | Sektör paketleri, DM şablonu, marka sesi, platform kural setleri, CSV kaçışları, PDF (gömülü yazı tipi) | `tests/unit/agency-export.test.ts` |
 | Ekip salt okunur, geri bildirim yalnızca sahibine, inceleme bağlantısı süresi ve sütun yetkileri, API anahtarı gizliliği, logo yolu, ilham panosu | entegrasyon (yerel Supabase) |
 | İstemci rollerinin yeni tablolarda genel yetkisi yok | entegrasyon |
+| Müşteri onayı: yalnızca sahibin tamamlanmış analizi, öğe anahtarları sabit, karar yalnızca sunucudan, rozet hesabı, süre ve iptal, e-postada müşteri adı ve yorum yok; Düzenleyici: rolü yalnızca sahip değiştirir, sahibin bakiyesinden bir kez ve yalnızca başarıda düşer, marka/ekip/bağlantı/silme yok, rol düşünce alan kapanır | `tests/unit/agency-approval.test.ts`, `tests/integration/supabase.test.ts` (yazıldı, çalıştırılamadı), yerel Postgres'te elle, `tests/e2e/approval.spec.ts` |
 | Ücretsiz kontrol, CSV/PDF indirme, DM bölümü, avukat bağlantısı oturumsuz, markalar, ekip daveti, API anahtarı ile JSON, ilham panosu (anahtar başlıkta, `ad_snapshot_url` sızmıyor), sihirbaza `#` ile metin taşıma | e2e `agency.spec.ts` (demo masaüstü, demo mobil, Supabase) |
 | Meta Reklam Kütüphanesi adaptörü (alan süzme, AB ülkesi, hata eşleme, önbellek ve hız sınırı) | `tests/unit/ad-library.test.ts` |
 | Eklenti: yalnızca https adres, metin `#` içinde, en az izin | `tests/unit/extension.test.ts` |
@@ -116,7 +118,7 @@ Diğer panel sayfaları (P6.3 Oturum 4, 17.11.2026): Toplu kontrol iki bölme (g
 5. Saklama süresi varsayılanı 90 gün; kullanıcı 7–365 gün arası seçebilir.
 6. Görsel metni (OCR) yapay zekâ kapalıyken okunmaz; görseldeki ifadeler yalnızca yapay zekâ açıkken değerlendirilir. Aynısı video kareleri için de geçerli.
 7. Video için 6 kare (3'ü ilk 3 saniyeden), en uzun video 10 dakika, video analizi 2 kredi, konuşma çevirisi için ilk 90 saniye ürün kararıdır.
-8. Ajans modunda ekip üyeleri yalnızca görüntüleyicidir (analiz başlatamaz); ekip başına 10 üye, kullanıcı başına 5 API anahtarı ve 200 pano kaydı ürün kararıdır.
+8. Ajans modunda ekip üyeleri salt okunur ya da Düzenleyici olur (P12.1). Düzenleyici sahibin alanında analiz başlatır ve üretir, krediyi sahibin bakiyesinden kullanır; marka, ekip, bağlantı, ayar ve silme işlemleri yalnızca sahibindir. Ekip başına 10 üye, kullanıcı başına 5 API anahtarı ve 200 pano kaydı ürün kararıdır.
 9. Ücretsiz kontrol 10 dakikada 10 istek, API dakikada 30 istek sınırı ürün kararıdır.
 10. Sezon takviminde hazırlık (yayından 14 gün önce), incelemeye gönderme (yayından 3 gün önce) ve dönem başına yayın süresi ürün varsayımıdır; Meta'nın inceleme süresi taahhüdü değildir.
 
@@ -212,6 +214,15 @@ Yapay zekâ görsel ve video üretimi (18.11.2026, kullanıcı kararı: Google G
 - Doğrulanacaklar: Nano Banana 2.1 ve Omni Flash fiyatları resmî fiyat sayfasında henüz yoktu; kredi tablosu (`src/lib/genai/costs.ts`) ikincil kaynaklardaki ~0,034 $/görsel ve ~0,07 $/sn ile 45 TL/$ varsayımına dayanır. Gemini ücretli API koşullarındaki veri kullanımı ve saklama maddeleri yayından önce okunmalı. Gerçek anahtarla ilk denemede yanıtın `steps[].content[]` yapısı ve uzun videolarda dosya bağlantısıyla (`uri`) indirme doğrulanmalı.
 
 ## Bitti
+
+20.11.2026 (P12.1): Müşteri onay bağlantısı ve Düzenleyici rolü.
+
+- **Müşteri onayı:** Raporun Paylaş menüsünde ve sayfada "Müşteri onayı" bölümü (avukat bağlantısının yanında). Bağlantı oturumsuz, 1–30 gün geçerli, rastgele 256 bitlik belirteç; yalnızca SHA-256 özeti saklanır, iptal edilebilir. Müşteri `/onay/<belirteç>` sayfasında her öğe için (gönderilen metin, güvenli metin, her metin varyantı, görsel ya da videodan kareler) Onayla / Değişiklik iste / Reddet seçer ve yorum yazar; adı serbest metindir, e-posta istenmez. Değişiklik isteği ve ret yorum ister. Bağlantı geçerliyken kararlar değiştirilebilir (öğe başına son karar geçer). Sayfada "Risk değerlendirmesidir, hukuki görüş değildir" ve "platformda onaylanacağı anlamına gelmez" yazar; `noindex`, `no-referrer`, robots'ta kapalı.
+- **Rozetler:** Rapor başlığında ve Raporlar listesinde (ızgara ve liste) "Onay bekliyor / Onaylandı / Değişiklik istendi / Reddedildi". Ret her şeyin önüne geçer, sonra değişiklik isteği; "Onaylandı" yalnızca bütün öğeler onaylanınca. Raporda her kararın öğesi, kişinin adı, tarihi ve yorumu görünür.
+- **E-posta:** Müşteri gönderince sahibine "Müşteri onayı geldi" gider (Resend tanımlıysa; demo modunda demo kutusu). E-postada yalnızca sayılar ve rapor bağlantısı vardır; müşteri adı ve yorumları AdScope'ta kalır. Gönderim belirteç başına saatte 20 ile sınırlı, gizli bal küpü alanı var.
+- **Düzenleyici rolü:** Davet formunda rol seçilir (Salt okunur / Düzenleyici); sahip Ekip sayfasında rolü değiştirir. Düzenleyici, Ekip sayfasında "Bu ekibin alanında çalış" ile sahibin alanına geçer (çerez yalnızca sahibin kimliğini tutar, her istekte üyelik ve rol yeniden doğrulanır; rol düşerse ya da üye çıkarılırsa kendi hesabına döner). Alanda üstte "… ekibinin alanında düzenleyici olarak çalışıyorsun" şeridi ve "Kendi hesabıma dön" düğmesi vardır. Analiz, üretim ve sonuçları okuma sahibin verisine ve bakiyesine gider; kredi yine yalnızca başarıda ve istek kimliğiyle bir kez düşer (aynı veritabanı fonksiyonları). Markaları değiştirme, ekip, avukat ve müşteri bağlantıları, rapor silme, API anahtarları, ayarlar ve satın alma düzenleyicinin kendi hesabında kalır (`src/lib/data/workspace.ts`, izinli yöntem listesi). Krediler sayfası her zaman kendi hesabını gösterir. Kimin başlattığı `analyses.created_by` ve `generations.created_by` sütunlarında tutulur (yalnızca sunucu yazar).
+- **Veritabanı:** Migration `20261120100000_client_approval_editor_role.sql`. `approval_links` (RLS, `revoke all`, sahip kendi tamamlanmış analizine ekler, okur, yalnızca `revoked_at` günceller; öğe anahtarları kısıtla sınırlı, en fazla 31 gün) ve `approval_decisions` (RLS, istemcide yalnızca sahip okur; yazma yalnızca sunucu, bağlantı ve öğe başına tek satır). `team_members` için sahibin yalnızca `role` sütununu güncelleyebildiği politika; `team_invites.role`. Yerel Postgres 16'da: sahip ekledi, yanlış anahtar ve 60 günlük süre reddedildi, `item_keys` güncellenemedi, sahip ve anonim karar yazamadı, üye rolünü değiştiremedi (0 satır), üye bağlantıları göremedi, yinelenen karar ve geçersiz karar reddedildi.
+- Bilinçli sınırlar: müşteri onayı ve Düzenleyici rolü bütün hesaplarda açık (paket kısıtı yok); ekip üyesi müşteri kararlarını görmez; Düzenleyici sahibin alanında itiraz taslağı kaydedebilir ama raporu paylaşamaz.
 
 20.11.2026 (P11.2): Videoya ses, altyazı ve müzik.
 

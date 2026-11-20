@@ -4,7 +4,7 @@ import { formatDateTimeTr, formatDateTr } from "@/components/rule-status";
 import { LevelPill } from "@/components/risk";
 import { getRepo } from "@/lib/data";
 import { SECTOR_LABEL } from "@/lib/sectors";
-import { teamAction } from "../agency-actions";
+import { switchWorkspaceAction, teamAction } from "../agency-actions";
 import { InviteForm } from "../agency-forms";
 import { DataTable } from "@/components/ui";
 
@@ -16,20 +16,26 @@ const NOTICE: Record<string, { ok: boolean; text: string }> = {
   "baska-eposta": { ok: false, text: "Bu davet başka bir e-posta adresine gönderilmiş. Davet edilen adresle giriş yap." },
   kendi: { ok: false, text: "Kendi davetini kabul edemezsin." },
 };
+const ALAN_NOTICE: Record<string, string> = {
+  yetki: "Bu ekipte düzenleyici değilsin. Ekip sahibinden seni düzenleyici yapmasını iste.",
+};
+
+const ROLE_LABEL = { viewer: "Salt okunur", editor: "Düzenleyici" } as const;
 
 export default async function TeamPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const user = await requirePanelUser();
   const sp = await searchParams;
   const repo = getRepo();
   const [team, shared] = await Promise.all([repo.getTeam(), repo.listTeamAnalyses(50)]);
-  const notice = sp.davet ? NOTICE[sp.davet] : null;
+  const notice = sp.davet ? NOTICE[sp.davet] : sp.alan && ALAN_NOTICE[sp.alan] ? { ok: false, text: ALAN_NOTICE[sp.alan] } : null;
 
   return (
     <div>
       <h1 className="font-display text-4xl font-semibold leading-tight">Ekip</h1>
       <p className="mt-2 max-w-2xl text-ink-soft">
-        Ekip arkadaşların senin analizlerini, raporlarını ve markalarını <strong>salt okunur</strong> görür; analiz başlatmaz, silmez, kredini kullanmaz.
-        Her davet tek kullanımlıktır ve yalnızca davet edilen e-posta ile kabul edilir.
+        <strong>Salt okunur</strong> üyeler analizlerini, raporlarını ve markalarını görür; analiz başlatmaz, silmez, kredini kullanmaz.{" "}
+        <strong>Düzenleyici</strong> üyeler senin alanında analiz başlatır ve kreatif üretir; kredi senin bakiyenden, yalnızca iş başarıyla bitince düşer.
+        Düzenleyiciler markalarını, ekibi, bağlantıları ve ayarları değiştiremez, rapor silemez. Her davet tek kullanımlıktır ve yalnızca davet edilen e-posta ile kabul edilir.
       </p>
       {notice ? (
         <p role={notice.ok ? "status" : "alert"} className={`mt-5 rounded-xl px-4 py-3 text-body font-medium ${notice.ok ? "bg-green-tint text-green" : "bg-coral-tint text-coral-deep"}`}>{notice.text}</p>
@@ -58,7 +64,17 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                 {team.members.map((m) => (
                   <tr key={m.memberId}>
                     <td className="px-5 py-3">{m.email}</td>
-                    <td className="px-3 py-3"><span className="rounded-full bg-blue-tint px-2.5 py-0.5 text-meta font-bold text-blue">Salt okunur</span></td>
+                    <td className="px-3 py-3">
+                      <form action={teamAction} className="flex items-center gap-2">
+                        <input type="hidden" name="op" value="role" />
+                        <input type="hidden" name="id" value={m.memberId} />
+                        <input type="hidden" name="role" value={m.role === "editor" ? "viewer" : "editor"} />
+                        <span className={`rounded-full px-2.5 py-0.5 text-meta font-bold ${m.role === "editor" ? "bg-green-tint text-green" : "bg-blue-tint text-blue"}`}>{ROLE_LABEL[m.role]}</span>
+                        <button type="submit" className="inline-flex h-10 items-center text-meta font-semibold text-blue">
+                          {m.role === "editor" ? "Salt okunur yap" : "Düzenleyici yap"}<span className="sr-only">: {m.email}</span>
+                        </button>
+                      </form>
+                    </td>
                     <td className="px-3 py-3 text-ink-soft">{formatDateTr(m.createdAt)}</td>
                     <td className="px-5 py-3 text-right">
                       <form action={teamAction}>
@@ -84,7 +100,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
               <ul className="mt-2 grid gap-2 text-small">
                 {team.invites.map((i) => (
                   <li key={i.id} className="rounded-xl border border-line px-3 py-2.5">
-                    <span className="block break-all">{i.email}</span>
+                    <span className="block break-all">{i.email} <span className="text-muted">· {ROLE_LABEL[i.role]}</span></span>
                     <span className="flex items-center justify-between gap-2 text-muted">
                       {formatDateTr(i.expiresAt)} tarihine kadar
                       <form action={teamAction}>
@@ -107,12 +123,22 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
           <ul className="mt-3 grid gap-2 text-body">
             {team.memberships.map((m) => (
               <li key={m.ownerId} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-2.5">
-                <span className="font-semibold">{m.ownerLabel}</span>
-                <form action={teamAction}>
-                  <input type="hidden" name="op" value="leave" />
-                  <input type="hidden" name="id" value={m.ownerId} />
-                  <button type="submit" className="font-semibold text-coral-deep">Ekipten ayrıl</button>
-                </form>
+                <span>
+                  <span className="font-semibold">{m.ownerLabel}</span> <span className="text-meta text-muted">· {ROLE_LABEL[m.role]}</span>
+                </span>
+                <span className="flex flex-wrap items-center gap-4">
+                  {m.role === "editor" ? (
+                    <form action={switchWorkspaceAction}>
+                      <input type="hidden" name="ownerId" value={m.ownerId} />
+                      <button type="submit" className="inline-flex h-10 items-center font-semibold text-blue">Bu ekibin alanında çalış<span className="sr-only">: {m.ownerLabel}</span></button>
+                    </form>
+                  ) : null}
+                  <form action={teamAction}>
+                    <input type="hidden" name="op" value="leave" />
+                    <input type="hidden" name="id" value={m.ownerId} />
+                    <button type="submit" className="inline-flex h-10 items-center font-semibold text-coral-deep">Ekipten ayrıl</button>
+                  </form>
+                </span>
               </li>
             ))}
           </ul>

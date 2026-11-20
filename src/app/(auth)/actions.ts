@@ -1,9 +1,10 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getRepo } from "@/lib/data";
+import { WORKSPACE_COOKIE } from "@/lib/data/workspace";
 import { LEGAL_VERSIONS } from "@/lib/legal";
 import { attachInvite } from "@/lib/growth/service";
 import { clientIp, hashKey } from "@/lib/security/rate-limit";
@@ -85,5 +86,6 @@ export async function signUpAction(_prev: AuthFormState, form: FormData): Promis
 
 export async function signOutAction() {
   await getRepo().signOut();
+  (await cookies()).delete(WORKSPACE_COOKIE);
   redirect("/");
 }

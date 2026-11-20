@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { AnalysisFormSchema, runAnalysisRequest, type MediaUpload } from "@/lib/analysis/service";
 import { MAX_VIDEO_FRAMES } from "@/lib/engine/video";
-import { getCurrentUser } from "@/lib/data";
+import { getCurrentUser, getWorkspace } from "@/lib/data";
 import { MAX_AUDIO_BYTES } from "@/lib/security/audio-validation";
 import { limit } from "@/lib/security/limiter";
 import { afterAnalysisCompleted } from "@/lib/jobs/runner";
@@ -66,7 +66,11 @@ export async function POST(request: NextRequest) {
   const landingScreenshot = shot instanceof File && shot.size > 0 ? { bytes: new Uint8Array(await shot.arrayBuffer()), mime: shot.type } : null;
   const outcome = await runAnalysisRequest(parsed.data, media, { landingScreenshot });
   if (outcome.ok) {
-    if (!outcome.reused) afterAnalysisCompleted(user.id, outcome.analysisId);
+    if (!outcome.reused) {
+      // In a team editor workspace the analysis (and its webhooks) belong to the team owner.
+      const ws = await getWorkspace();
+      afterAnalysisCompleted(ws.mode === "editor" ? ws.ownerId : user.id, outcome.analysisId);
+    }
     return json(200, { ok: true, analysisId: outcome.analysisId, reused: outcome.reused });
   }
   return json(outcome.status, { ok: false, code: outcome.code, message: outcome.message, analysisId: outcome.analysisId });

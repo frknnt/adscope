@@ -49,6 +49,8 @@ import type {
 import { BRAND_KIT_KEYS } from "./types";
 import type { AdminAuditEntry, AdminErrorStats, AdminFeedbackRow, AdminFunnel, AdminPurchaseRow, AdminUserRow, JobFinish, JobInput, JobRecord, WebhookView } from "./types";
 import type { CompetitorSummary, CompetitorWatch, PerformanceImport, PerformanceImportInput, PerformanceRow } from "./types";
+import type { ApprovalDecisionView, ApprovalLinkView, ApprovalSubmission, ApprovalSubmitResult, SharedApproval, TeamRole } from "./types";
+import { APPROVAL_KEY_RE } from "@/lib/approval";
 import type { Audience, AudienceInput, BrandTemplate, CreateTemplateResult, GenerationKind, GenerationRecord, RecordGenerationInput, RecordGenerationResult } from "./types";
 
 import { generationFiles } from "./generation-files";
@@ -71,6 +73,8 @@ interface StoredUser {
 interface StoredAnalysis {
   id: string;
   userId: string;
+  /** Team editor who started it in the owner's workspace (P12.1). */
+  createdBy?: string | null;
   clientRequestId: string;
   brandId: string | null;
   status: AnalysisSummary["status"];
@@ -113,7 +117,7 @@ interface Store {
   ledger: (LedgerEntry & { userId: string; idempotencyKey: string })[];
   audiences?: (Audience & { userId: string })[];
   brandTemplates?: (BrandTemplate & { userId: string })[];
-  generations?: (GenerationRecord & { userId: string; clientRequestId: string; expiresAt: string })[];
+  generations?: (GenerationRecord & { userId: string; clientRequestId: string; expiresAt: string; createdBy?: string | null })[];
   purchases: (PurchaseRecord & { userId: string | null; eventKey: string; orderId?: string })[];
   consents: { userId: string; type: string; version: string; granted: boolean; createdAt: string }[];
   aiRuns: (AiRunRecord & { userId: string; createdAt: string })[];
@@ -121,8 +125,10 @@ interface Store {
   logos?: Record<string, { mime: string; dataB64: string }>;
   /** Files produced by generations (creatives, photos), keyed by storage path. */
   genFiles?: Record<string, { mime: string; dataB64: string }>;
-  team?: { ownerId: string; memberId: string; email: string; createdAt: string }[];
-  invites?: { id: string; ownerId: string; email: string; tokenHash: string; expiresAt: string; acceptedAt: string | null; createdAt: string }[];
+  team?: { ownerId: string; memberId: string; email: string; role?: TeamRole; createdAt: string }[];
+  invites?: { id: string; ownerId: string; email: string; role?: TeamRole; tokenHash: string; expiresAt: string; acceptedAt: string | null; createdAt: string }[];
+  approvalLinks?: { id: string; userId: string; analysisId: string; tokenHash: string; note: string | null; itemKeys: string[]; expiresAt: string; revokedAt: string | null; createdAt: string }[];
+  approvalDecisions?: (ApprovalDecisionView & { linkId: string; userId: string; analysisId: string; createdAt: string })[];
   feedback?: (FindingFeedback & { userId: string; analysisId: string; createdAt: string })[];
   shares?: (ReviewShare & { userId: string; tokenHash: string })[];
   newsletterLog?: { userId: string; period: string; sentAt: string }[];
@@ -278,8 +284,11 @@ function summary(a: StoredAnalysis, viewerId?: string): AnalysisSummary {
 export class MemoryRepo implements DataRepo {
   readonly backend = "memory" as const;
 
-  /** acting: act as this user without a cookie session (enterprise API). */
-  constructor(private readonly acting: SessionUser | null = null) {}
+  /** acting: act as this user without a cookie session (enterprise API, editor workspace). actorId: the editor. */
+  constructor(
+    private readonly acting: SessionUser | null = null,
+    private readonly actorId: string | null = null,
+  ) {}
 
   async getUser(): Promise<SessionUser | null> {
     if (this.acting) return this.acting;
@@ -570,6 +579,7 @@ export class MemoryRepo implements DataRepo {
       id: randomUUID(),
       userId: u.id,
       clientRequestId: p.clientRequestId,
+      createdBy: this.actorId,
       kind: p.kind,
       brandId: p.brandId,
       platform: p.platform,
@@ -654,6 +664,7 @@ export class MemoryRepo implements DataRepo {
       const a: StoredAnalysis = {
         id: randomUUID(),
         userId: u.id,
+        createdBy: this.actorId,
         clientRequestId: p.clientRequestId,
         brandId: p.brandId,
         status: "processing",
@@ -825,16 +836,17 @@ export class MemoryRepo implements DataRepo {
     const s = store();
     const now = Date.now();
     return {
-      members: (s.team ?? []).filter((m) => m.ownerId === u.id).map((m) => ({ memberId: m.memberId, email: m.email, createdAt: m.createdAt })),
+      members: (s.team ?? []).filter((m) => m.ownerId === u.id).map((m) => ({ memberId: m.memberId, email: m.email, role: m.role ?? "viewer", createdAt: m.createdAt })),
       invites: (s.invites ?? [])
         .filter((i) => i.ownerId === u.id && !i.acceptedAt && Date.parse(i.expiresAt) > now)
-        .map((i) => ({ id: i.id, email: i.email, expiresAt: i.expiresAt })),
-      memberships: (s.team ?? []).filter((m) => m.memberId === u.id).map((m) => ({ ownerId: m.ownerId, ownerLabel: ownerLabel(m.ownerId), createdAt: m.createdAt })),
+        .map((i) => ({ id: i.id, email: i.email, role: i.role ?? "viewer", expiresAt: i.expiresAt })),
+      memberships: (s.team ?? []).filter((m) => m.memberId === u.id).map((m) => ({ ownerId: m.ownerId, ownerLabel: ownerLabel(m.ownerId), role: m.role ?? "viewer", createdAt: m.createdAt })),
     };
   }
 
-  async createTeamInvite(email: string, tokenHash: string, expiresAt: string) {
+  async createTeamInvite(email: string, tokenHash: string, expiresAt: string, role: TeamRole = "viewer") {
     const u = await this.requireUser();
+    if (this.acting) return "error" as const;
     const s = store();
     const e = email.trim().toLowerCase();
     if (e === u.email.toLowerCase()) return "self" as const;
@@ -844,7 +856,7 @@ export class MemoryRepo implements DataRepo {
     const open = s.invites.filter((i) => i.ownerId === u.id && !i.acceptedAt && Date.parse(i.expiresAt) > Date.now());
     if (s.team.filter((m) => m.ownerId === u.id).length + open.length >= TEAM_LIMIT) return "limit" as const;
     s.invites = s.invites.filter((i) => !(i.ownerId === u.id && i.email === e && !i.acceptedAt));
-    s.invites.push({ id: randomUUID(), ownerId: u.id, email: e, tokenHash, expiresAt, acceptedAt: null, createdAt: new Date().toISOString() });
+    s.invites.push({ id: randomUUID(), ownerId: u.id, email: e, role, tokenHash, expiresAt, acceptedAt: null, createdAt: new Date().toISOString() });
     persist();
     return "ok" as const;
   }
@@ -856,6 +868,16 @@ export class MemoryRepo implements DataRepo {
     s.invites = (s.invites ?? []).filter((i) => !(i.id === id && i.ownerId === u.id));
     persist();
     return s.invites.length < before;
+  }
+
+  async setTeamMemberRole(memberId: string, role: TeamRole) {
+    const u = await this.requireUser();
+    if (this.acting) return false;
+    const m = (store().team ?? []).find((x) => x.ownerId === u.id && x.memberId === memberId);
+    if (!m) return false;
+    m.role = role;
+    persist();
+    return true;
   }
 
   async removeTeamMember(memberId: string) {
@@ -885,7 +907,7 @@ export class MemoryRepo implements DataRepo {
     if (inv.email !== u.email.toLowerCase()) return "wrong_email" as const;
     s.team ??= [];
     if (!s.team.some((m) => m.ownerId === inv.ownerId && m.memberId === u.id))
-      s.team.push({ ownerId: inv.ownerId, memberId: u.id, email: inv.email, createdAt: new Date().toISOString() });
+      s.team.push({ ownerId: inv.ownerId, memberId: u.id, email: inv.email, role: inv.role ?? "viewer", createdAt: new Date().toISOString() });
     inv.acceptedAt = new Date().toISOString();
     persist();
     return "ok" as const;
@@ -917,6 +939,50 @@ export class MemoryRepo implements DataRepo {
     sh.revokedAt ??= new Date().toISOString();
     persist();
     return true;
+  }
+
+  async createApprovalLink(analysisId: string, tokenHash: string, expiresAt: string, note: string | null, itemKeys: string[]) {
+    const u = await this.requireUser();
+    if (this.acting) return false;
+    const a = this.own(analysisId, u.id);
+    if (!a || a.status !== "completed" || !itemKeys.length || itemKeys.length > 120 || !itemKeys.every((k) => APPROVAL_KEY_RE.test(k))) return false;
+    const s = store();
+    s.approvalLinks ??= [];
+    s.approvalLinks.push({ id: randomUUID(), userId: u.id, analysisId, tokenHash, note, itemKeys: [...new Set(itemKeys)], expiresAt, revokedAt: null, createdAt: new Date().toISOString() });
+    persist();
+    return true;
+  }
+
+  async listApprovalLinks(analysisId: string): Promise<ApprovalLinkView[]> {
+    const u = await this.requireUser();
+    const s = store();
+    return (s.approvalLinks ?? [])
+      .filter((l) => l.userId === u.id && l.analysisId === analysisId)
+      .map((l) => ({
+        id: l.id,
+        analysisId: l.analysisId,
+        note: l.note,
+        itemKeys: [...l.itemKeys],
+        expiresAt: l.expiresAt,
+        revokedAt: l.revokedAt,
+        createdAt: l.createdAt,
+        decisions: decisionsOf(l.id),
+      }))
+      .reverse();
+  }
+
+  async revokeApprovalLink(id: string) {
+    const u = await this.requireUser();
+    const l = (store().approvalLinks ?? []).find((x) => x.id === id && x.userId === u.id);
+    if (!l) return false;
+    l.revokedAt ??= new Date().toISOString();
+    persist();
+    return true;
+  }
+
+  async listApprovalOverview() {
+    const u = await this.requireUser();
+    return (store().approvalLinks ?? []).filter((l) => l.userId === u.id).map((l) => ({ analysisId: l.analysisId, itemKeys: [...l.itemKeys], decisions: decisionsOf(l.id) }));
   }
 
   async listApiKeys() {
@@ -1068,6 +1134,8 @@ export class MemoryRepo implements DataRepo {
     for (const l of s.ledger) if (l.analysisId === id) l.analysisId = null; // FK set null, ledger row kept
     s.feedback = (s.feedback ?? []).filter((f) => f.analysisId !== id);
     s.shares = (s.shares ?? []).filter((x) => x.analysisId !== id);
+    s.approvalLinks = (s.approvalLinks ?? []).filter((x) => x.analysisId !== id);
+    s.approvalDecisions = (s.approvalDecisions ?? []).filter((x) => x.analysisId !== id);
     persist();
     return true;
   }
@@ -1106,6 +1174,8 @@ export class MemoryRepo implements DataRepo {
     s.invites = (s.invites ?? []).filter((x) => x.ownerId !== u.id);
     s.feedback = (s.feedback ?? []).filter((x) => x.userId !== u.id);
     s.shares = (s.shares ?? []).filter((x) => x.userId !== u.id);
+    s.approvalLinks = (s.approvalLinks ?? []).filter((x) => x.userId !== u.id);
+    s.approvalDecisions = (s.approvalDecisions ?? []).filter((x) => x.userId !== u.id);
     s.apiKeys = (s.apiKeys ?? []).filter((x) => x.userId !== u.id);
     s.pins = (s.pins ?? []).filter((x) => x.userId !== u.id);
     s.perfImports = (s.perfImports ?? []).filter((x) => x.userId !== u.id);
@@ -1117,6 +1187,18 @@ export class MemoryRepo implements DataRepo {
   }
 }
 
+
+function decisionsOf(linkId: string): ApprovalDecisionView[] {
+  return (store().approvalDecisions ?? [])
+    .filter((d) => d.linkId === linkId)
+    .map((d) => ({ itemKey: d.itemKey, decision: d.decision, reviewerName: d.reviewerName, comment: d.comment, updatedAt: d.updatedAt }));
+}
+
+function liveApprovalLink(tokenHash: string) {
+  const l = (store().approvalLinks ?? []).find((x) => x.tokenHash === tokenHash);
+  if (!l || l.revokedAt || Date.parse(l.expiresAt) <= Date.now()) return null;
+  return l;
+}
 
 function ownerLabel(ownerId: string) {
   const s = store();
@@ -1664,6 +1746,43 @@ export class MemoryAdminRepo implements AdminRepo {
     return u ? new MemoryRepo({ id: u.id, email: u.email }).getAssetBytes(sh.analysisId, which) : null;
   }
 
+  async getApprovalLink(tokenHash: string): Promise<SharedApproval | null> {
+    const l = liveApprovalLink(tokenHash);
+    if (!l) return null;
+    const a = store().analyses.find((x) => x.id === l.analysisId && x.userId === l.userId && x.status === "completed");
+    if (!a) return null;
+    return { linkId: l.id, analysis: detailOf(a, l.userId), branding: brandingFor(a), note: l.note, itemKeys: [...l.itemKeys], expiresAt: l.expiresAt, decisions: decisionsOf(l.id) };
+  }
+
+  async getApprovalAssetBytes(tokenHash: string, which?: number) {
+    const l = liveApprovalLink(tokenHash);
+    if (!l) return null;
+    const u = store().users.find((x) => x.id === l.userId);
+    return u ? new MemoryRepo({ id: u.id, email: u.email }).getAssetBytes(l.analysisId, which) : null;
+  }
+
+  async submitApproval(tokenHash: string, input: ApprovalSubmission): Promise<ApprovalSubmitResult> {
+    const l = liveApprovalLink(tokenHash);
+    if (!l) return { ok: false, code: "invalid" };
+    if (!input.items.length || input.items.some((i) => !l.itemKeys.includes(i.itemKey))) return { ok: false, code: "bad_items" };
+    const s = store();
+    s.approvalDecisions ??= [];
+    const now = new Date().toISOString();
+    for (const i of input.items) {
+      const prev = s.approvalDecisions.find((d) => d.linkId === l.id && d.itemKey === i.itemKey);
+      const row = { itemKey: i.itemKey, decision: i.decision, reviewerName: input.reviewerName, comment: i.comment, updatedAt: now };
+      if (prev) Object.assign(prev, row);
+      else s.approvalDecisions.push({ ...row, linkId: l.id, userId: l.userId, analysisId: l.analysisId, createdAt: now });
+    }
+    persist();
+    return { ok: true, ownerId: l.userId, analysisId: l.analysisId, linkId: l.id, itemKeys: [...l.itemKeys], decisions: decisionsOf(l.id) };
+  }
+
+  async getTeamMembership(ownerId: string, memberId: string) {
+    const m = (store().team ?? []).find((x) => x.ownerId === ownerId && x.memberId === memberId);
+    return m ? { role: m.role ?? "viewer", ownerLabel: ownerLabel(ownerId) } : null;
+  }
+
   async resolveApiKey(keyHash: string) {
     const s = store();
     const k = (s.apiKeys ?? []).find((x) => x.keyHash === keyHash && !x.revokedAt);
@@ -1795,8 +1914,8 @@ export class MemoryAdminRepo implements AdminRepo {
     };
   }
 
-  repoForUser(user: SessionUser): DataRepo {
-    return new MemoryRepo(user);
+  repoForUser(user: SessionUser, opts?: { actorId?: string }): DataRepo {
+    return new MemoryRepo(user, opts?.actorId ?? null);
   }
 }
 

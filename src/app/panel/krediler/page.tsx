@@ -1,7 +1,7 @@
 import { PricingTerms } from "@/components/pricing-terms";
 import { formatDateTimeTr } from "@/components/rule-status";
 import { Button, DataTable } from "@/components/ui";
-import { getAdminRepo, getRepo } from "@/lib/data";
+import { getAdminRepo, getSessionRepo, getWorkspace } from "@/lib/data";
 import { requirePanelUser } from "@/app/panel/guard";
 import { demoPurchasesAllowed } from "@/lib/env";
 import { getPaymentProviders } from "@/lib/payments";
@@ -23,8 +23,9 @@ const REASON = { signup_bonus: "Kayıt hediyesi", analysis: "Analiz", purchase: 
 
 export default async function CreditsPage({ searchParams }: { searchParams: Promise<{ odeme?: string }> }) {
   const user = await requirePanelUser();
-  const repo = getRepo();
-  const [balance, ledger, purchases, sp, reservation] = await Promise.all([repo.getBalance(), repo.listLedger(), repo.listPurchases(), searchParams, getAdminRepo().getCouponReservation(user.id)]);
+  // Always the user's own account, also inside a team editor workspace (purchases go to the buyer).
+  const repo = getSessionRepo();
+  const [balance, ledger, purchases, sp, reservation, ws] = await Promise.all([repo.getBalance(), repo.listLedger(), repo.listPurchases(), searchParams, getAdminRepo().getCouponReservation(user.id), getWorkspace()]);
   const reservedPkg = reservation ? CREDIT_PACKAGES.find((p) => p.id === reservation.packageId) : null;
   const providers = getPaymentProviders().filter((p) => p.isConfigured());
   const demo = demoPurchasesAllowed();
@@ -32,6 +33,11 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
   return (
     <div>
       <h1 className="font-display text-4xl font-semibold leading-tight">Krediler</h1>
+      {ws.mode === "editor" ? (
+        <p role="note" className="mt-4 rounded-xl bg-info-tint px-4 py-3 text-body text-ink">
+          Bu sayfa kendi hesabını gösterir. {ws.ownerLabel} ekibinin alanında yaptığın işler ekip sahibinin bakiyesinden düşer; buradan aldığın kredi kendi hesabına yüklenir.
+        </p>
+      ) : null}
       <div className="mt-6 overflow-hidden rounded-3xl p-6 text-paper shadow-raised sm:p-8" style={{ background: "var(--gradient-brand)" }}>
         <p className="text-small font-semibold text-paper/80">Kredi bakiyesi</p>
         <p className="mt-1 flex items-baseline gap-2">

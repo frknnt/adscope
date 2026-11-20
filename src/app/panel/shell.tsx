@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type ComponentType, type SVGProps } from "react";
 import { signOutAction } from "@/app/(auth)/actions";
+import { switchWorkspaceAction } from "./agency-actions";
 import {
   IconChart,
   IconGift,
@@ -248,7 +249,7 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
   );
 }
 
-export function PanelShell({ balance, email, children }: { balance: number; email: string; children: React.ReactNode }) {
+export function PanelShell({ balance, email, workspace = null, children }: { balance: number; email: string; workspace?: { ownerLabel: string } | null; children: React.ReactNode }) {
   const path = usePathname();
   const [drawer, setDrawer] = useState(false);
   const [palette, setPalette] = useState(false);
@@ -359,7 +360,23 @@ export function PanelShell({ balance, email, children }: { balance: number; emai
       </div>
 
       <main id="icerik" className="px-4 pb-28 pt-6 sm:px-8 lg:px-10 lg:pb-12 lg:pt-8">
-        <div className="mx-auto max-w-[75rem]">{children}</div>
+        <div className="mx-auto max-w-[75rem]">
+          {workspace ? (
+            <div role="note" aria-label="Çalışma alanı" className="no-print mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue/25 bg-blue-tint px-4 py-3 text-body text-ink">
+              <p className="min-w-0">
+                <strong>{workspace.ownerLabel}</strong> ekibinin alanında <strong>düzenleyici</strong> olarak çalışıyorsun. Analiz ve üretimler ekip sahibinin
+                bakiyesinden düşer; yalnızca iş başarıyla bitince.
+              </p>
+              <form action={switchWorkspaceAction}>
+                <input type="hidden" name="ownerId" value="" />
+                <button type="submit" className="inline-flex h-11 items-center rounded-xl border border-line-strong bg-card px-4 text-small font-bold text-ink hover:bg-paper-2">
+                  Kendi hesabıma dön
+                </button>
+              </form>
+            </div>
+          ) : null}
+          {children}
+        </div>
       </main>
 
       {/* Mobile bottom bar */}

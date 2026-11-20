@@ -357,6 +357,52 @@ describe.skipIf(!reachable)("Supabase: agency mode, feedback, review links, API 
     expect(anon.data ?? []).toHaveLength(0);
   });
 
+  it("approval links: owner-only on completed analyses, decisions only by the server, readable by the owner only", async () => {
+    const expires = new Date(Date.now() + 7 * 864e5).toISOString();
+    const keys = ["text:original", "image"];
+    const own = await owner.client.from("approval_links").insert({ analysis_id: analysisId, token_hash: hex(), expires_at: expires, item_keys: keys }).select("id").single();
+    expect(own.error).toBeNull();
+    expect((await viewer.client.from("approval_links").insert({ analysis_id: analysisId, token_hash: hex(), expires_at: expires, item_keys: keys })).error).not.toBeNull();
+    expect((await owner.client.from("approval_links").insert({ analysis_id: analysisId, token_hash: hex(), expires_at: expires, item_keys: ["../x"] })).error).not.toBeNull();
+    expect((await owner.client.from("approval_links").insert({ analysis_id: analysisId, token_hash: hex(), expires_at: new Date(Date.now() + 60 * 864e5).toISOString(), item_keys: keys })).error).not.toBeNull();
+    expect((await owner.client.from("approval_links").update({ item_keys: ["video"] }).eq("id", own.data!.id)).error).not.toBeNull();
+    // Nobody but the server writes decisions, not even the owner.
+    const row = { link_id: own.data!.id, user_id: owner.id, analysis_id: analysisId, item_key: "image", decision: "approved", reviewer_name: "Ayşe" };
+    expect((await owner.client.from("approval_decisions").insert(row)).error).not.toBeNull();
+    expect((await createClient(URL_, PUB, opts).from("approval_decisions").insert(row)).error).not.toBeNull();
+    expect((await admin().from("approval_decisions").insert(row)).error).toBeNull();
+    expect((await admin().from("approval_decisions").insert(row)).error).not.toBeNull(); // one decision per item and link
+    expect((await admin().from("approval_decisions").insert({ ...row, item_key: "text:v1", decision: "maybe" })).error).not.toBeNull();
+    expect((await owner.client.from("approval_decisions").select("decision").eq("analysis_id", analysisId)).data).toEqual([{ decision: "approved" }]);
+    expect((await viewer.client.from("approval_decisions").select("id").eq("analysis_id", analysisId)).data ?? []).toHaveLength(0);
+    expect((await stranger.client.from("approval_links").select("id").eq("id", own.data!.id)).data ?? []).toHaveLength(0);
+    expect((await owner.client.from("approval_decisions").update({ decision: "rejected" }).eq("analysis_id", analysisId)).error).not.toBeNull();
+    expect((await owner.client.from("approval_links").update({ revoked_at: new Date().toISOString() }).eq("id", own.data!.id)).error).toBeNull();
+  });
+
+  it("team roles: only the owner changes a role, members cannot promote themselves, editors are recorded", async () => {
+    expect((await viewer.client.from("team_members").update({ role: "editor" }, { count: "exact" }).eq("owner_id", owner.id).eq("member_id", viewer.id)).count ?? 0).toBe(0);
+    expect((await stranger.client.from("team_members").update({ role: "editor" }, { count: "exact" }).eq("member_id", viewer.id)).count ?? 0).toBe(0);
+    expect((await owner.client.from("team_members").update({ role: "admin" }).eq("member_id", viewer.id)).error).not.toBeNull();
+    expect((await owner.client.from("team_members").update({ member_email: "x@example.com" }).eq("member_id", viewer.id)).error).not.toBeNull();
+    const up = await owner.client.from("team_members").update({ role: "editor" }, { count: "exact" }).eq("owner_id", owner.id).eq("member_id", viewer.id);
+    expect(up.error).toBeNull();
+    expect(up.count).toBe(1);
+    expect((await owner.client.from("team_invites").insert({ owner_id: owner.id, email: "rol@example.com", token_hash: hex(), expires_at: new Date(Date.now() + 864e5).toISOString(), role: "owner" })).error).not.toBeNull();
+    // An editor's analysis is the owner's (owner's balance); clients cannot write created_by.
+    expect((await viewer.client.from("analyses").update({ created_by: viewer.id }).eq("id", analysisId).select()).data ?? []).toHaveLength(0);
+    const { SupabaseAdminRepo } = await import("@/lib/data/supabase-repo");
+    const before = (await admin().rpc("admin_user_balances", { p_user_ids: [owner.id] })).data?.[0]?.balance;
+    const acting = new SupabaseAdminRepo().repoForUser({ id: owner.id, email: "" }, { actorId: viewer.id });
+    expect(await acting.getBalance()).toBe(Number(before));
+    const g = await acting.recordGeneration({ clientRequestId: randomUUID(), kind: "copy", creditCost: 1, brandId: null, platform: null, output: {} });
+    expect(g.status).toBe("created");
+    const row = await admin().from("generations").select("user_id,created_by").eq("id", g.status === "created" ? g.generation.id : "").single();
+    expect(row.data).toEqual({ user_id: owner.id, created_by: viewer.id });
+    expect(await acting.getBalance()).toBe(Number(before) - 1);
+    await owner.client.from("team_members").update({ role: "viewer" }).eq("member_id", viewer.id);
+  });
+
   it("API keys are private to their owner and the hash cannot be rewritten", async () => {
     const k = await owner.client.from("api_keys").insert({ name: "CRM", key_prefix: "ads_live_abcd", key_hash: hex() }).select("id").single();
     expect(k.error).toBeNull();
@@ -506,7 +552,7 @@ describe.skipIf(!reachable)("Supabase: agency mode, feedback, review links, API 
 describe.skipIf(!reachable)("Supabase: client role privileges", () => {
   it("client roles have no blanket privileges on newer tables", async () => {
     const anon = createClient(URL_, PUB, opts);
-    for (const t of ["team_members", "team_invites", "finding_feedback", "review_shares", "newsletter_log", "api_keys", "inspiration_pins", "season_reminder_log", "generations", "audiences", "performance_imports", "performance_rows", "competitor_watches", "admin_audit_log", "coupons", "coupon_redemptions", "invite_codes", "referrals", "referral_email_claims", "affiliate_commissions", "welcome_email_log", "rate_limit_buckets", "jobs", "api_webhooks", "api_usage", "brand_templates"]) {
+    for (const t of ["team_members", "team_invites", "finding_feedback", "review_shares", "newsletter_log", "api_keys", "inspiration_pins", "season_reminder_log", "generations", "audiences", "performance_imports", "performance_rows", "competitor_watches", "admin_audit_log", "coupons", "coupon_redemptions", "invite_codes", "referrals", "referral_email_claims", "affiliate_commissions", "welcome_email_log", "rate_limit_buckets", "jobs", "api_webhooks", "api_usage", "brand_templates", "approval_links", "approval_decisions"]) {
       const r = await anon.from(t).select("*").limit(1);
       expect(r.error?.code, t).toBe("42501");
     }

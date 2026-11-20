@@ -6,7 +6,7 @@ import { Dialog } from "@/components/interactive";
 import type { Brand, FindingFeedback } from "@/lib/data/types";
 import { SECTOR_IDS, SECTOR_INFO } from "@/lib/sectors";
 import type { ActionState } from "./actions";
-import { createApiKeyAction, createReviewShareAction, findingFeedbackAction, inviteMemberAction, saveBrandAction, sendReportEmailAction, suggestBrandFromSiteAction, type SiteSuggestionState } from "./agency-actions";
+import { createApiKeyAction, createApprovalLinkAction, createReviewShareAction, findingFeedbackAction, inviteMemberAction, saveBrandAction, sendReportEmailAction, suggestBrandFromSiteAction, type SiteSuggestionState } from "./agency-actions";
 import { BRAND_FONTS, contrastNote, normalizeHex } from "@/lib/brand/kit";
 import { ActionMessage, CopyButton } from "./forms";
 import { createWebhookAction } from "./api/webhook-actions";
@@ -260,6 +260,12 @@ export function InviteForm() {
         <Field label="Ekip arkadaşının e-postası" htmlFor="invite-email" className="min-w-[16rem] flex-1">
           <input id="invite-email" name="email" type="email" required maxLength={320} autoComplete="off" className={inputClass} />
         </Field>
+        <Field label="Rol" htmlFor="invite-role" className="w-full sm:w-auto">
+          <select id="invite-role" name="role" defaultValue="viewer" className={selectClass}>
+            <option value="viewer">Salt okunur</option>
+            <option value="editor">Düzenleyici</option>
+          </select>
+        </Field>
         <Button type="submit" variant="accent" disabled={pending}>{pending ? "Oluşturuluyor…" : "Davet et"}</Button>
       </div>
       <ActionMessage state={state} />
@@ -291,6 +297,33 @@ export function ReviewShareForm({ analysisId }: { analysisId: string }) {
       </div>
       <ActionMessage state={state} />
       {state.link ? <OneTimeSecret value={state.link} label="Salt okunur inceleme bağlantısı" /> : null}
+    </form>
+  );
+}
+
+export function ApprovalLinkForm({ analysisId }: { analysisId: string }) {
+  const [state, action, pending] = useActionState(createApprovalLinkAction, initial);
+  return (
+    <form action={action} className="grid gap-3">
+      <input type="hidden" name="analysisId" value={analysisId} />
+      <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
+        <Field label="Geçerlilik" htmlFor="approval-days">
+          <select id="approval-days" name="days" defaultValue="7" className={selectClass}>
+            <option value="3">3 gün</option>
+            <option value="7">7 gün</option>
+            <option value="14">14 gün</option>
+            <option value="30">30 gün</option>
+          </select>
+        </Field>
+        <Field label="Müşteriye not (isteğe bağlı)" htmlFor="approval-note" hint="Kişisel veri yazma. En fazla 500 karakter.">
+          <input id="approval-note" name="note" maxLength={500} className={inputClass} placeholder="ör. Kasım kampanyası için 3 metin ve görsel; cuma gününe kadar dönebilir misiniz?" />
+        </Field>
+      </div>
+      <div>
+        <Button type="submit" variant="ghost" disabled={pending}>{pending ? "Hazırlanıyor…" : "Onay bağlantısı oluştur"}</Button>
+      </div>
+      <ActionMessage state={state} />
+      {state.link ? <OneTimeSecret value={state.link} label="Müşteri onay bağlantısı" /> : null}
     </form>
   );
 }

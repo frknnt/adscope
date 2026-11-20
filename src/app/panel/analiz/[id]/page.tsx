@@ -3,12 +3,14 @@ import { IconDoc, IconTrash } from "@/components/icons";
 import { AdThumb, Menu } from "@/components/panel-client";
 import { SECTOR_LABEL, formatDateTimeTr } from "@/components/rule-status";
 import { ButtonLink, buttonClass } from "@/components/ui";
-import { getRepo } from "@/lib/data";
+import { getRepo, getWorkspace } from "@/lib/data";
+import { ApprovalPill } from "@/components/approval-badge";
+import { approvalBadge, approvalItems, DECISION_LABEL } from "@/lib/approval";
 import { requirePanelUser } from "@/app/panel/guard";
 import { deleteAnalysisAction } from "../../actions";
 import { AppealForm } from "../../forms";
-import { revokeReviewShareAction } from "../../agency-actions";
-import { ReportEmailForm, ReviewShareForm } from "../../agency-forms";
+import { revokeApprovalLinkAction, revokeReviewShareAction } from "../../agency-actions";
+import { ApprovalLinkForm, ReportEmailForm, ReviewShareForm } from "../../agency-forms";
 import { PLATFORM_SHORT } from "@/lib/platforms";
 import { ReportView } from "../report-view";
 import { StatusPoller } from "./status-poller";
@@ -29,7 +31,12 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
   const repo = getRepo();
   const a = await repo.getAnalysis(id);
   if (!a) notFound();
-  const [feedback, shares] = a.ownedByMe && a.status === "completed" ? await Promise.all([repo.listFindingFeedback(a.id), repo.listReviewShares(a.id)]) : [[], []];
+  const [feedback, shares, approvals] =
+    a.ownedByMe && a.status === "completed" ? await Promise.all([repo.listFindingFeedback(a.id), repo.listReviewShares(a.id), repo.listApprovalLinks(a.id)]) : [[], [], []];
+  const ws = await getWorkspace();
+  const approvalKeys = [...new Set(approvals.flatMap((l) => l.itemKeys))];
+  const badge = approvals.length ? approvalBadge(approvalKeys, approvals.flatMap((l) => l.decisions)) : null;
+  const itemLabel = new Map(a.status === "completed" ? approvalItems(a).map((i) => [i.key, i.label]) : []);
 
   const brand = a.brandId && a.ownedByMe ? ((await repo.listBrands()).find((b) => b.id === a.brandId)?.name ?? null) : null;
   const title = a.headline || a.primaryText.slice(0, 70) || "Başlıksız reklam";
@@ -47,7 +54,12 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
               <span>{SECTOR_LABEL[a.sector]}</span>
               <time dateTime={a.createdAt}>{formatDateTimeTr(a.createdAt)}</time>
             </p>
-            {!a.ownedByMe ? <p className="mt-2 inline-flex rounded-full bg-blue-tint px-3 py-1 text-meta font-semibold text-blue">Ekip analizi · salt okunur</p> : null}
+            {!a.ownedByMe ? (
+              <p className="mt-2 inline-flex rounded-full bg-blue-tint px-3 py-1 text-meta font-semibold text-blue">
+                {ws.mode === "editor" ? `${ws.ownerLabel} ekip alanı · düzenleyici` : "Ekip analizi · salt okunur"}
+              </p>
+            ) : null}
+            {badge ? <p className="mt-2"><a href="#musteri" className="no-underline"><ApprovalPill badge={badge} /></a></p> : null}
           </div>
         </div>
         <div className="no-print flex flex-wrap items-center gap-2">
@@ -61,7 +73,13 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
                 trigger={<>Paylaş</>}
                 triggerClassName={buttonClass("ghost", "h-11 px-4")}
                 items={[
-                  ...(a.ownedByMe ? [{ label: "E-postayla gönder", href: "#eposta" }, { label: "Avukat inceleme bağlantısı", href: "#avukat" }] : []),
+                  ...(a.ownedByMe
+                    ? [
+                        { label: "E-postayla gönder", href: "#eposta" },
+                        { label: "Müşteri onayı bağlantısı", href: "#musteri" },
+                        { label: "Avukat inceleme bağlantısı", href: "#avukat" },
+                      ]
+                    : []),
                   { label: "Varyantlar (CSV)", href: `/api/analyses/${a.id}/export?format=csv`, download: true },
                   { label: "Yazdır", href: `/panel/analiz/${a.id}/rapor` },
                 ]}
@@ -113,6 +131,55 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
               <h2 id="eposta-h" className="font-display text-2xl font-semibold">Raporu e-postayla gönder</h2>
               <p className="mt-1 text-body text-ink-soft">Logolu PDF rapor müşterine veya ekibine ek olarak gider. Saatte en fazla 10 gönderim.</p>
               <div className="mt-5"><ReportEmailForm analysisId={a.id} /></div>
+            </section>
+          ) : null}
+          {a.ownedByMe ? (
+            <section id="musteri" className="no-print mt-10 scroll-mt-24 rounded-2xl border border-line bg-card p-5 sm:p-7" aria-labelledby="musteri-h">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 id="musteri-h" className="font-display text-2xl font-semibold">Müşteri onayı</h2>
+                {badge ? <ApprovalPill badge={badge} /> : null}
+              </div>
+              <p className="mt-1.5 max-w-2xl text-ink-soft">
+                Müşterin hesap açmadan her metni, görseli ya da videoyu tek tek onaylar, değişiklik ister ya da reddeder ve yorum yazar. Yalnızca adını yazar,
+                e-posta istenmez. Bağlantı süre dolunca veya iptal edince çalışmaz.
+              </p>
+              <div className="mt-5"><ApprovalLinkForm analysisId={a.id} /></div>
+              {approvals.length ? (
+                <ul className="mt-6 grid gap-3 text-small">
+                  {approvals.map((l) => {
+                    const active = shareActive(l);
+                    return (
+                      <li key={l.id} className="rounded-xl border border-line px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <span>
+                            {formatDateTimeTr(l.createdAt)} · {active ? `${formatDateTimeTr(l.expiresAt)} tarihine kadar geçerli` : l.revokedAt ? "İptal edildi" : "Süresi doldu"} ·{" "}
+                            {l.decisions.length} / {l.itemKeys.length} karar
+                            {l.note ? <span className="block text-muted">{l.note}</span> : null}
+                          </span>
+                          {active ? (
+                            <form action={revokeApprovalLinkAction}>
+                              <input type="hidden" name="id" value={l.id} />
+                              <input type="hidden" name="analysisId" value={a.id} />
+                              <button type="submit" className="inline-flex h-10 items-center font-semibold text-coral-deep">İptal et</button>
+                            </form>
+                          ) : null}
+                        </div>
+                        {l.decisions.length ? (
+                          <ul className="mt-2 grid gap-1.5">
+                            {l.decisions.map((d) => (
+                              <li key={d.itemKey} className="rounded-lg bg-paper-2 px-3 py-2">
+                                <span className="font-semibold">{itemLabel.get(d.itemKey) ?? d.itemKey}</span>: {DECISION_LABEL[d.decision]} · {d.reviewerName} ·{" "}
+                                <time dateTime={d.updatedAt}>{formatDateTimeTr(d.updatedAt)}</time>
+                                {d.comment ? <span className="mt-0.5 block whitespace-pre-line text-ink-soft">{d.comment}</span> : null}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
             </section>
           ) : null}
           {a.ownedByMe ? (

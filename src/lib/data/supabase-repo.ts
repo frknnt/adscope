@@ -58,7 +58,14 @@ import type {
   SharedReview,
   StartAnalysisResult,
   TeamState,
+  TeamRole,
+  ApprovalDecisionView,
+  ApprovalLinkView,
+  ApprovalSubmission,
+  ApprovalSubmitResult,
+  SharedApproval,
 } from "./types";
+import { APPROVAL_KEY_RE } from "@/lib/approval";
 import type { Platform } from "@/lib/platforms";
 import { generationFiles } from "./generation-files";
 
@@ -217,7 +224,11 @@ export class SupabaseRepo implements DataRepo {
    * client is used then, so every query below that can see other users' rows filters by user id,
    * and team (shared) data is never exposed through an API key.
    */
-  constructor(private readonly acting: SessionUser | null = null) {
+  constructor(
+    private readonly acting: SessionUser | null = null,
+    /** Team editor acting in the owner's workspace (recorded as created_by). */
+    private readonly actorId: string | null = null,
+  ) {
     if (acting) this._user = acting;
   }
 
@@ -426,6 +437,12 @@ export class SupabaseRepo implements DataRepo {
   }
 
   async getBalance() {
+    if (this.acting) {
+      // The service role has no auth.uid(); read the acting user's balance explicitly.
+      const { data } = await this.admin().rpc("admin_user_balances", { p_user_ids: [this.acting.id] });
+      const row = (data as { user_id: string; balance: number }[] | null)?.[0];
+      return row ? Number(row.balance) : 0;
+    }
     const { data } = await (await this.db()).rpc("get_credit_balance");
     return typeof data === "number" ? data : 0;
   }
@@ -532,6 +549,9 @@ export class SupabaseRepo implements DataRepo {
     const row = (data as { generation_id: string | null; status: string }[] | null)?.[0];
     if (error || !row) return { status: "error" };
     if (row.status === "insufficient_credits" || row.status === "brand_not_found") return { status: row.status };
+    if (row.status !== "exists" && row.generation_id && this.actorId) {
+      await this.admin().from("generations").update({ created_by: this.actorId }).eq("id", row.generation_id).eq("user_id", u.id);
+    }
     const g = row.generation_id ? await this.getGeneration(row.generation_id) : null;
     if (!g) return { status: "error" };
     return { status: row.status === "exists" ? "exists" : "created", generation: g };
@@ -620,11 +640,11 @@ export class SupabaseRepo implements DataRepo {
     }
     const row = (Array.isArray(data) ? data[0] : data) as { analysis_id: string; status: AnalysisSummary["status"]; created: boolean };
     const platform = p.platform ?? "meta";
-    if (row.created && (p.mediaType !== "image" || p.transcript || p.landingUrl || platform !== "meta")) {
+    if (row.created && (p.mediaType !== "image" || p.transcript || p.landingUrl || platform !== "meta" || this.actorId)) {
       // Users have no UPDATE grant on analyses; the server sets the media fields right after creation.
       const { error: updErr } = await this.admin()
         .from("analyses")
-        .update({ media_type: p.mediaType, video_meta: p.videoMeta, transcript: p.transcript, landing_url: p.landingUrl, platform })
+        .update({ media_type: p.mediaType, video_meta: p.videoMeta, transcript: p.transcript, landing_url: p.landingUrl, platform, ...(this.actorId ? { created_by: this.actorId } : {}) })
         .eq("id", row.analysis_id)
         .eq("user_id", u.id);
       if (updErr) {
@@ -841,20 +861,21 @@ export class SupabaseRepo implements DataRepo {
     const u = await this.requireUser();
     const db = await this.db();
     const [{ data: members }, { data: invites }, { data: memberships }] = await Promise.all([
-      db.from("team_members").select("member_id,member_email,created_at").eq("owner_id", u.id).order("created_at"),
-      db.from("team_invites").select("id,email,expires_at").eq("owner_id", u.id).is("accepted_at", null).gt("expires_at", new Date().toISOString()),
-      db.from("team_members").select("owner_id,created_at").eq("member_id", u.id),
+      db.from("team_members").select("member_id,member_email,role,created_at").eq("owner_id", u.id).order("created_at"),
+      db.from("team_invites").select("id,email,role,expires_at").eq("owner_id", u.id).is("accepted_at", null).gt("expires_at", new Date().toISOString()),
+      db.from("team_members").select("owner_id,role,created_at").eq("member_id", u.id),
     ]);
     const labels = memberships?.length ? await this.ownerLabels(memberships.map((m) => m.owner_id)) : new Map<string, string>();
     return {
-      members: (members ?? []).map((m) => ({ memberId: m.member_id, email: m.member_email, createdAt: m.created_at })),
-      invites: (invites ?? []).map((i) => ({ id: i.id, email: i.email, expiresAt: i.expires_at })),
-      memberships: (memberships ?? []).map((m) => ({ ownerId: m.owner_id, ownerLabel: labels.get(m.owner_id) ?? "Ekip", createdAt: m.created_at })),
+      members: (members ?? []).map((m) => ({ memberId: m.member_id, email: m.member_email, role: m.role as TeamRole, createdAt: m.created_at })),
+      invites: (invites ?? []).map((i) => ({ id: i.id, email: i.email, role: i.role as TeamRole, expiresAt: i.expires_at })),
+      memberships: (memberships ?? []).map((m) => ({ ownerId: m.owner_id, ownerLabel: labels.get(m.owner_id) ?? "Ekip", role: m.role as TeamRole, createdAt: m.created_at })),
     };
   }
 
-  async createTeamInvite(email: string, tokenHash: string, expiresAt: string) {
+  async createTeamInvite(email: string, tokenHash: string, expiresAt: string, role: TeamRole = "viewer") {
     const u = await this.requireUser();
+    if (this.acting) return "error" as const;
     const e = email.trim().toLowerCase();
     if (e === u.email.toLowerCase()) return "self" as const;
     const team = await this.getTeam();
@@ -862,13 +883,21 @@ export class SupabaseRepo implements DataRepo {
     if (team.members.length + team.invites.filter((i) => i.email !== e).length >= TEAM_LIMIT) return "limit" as const;
     const db = await this.db();
     await db.from("team_invites").delete().eq("owner_id", u.id).eq("email", e).is("accepted_at", null);
-    const { error } = await db.from("team_invites").insert({ owner_id: u.id, email: e, token_hash: tokenHash, expires_at: expiresAt });
+    const { error } = await db.from("team_invites").insert({ owner_id: u.id, email: e, role, token_hash: tokenHash, expires_at: expiresAt });
     return error ? ("error" as const) : ("ok" as const);
   }
 
   async deleteTeamInvite(id: string) {
     const u = await this.requireUser();
     const { error, count } = await (await this.db()).from("team_invites").delete({ count: "exact" }).eq("id", id).eq("owner_id", u.id);
+    return !error && (count ?? 0) > 0;
+  }
+
+  async setTeamMemberRole(memberId: string, role: TeamRole) {
+    const u = await this.requireUser();
+    if (this.acting) return false;
+    // User client: the update policy and the role-only column grant decide.
+    const { error, count } = await (await this.db()).from("team_members").update({ role }, { count: "exact" }).eq("owner_id", u.id).eq("member_id", memberId);
     return !error && (count ?? 0) > 0;
   }
 
@@ -890,7 +919,7 @@ export class SupabaseRepo implements DataRepo {
     const admin = this.admin();
     const { data: inv } = await admin
       .from("team_invites")
-      .select("id,owner_id,email")
+      .select("id,owner_id,email,role")
       .eq("token_hash", tokenHash)
       .is("accepted_at", null)
       .gt("expires_at", new Date().toISOString())
@@ -900,7 +929,7 @@ export class SupabaseRepo implements DataRepo {
     if (inv.email !== u.email.toLowerCase()) return "wrong_email" as const;
     const { error } = await admin
       .from("team_members")
-      .upsert({ owner_id: inv.owner_id, member_id: u.id, member_email: inv.email }, { onConflict: "owner_id,member_id", ignoreDuplicates: true });
+      .upsert({ owner_id: inv.owner_id, member_id: u.id, member_email: inv.email, role: inv.role ?? "viewer" }, { onConflict: "owner_id,member_id", ignoreDuplicates: true });
     if (error) return "error" as const;
     await admin.from("team_invites").update({ accepted_at: new Date().toISOString() }).eq("id", inv.id);
     return "ok" as const;
@@ -942,6 +971,62 @@ export class SupabaseRepo implements DataRepo {
       .eq("user_id", u.id)
       .is("revoked_at", null);
     return !error && (count ?? 0) > 0;
+  }
+
+  async createApprovalLink(analysisId: string, tokenHash: string, expiresAt: string, note: string | null, itemKeys: string[]) {
+    const u = await this.requireUser();
+    if (this.acting) return false;
+    const keys = [...new Set(itemKeys)];
+    if (!keys.length || keys.length > 120 || !keys.every((k) => APPROVAL_KEY_RE.test(k))) return false;
+    // User client: the insert policy checks that the analysis is the caller's own and completed.
+    const { error } = await (await this.db())
+      .from("approval_links")
+      .insert({ user_id: u.id, analysis_id: analysisId, token_hash: tokenHash, expires_at: expiresAt, note, item_keys: keys });
+    return !error;
+  }
+
+  async listApprovalLinks(analysisId: string): Promise<ApprovalLinkView[]> {
+    const u = await this.requireUser();
+    const db = await this.db();
+    const [{ data: links }, { data: decisions }] = await Promise.all([
+      db.from("approval_links").select("id,analysis_id,note,item_keys,expires_at,revoked_at,created_at").eq("user_id", u.id).eq("analysis_id", analysisId).order("created_at", { ascending: false }),
+      db.from("approval_decisions").select("link_id,item_key,decision,reviewer_name,comment,updated_at").eq("user_id", u.id).eq("analysis_id", analysisId),
+    ]);
+    return (links ?? []).map((l) => ({
+      id: l.id,
+      analysisId: l.analysis_id,
+      note: l.note,
+      itemKeys: l.item_keys ?? [],
+      expiresAt: l.expires_at,
+      revokedAt: l.revoked_at,
+      createdAt: l.created_at,
+      decisions: (decisions ?? []).filter((d) => d.link_id === l.id).map(decisionView),
+    }));
+  }
+
+  async revokeApprovalLink(id: string) {
+    const u = await this.requireUser();
+    const { error, count } = await (await this.db())
+      .from("approval_links")
+      .update({ revoked_at: new Date().toISOString() }, { count: "exact" })
+      .eq("id", id)
+      .eq("user_id", u.id)
+      .is("revoked_at", null);
+    return !error && (count ?? 0) > 0;
+  }
+
+  async listApprovalOverview() {
+    const u = await this.requireUser();
+    const db = await this.db();
+    const [{ data: links }, { data: decisions }] = await Promise.all([
+      db.from("approval_links").select("id,analysis_id,item_keys").eq("user_id", u.id).order("created_at", { ascending: false }).limit(500),
+      db.from("approval_decisions").select("link_id,item_key,decision,reviewer_name,comment,updated_at").eq("user_id", u.id).limit(5000),
+    ]);
+    return (links ?? []).map((l) => ({
+      analysisId: l.analysis_id as string,
+      itemKeys: (l.item_keys ?? []) as string[],
+      decisions: (decisions ?? []).filter((d) => d.link_id === l.id).map(decisionView),
+    }));
   }
 
   async listApiKeys() {
@@ -1111,6 +1196,10 @@ function watchView(w: { id: string; term: string; country: string; last_checked_
 
 function perfImportView(p: { id: string; label: string; currency: string; period_start: string | null; period_end: string | null; ad_count: number; share_consent: boolean; created_at: string }): PerformanceImport {
   return { id: p.id, label: p.label, currency: p.currency, periodStart: p.period_start, periodEnd: p.period_end, adCount: p.ad_count, shareConsent: p.share_consent, createdAt: p.created_at };
+}
+
+function decisionView(d: { item_key: string; decision: string; reviewer_name: string; comment: string | null; updated_at: string }): ApprovalDecisionView {
+  return { itemKey: d.item_key, decision: d.decision as ApprovalDecisionView["decision"], reviewerName: d.reviewer_name, comment: d.comment, updatedAt: d.updated_at };
 }
 
 /**
@@ -1759,6 +1848,68 @@ export class SupabaseAdminRepo implements AdminRepo {
     return new SupabaseRepo({ id: sh.user_id, email: "" }).getAssetBytes(sh.analysis_id, which);
   }
 
+  private async approvalLinkFor(tokenHash: string) {
+    const { data } = await this.admin
+      .from("approval_links")
+      .select("id,user_id,analysis_id,note,item_keys,expires_at,revoked_at")
+      .eq("token_hash", tokenHash)
+      .maybeSingle();
+    if (!data || data.revoked_at || Date.parse(data.expires_at) <= Date.now()) return null;
+    return data as { id: string; user_id: string; analysis_id: string; note: string | null; item_keys: string[]; expires_at: string };
+  }
+
+  private async decisionsFor(linkId: string) {
+    const { data } = await this.admin.from("approval_decisions").select("item_key,decision,reviewer_name,comment,updated_at").eq("link_id", linkId);
+    return (data ?? []).map(decisionView);
+  }
+
+  async getApprovalLink(tokenHash: string): Promise<SharedApproval | null> {
+    const l = await this.approvalLinkFor(tokenHash);
+    if (!l) return null;
+    const analysis = await loadDetail(this.admin, l.analysis_id, l.user_id, l.user_id);
+    if (!analysis || analysis.status !== "completed") return null;
+    const [branding, decisions] = await Promise.all([
+      brandingOf(this.admin, this.admin, { user_id: l.user_id, brand_id: analysis.brandId }),
+      this.decisionsFor(l.id),
+    ]);
+    return { linkId: l.id, analysis, branding, note: l.note, itemKeys: l.item_keys, expiresAt: l.expires_at, decisions };
+  }
+
+  async getApprovalAssetBytes(tokenHash: string, which?: number) {
+    const l = await this.approvalLinkFor(tokenHash);
+    if (!l) return null;
+    return new SupabaseRepo({ id: l.user_id, email: "" }).getAssetBytes(l.analysis_id, which);
+  }
+
+  async submitApproval(tokenHash: string, input: ApprovalSubmission): Promise<ApprovalSubmitResult> {
+    const l = await this.approvalLinkFor(tokenHash);
+    if (!l) return { ok: false, code: "invalid" };
+    if (!input.items.length || input.items.some((i) => !l.item_keys.includes(i.itemKey))) return { ok: false, code: "bad_items" };
+    const now = new Date().toISOString();
+    const { error } = await this.admin.from("approval_decisions").upsert(
+      input.items.map((i) => ({
+        link_id: l.id,
+        user_id: l.user_id,
+        analysis_id: l.analysis_id,
+        item_key: i.itemKey,
+        decision: i.decision,
+        reviewer_name: input.reviewerName,
+        comment: i.comment,
+        updated_at: now,
+      })),
+      { onConflict: "link_id,item_key" },
+    );
+    if (error) return { ok: false, code: "error" };
+    return { ok: true, ownerId: l.user_id, analysisId: l.analysis_id, linkId: l.id, itemKeys: l.item_keys, decisions: await this.decisionsFor(l.id) };
+  }
+
+  async getTeamMembership(ownerId: string, memberId: string) {
+    const { data } = await this.admin.from("team_members").select("role").eq("owner_id", ownerId).eq("member_id", memberId).maybeSingle();
+    if (!data) return null;
+    const { data: p } = await this.admin.from("profiles").select("company_name,display_name").eq("id", ownerId).maybeSingle();
+    return { role: data.role as TeamRole, ownerLabel: (p?.company_name as string | null) || (p?.display_name as string | null) || "Ekip" };
+  }
+
   async resolveApiKey(keyHash: string) {
     const { data: k } = await this.admin.from("api_keys").select("id,user_id").eq("key_hash", keyHash).is("revoked_at", null).maybeSingle();
     if (!k) return null;
@@ -1881,7 +2032,7 @@ export class SupabaseAdminRepo implements AdminRepo {
     return { signups: ids.length, firstAnalysis: analyzed.size, firstPurchase: bought.size, queuedJobs: queued ?? 0, failedJobs: failed ?? 0 };
   }
 
-  repoForUser(user: SessionUser): DataRepo {
-    return new SupabaseRepo(user);
+  repoForUser(user: SessionUser, opts?: { actorId?: string }): DataRepo {
+    return new SupabaseRepo(user, opts?.actorId ?? null);
   }
 }

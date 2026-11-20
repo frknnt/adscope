@@ -1,9 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { getCurrentUser, getRepo } from "@/lib/data";
+import { getAdminRepo, getCurrentUser, getRepo } from "@/lib/data";
+import { WORKSPACE_COOKIE } from "@/lib/data/workspace";
+import { TEAM_ROLES } from "@/lib/data/types";
+import { APPROVAL_MAX_DAYS, approvalItems } from "@/lib/approval";
 import { emailConfigured, getEmailProvider } from "@/lib/email/provider";
 import { BRAND_FONT_IDS, extractSiteSuggestion, normalizeHex, normalizeRequiredPhrases, normalizeWebsite, type SiteSuggestion } from "@/lib/brand/kit";
 import type { BrandInput } from "@/lib/data/types";
@@ -162,9 +166,10 @@ export async function inviteMemberAction(_prev: ActionState, form: FormData): Pr
   const u = await requireUser();
   const email = z.email("Geçerli bir e-posta adresi girin.").safeParse(String(form.get("email") ?? "").trim().toLowerCase());
   if (!email.success) return { error: email.error.issues[0]?.message ?? "Geçerli bir e-posta adresi girin." };
+  const role = z.enum(TEAM_ROLES).catch("viewer").parse(form.get("role"));
   const { token, hash } = newToken();
   const expiresAt = new Date(Date.now() + 7 * 86400_000).toISOString();
-  const res = await getRepo().createTeamInvite(email.data, hash, expiresAt);
+  const res = await getRepo().createTeamInvite(email.data, hash, expiresAt, role);
   if (res === "self") return { error: "Kendinizi ekibe davet edemezsiniz." };
   if (res === "exists") return { error: "Bu kişi zaten ekipte." };
   if (res === "limit") return { error: "Ekip en fazla 10 kişi olabilir (bekleyen davetler dahil)." };
@@ -177,12 +182,18 @@ export async function inviteMemberAction(_prev: ActionState, form: FormData): Pr
       idempotencyKey: `team-invite:${hash}`,
       to: email.data,
       subject: "AdScope ekibine davet edildiniz",
-      text: `${u.email} sizi AdScope ekibine davet etti. Ekip analizlerini ve raporlarını görüntüleyebilirsiniz.\n\nDaveti kabul etmek için (7 gün geçerli):\n${link}\n\nHesabın yoksa önce bu e-posta adresiyle kayıt ol, sonra bağlantıyı yeniden aç.\n\nBu daveti beklemiyorsanız e-postayı yok sayabilirsiniz.`,
-      html: `<p>${escapeHtml(u.email)} sizi AdScope ekibine davet etti. Ekip analizlerini ve raporlarını görüntüleyebilirsiniz.</p><p><a href="${link}">Daveti kabul et</a> (7 gün geçerli)</p><p>Bu daveti beklemiyorsanız e-postayı yok sayabilirsiniz.</p>`,
+      text: `${u.email} sizi AdScope ekibine davet etti. ${roleSentence(role)}\n\nDaveti kabul etmek için (7 gün geçerli):\n${link}\n\nHesabın yoksa önce bu e-posta adresiyle kayıt ol, sonra bağlantıyı yeniden aç.\n\nBu daveti beklemiyorsanız e-postayı yok sayabilirsiniz.`,
+      html: `<p>${escapeHtml(u.email)} sizi AdScope ekibine davet etti. ${escapeHtml(roleSentence(role))}</p><p><a href="${link}">Daveti kabul et</a> (7 gün geçerli)</p><p>Bu daveti beklemiyorsanız e-postayı yok sayabilirsiniz.</p>`,
     });
     if (sent.ok) return { error: null, ok: `Davet ${email.data} adresine gönderildi.`, link };
   }
   return { error: null, ok: "Davet oluşturuldu. Bağlantıyı kopyalayıp ekip arkadaşınla paylaş; yalnızca bir kez gösterilir.", link };
+}
+
+function roleSentence(role: "viewer" | "editor") {
+  return role === "editor"
+    ? "Düzenleyici olarak ekibin alanında analiz başlatabilir ve kreatif üretebilirsiniz; kredi ekip sahibinin bakiyesinden düşer."
+    : "Ekip analizlerini ve raporlarını görüntüleyebilirsiniz.";
 }
 
 function escapeHtml(s: string) {
@@ -197,8 +208,34 @@ export async function teamAction(form: FormData) {
   const repo = getRepo();
   if (op === "revoke-invite") await repo.deleteTeamInvite(id.data);
   if (op === "remove-member") await repo.removeTeamMember(id.data);
-  if (op === "leave") await repo.leaveTeam(id.data);
+  if (op === "leave") {
+    await repo.leaveTeam(id.data);
+    const jar = await cookies();
+    if (jar.get(WORKSPACE_COOKIE)?.value === id.data) jar.delete(WORKSPACE_COOKIE);
+  }
+  if (op === "role") {
+    const role = z.enum(TEAM_ROLES).safeParse(form.get("role"));
+    if (role.success) await repo.setTeamMemberRole(id.data, role.data);
+  }
   revalidatePath("/panel/ekip");
+}
+
+/**
+ * Editor workspace switch. The cookie only names the team owner; every request checks again that the
+ * user is that team's editor (a removed or demoted member falls back to their own account).
+ */
+export async function switchWorkspaceAction(form: FormData) {
+  const u = await requireUser();
+  const jar = await cookies();
+  const owner = z.uuid().safeParse(form.get("ownerId"));
+  if (!owner.success || owner.data === u.id) {
+    jar.delete(WORKSPACE_COOKIE);
+    redirect("/panel");
+  }
+  const m = await getAdminRepo().getTeamMembership(owner.data, u.id);
+  if (!m || m.role !== "editor") redirect("/panel/ekip?alan=yetki");
+  jar.set(WORKSPACE_COOKIE, owner.data, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 30 });
+  redirect("/panel");
 }
 
 export async function acceptInviteAction(form: FormData) {
@@ -233,6 +270,38 @@ export async function revokeReviewShareAction(form: FormData) {
   const id = z.uuid().safeParse(form.get("id"));
   const analysisId = z.uuid().safeParse(form.get("analysisId"));
   if (id.success) await getRepo().revokeReviewShare(id.data);
+  if (analysisId.success) revalidatePath(`/panel/analiz/${analysisId.data}`);
+}
+
+// Client approval link (P12.1) -------------------------------------------------------------------
+const approvalSchema = z.object({
+  analysisId: z.uuid(),
+  days: z.coerce.number().int().min(1).max(APPROVAL_MAX_DAYS),
+  note: z.string().trim().max(500, "Not en fazla 500 karakter olabilir.").default(""),
+});
+
+export async function createApprovalLinkAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  await requireUser();
+  const parsed = approvalSchema.safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Bağlantı oluşturulamadı." };
+  const repo = getRepo();
+  const a = await repo.getAnalysis(parsed.data.analysisId);
+  if (!a || !a.ownedByMe || a.status !== "completed") return { error: "Bağlantı oluşturulamadı. Yalnızca tamamlanmış kendi analizlerin müşteriye gönderilebilir." };
+  const keys = approvalItems(a).map((i) => i.key);
+  const { token, hash } = newToken();
+  const expiresAt = new Date(Date.now() + parsed.data.days * 86400_000).toISOString();
+  const ok = await repo.createApprovalLink(a.id, hash, expiresAt, parsed.data.note || null, keys);
+  if (!ok) return { error: "Bağlantı oluşturulamadı. Lütfen tekrar deneyin." };
+  revalidatePath(`/panel/analiz/${a.id}`);
+  revalidatePath("/panel/gecmis");
+  return { error: null, ok: "Müşteri onay bağlantısı hazır. Bağlantı yalnızca bir kez gösterilir; kopyalayıp müşterinle paylaş.", link: `${siteUrl()}/onay/${token}` };
+}
+
+export async function revokeApprovalLinkAction(form: FormData) {
+  await requireUser();
+  const id = z.uuid().safeParse(form.get("id"));
+  const analysisId = z.uuid().safeParse(form.get("analysisId"));
+  if (id.success) await getRepo().revokeApprovalLink(id.data);
   if (analysisId.success) revalidatePath(`/panel/analiz/${analysisId.data}`);
 }
 

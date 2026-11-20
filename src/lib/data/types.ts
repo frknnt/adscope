@@ -62,12 +62,52 @@ export interface FindingFeedback {
   note: string | null;
 }
 
+/** viewer: read only. editor: may start analyses and generate, charged to the team owner's balance. */
+export type TeamRole = "viewer" | "editor";
+export const TEAM_ROLES = ["viewer", "editor"] as const;
+
 export interface TeamState {
-  members: { memberId: string; email: string; createdAt: string }[];
-  invites: { id: string; email: string; expiresAt: string }[];
-  /** Teams the user belongs to as a viewer. */
-  memberships: { ownerId: string; ownerLabel: string; createdAt: string }[];
+  members: { memberId: string; email: string; role: TeamRole; createdAt: string }[];
+  invites: { id: string; email: string; role: TeamRole; expiresAt: string }[];
+  /** Teams the user belongs to. */
+  memberships: { ownerId: string; ownerLabel: string; role: TeamRole; createdAt: string }[];
 }
+
+/** Client approval link (P12.1): the customer decides per item without an account. */
+export type ApprovalDecision = "approved" | "changes_requested" | "rejected";
+export interface ApprovalDecisionView {
+  itemKey: string;
+  decision: ApprovalDecision;
+  reviewerName: string;
+  comment: string | null;
+  updatedAt: string;
+}
+export interface ApprovalLinkView {
+  id: string;
+  analysisId: string;
+  note: string | null;
+  itemKeys: string[];
+  expiresAt: string;
+  revokedAt: string | null;
+  createdAt: string;
+  decisions: ApprovalDecisionView[];
+}
+export interface SharedApproval {
+  linkId: string;
+  analysis: AnalysisDetail;
+  branding: ReportBranding;
+  note: string | null;
+  itemKeys: string[];
+  expiresAt: string;
+  decisions: ApprovalDecisionView[];
+}
+export interface ApprovalSubmission {
+  reviewerName: string;
+  items: { itemKey: string; decision: ApprovalDecision; comment: string | null }[];
+}
+export type ApprovalSubmitResult =
+  | { ok: true; ownerId: string; analysisId: string; linkId: string; itemKeys: string[]; decisions: ApprovalDecisionView[] }
+  | { ok: false; code: "invalid" | "bad_items" | "error" };
 
 export interface ReviewShare {
   id: string;
@@ -454,7 +494,9 @@ export interface DataRepo {
 
   getTeam(): Promise<TeamState>;
   /** Stores the SHA-256 of an invite token for an e-mail address. */
-  createTeamInvite(email: string, tokenHash: string, expiresAt: string): Promise<"ok" | "limit" | "self" | "exists" | "error">;
+  createTeamInvite(email: string, tokenHash: string, expiresAt: string, role?: TeamRole): Promise<"ok" | "limit" | "self" | "exists" | "error">;
+  /** Owner only: switches a member between viewer and editor. */
+  setTeamMemberRole(memberId: string, role: TeamRole): Promise<boolean>;
   deleteTeamInvite(id: string): Promise<boolean>;
   removeTeamMember(memberId: string): Promise<boolean>;
   leaveTeam(ownerId: string): Promise<boolean>;
@@ -464,6 +506,13 @@ export interface DataRepo {
   createReviewShare(analysisId: string, tokenHash: string, expiresAt: string, note: string | null): Promise<boolean>;
   listReviewShares(analysisId: string): Promise<ReviewShare[]>;
   revokeReviewShare(id: string): Promise<boolean>;
+
+  /** Client approval links of the user's own completed analysis; itemKeys are fixed at creation. */
+  createApprovalLink(analysisId: string, tokenHash: string, expiresAt: string, note: string | null, itemKeys: string[]): Promise<boolean>;
+  listApprovalLinks(analysisId: string): Promise<ApprovalLinkView[]>;
+  revokeApprovalLink(id: string): Promise<boolean>;
+  /** Every approval link and decision of the user's own analyses (for list badges). */
+  listApprovalOverview(): Promise<{ analysisId: string; itemKeys: string[]; decisions: ApprovalDecisionView[] }[]>;
 
   listApiKeys(): Promise<ApiKeyView[]>;
   createApiKey(name: string, prefix: string, keyHash: string): Promise<"ok" | "limit" | "error">;
@@ -701,10 +750,20 @@ export interface AdminRepo {
   getSharedReview(tokenHash: string): Promise<SharedReview | null>;
   /** Creative / frame / screenshot bytes behind a valid review link (does not count a view). */
   getSharedAssetBytes(tokenHash: string, which?: number | "screenshot"): Promise<{ bytes: Uint8Array; mime: string } | null>;
+  /** Client approval link: valid, unrevoked, unexpired token → items and decisions so far. */
+  getApprovalLink(tokenHash: string): Promise<SharedApproval | null>;
+  getApprovalAssetBytes(tokenHash: string, which?: number): Promise<{ bytes: Uint8Array; mime: string } | null>;
+  /** Stores the customer's decisions (one per item, the latest replaces the previous). */
+  submitApproval(tokenHash: string, input: ApprovalSubmission): Promise<ApprovalSubmitResult>;
+  /** Role of a member in an owner's team (null when not a member). */
+  getTeamMembership(ownerId: string, memberId: string): Promise<{ role: TeamRole; ownerLabel: string } | null>;
   /** API key → the key owner (touches last_used_at). Null when unknown or revoked. */
   resolveApiKey(keyHash: string): Promise<SessionUser | null>;
-  /** A data repo acting as this user without a browser session (enterprise API). */
-  repoForUser(user: SessionUser): DataRepo;
+  /**
+   * A data repo acting as this user without a browser session (enterprise API, editor workspace).
+   * actorId: the team editor who acts in the owner's workspace; recorded as created_by.
+   */
+  repoForUser(user: SessionUser, opts?: { actorId?: string }): DataRepo;
   // Scale (P7.1) --------------------------------------------------------------------------------
   /** Shared fixed-window limiter across instances. Keys are hashes, never raw e-mails or IPs. */
   rateLimitHit(key: string, limit: number, windowSec: number): Promise<{ ok: boolean; retryAfterSec: number }>;

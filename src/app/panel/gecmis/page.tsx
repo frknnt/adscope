@@ -7,6 +7,7 @@ import { filterReports, parseReportFilters, type ReportFilters } from "@/lib/pan
 import { PLATFORM_IDS, PLATFORM_SHORT } from "@/lib/platforms";
 import { requirePanelUser } from "@/app/panel/guard";
 import { ReportsView } from "./reports-view";
+import { badgesByAnalysis } from "@/lib/approval";
 
 export const metadata = { title: "Raporlar" };
 
@@ -26,7 +27,8 @@ function hrefWith(f: ReportFilters, patch: Partial<ReportFilters>) {
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requirePanelUser();
   const repo = getRepo();
-  const [all, brands, profile, sp] = await Promise.all([repo.listAnalyses(200), repo.listBrands(), repo.getProfile(), searchParams]);
+  const [all, brands, profile, sp, approvalRows] = await Promise.all([repo.listAnalyses(200), repo.listBrands(), repo.getProfile(), searchParams, repo.listApprovalOverview()]);
+  const approvals = badgesByAnalysis(approvalRows);
   const f = parseReportFilters(sp);
   const items = filterReports(all, f);
   const filtered = !!(f.q || f.brand || f.platform || f.risk);
@@ -113,7 +115,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           </p>
           <div className="mt-2">
             {items.length ? (
-              <ReportsView items={items} view={f.view} brands={brandNames} />
+              <ReportsView items={items} view={f.view} brands={brandNames} approvals={approvals} />
             ) : (
               <EmptyState title="Bu süzgece uyan rapor yok." action={<ButtonLink href={hrefWith({ ...f, q: "", brand: null, platform: null, risk: null }, {})} variant="ghost">Süzgeçleri temizle</ButtonLink>}>
                 Arama metnini kısalt ya da bir süzgeci kaldır.
