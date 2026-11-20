@@ -9,6 +9,7 @@ import { COPY_LIMITS } from "@/lib/copy/limits";
 import { getRepo } from "@/lib/data";
 import { PLATFORM_SHORT } from "@/lib/platforms";
 import type { ScriptStored } from "@/lib/script/service";
+import { getTtsProvider, type VoiceoverStored } from "@/lib/speech/voiceover";
 import { CampaignPackage } from "./campaign-package";
 import { CopyForm } from "./copy-form";
 import { CopyResults } from "./copy-results";
@@ -33,6 +34,16 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
   const result = resultId && /^[0-9a-f-]{36}$/i.test(resultId) ? await repo.getGeneration(resultId) : null;
   const stored = result?.kind === "copy" ? (result.output as unknown as CopyStored) : null;
   const storedScript = result?.kind === "script" ? (result.output as unknown as ScriptStored) : null;
+  const scriptVoiceovers =
+    storedScript && result
+      ? (await repo.listGenerations("voiceover", 50))
+          .filter((g) => (g.output as unknown as VoiceoverStored).scriptId === result.id)
+          .map((g) => {
+            const v = g.output as unknown as VoiceoverStored;
+            return { id: g.id, createdAt: g.createdAt, voice: v.voice, speed: v.speed, scenes: v.scenes.map((s) => ({ index: s.index, seconds: s.seconds, overrun: s.overrun })) };
+          })
+      : [];
+  const scriptSector = storedScript && result ? (brands.find((b) => b.id === result.brandId)?.sector ?? storedScript.input.sector ?? profile?.defaultSector ?? "genel") : "genel";
 
   return (
     <div>
@@ -123,7 +134,11 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
             <h2 id="senaryo-baslik" className="font-display text-2xl font-semibold">{storedScript ? `Senaryo: ${storedScript.input.productName || "ürün"}` : "Senaryo"}</h2>
             <div className="mt-4">
               {storedScript ? (
-                <ScriptResults script={storedScript.script} aiFailed={storedScript.aiFailed} />
+                <ScriptResults
+                  script={storedScript.script}
+                  aiFailed={storedScript.aiFailed}
+                  voice={result?.platform ? { scriptId: result.id, sector: scriptSector, platform: result.platform, enabled: Boolean(getTtsProvider()), balance, voiceovers: scriptVoiceovers } : undefined}
+                />
               ) : (
                 <p className="rounded-2xl border border-dashed border-line-strong bg-card px-6 py-10 text-center text-ink-soft">
                   Soldaki formu doldur. 15, 30 ya da 45 saniyelik senaryo sahne sahne listelenir: görüntü, ekran yazısı, dış ses ve süre. Dış sesi SRT altyazı olarak indirebilirsin.

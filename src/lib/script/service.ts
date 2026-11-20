@@ -23,7 +23,7 @@ export interface ScriptRequest {
 }
 
 export interface ScriptStored {
-  input: { productName: string; audience: string | null; aiPersonOrVoice: boolean };
+  input: { productName: string; audience: string | null; aiPersonOrVoice: boolean; sector?: Sector };
   script: ScriptOutput;
   aiFailed?: boolean;
 }
@@ -69,7 +69,7 @@ export async function runScriptGeneration(repo: DataRepo, req: ScriptRequest): P
   if (!script) script = templateScript(ctx, rules);
 
   const cost = script.source === "ai" ? SCRIPT_CREDIT_COST : 0;
-  const stored: ScriptStored = { input: { productName: ctx.product.name, audience: req.audience?.name ?? null, aiPersonOrVoice: req.aiPersonOrVoice }, script, ...(aiFailed ? { aiFailed } : {}) };
+  const stored: ScriptStored = { input: { productName: ctx.product.name, audience: req.audience?.name ?? null, aiPersonOrVoice: req.aiPersonOrVoice, sector }, script, ...(aiFailed ? { aiFailed } : {}) };
   const rec = await repo.recordGeneration({ clientRequestId: req.requestId, kind: "script", creditCost: cost, brandId: brand?.id ?? null, platform: req.platform, output: stored as unknown as Record<string, unknown> });
   if (rec.status === "insufficient_credits") return { ok: false, error: "Kredin yetersiz. Senaryo kaydedilmedi ve kredi düşülmedi." };
   if (rec.status !== "created" && rec.status !== "exists") return { ok: false, error: "Senaryo kaydedilemedi. Kredi düşülmedi; lütfen tekrar dene." };

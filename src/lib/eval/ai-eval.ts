@@ -9,7 +9,7 @@ import { CREDIT_PACKAGES } from "@/lib/payments/packages";
 import { PLATFORM_IDS } from "@/lib/platforms";
 import { SECTOR_IDS } from "@/lib/sectors";
 
-export const EVAL_KINDS = ["analysis", "copy", "script", "gemini_image", "photoroom"] as const;
+export const EVAL_KINDS = ["analysis", "copy", "script", "gemini_image", "photoroom", "tts"] as const;
 export type EvalKind = (typeof EVAL_KINDS)[number] | "gemini_video";
 
 export const KIND_LABEL: Record<EvalKind, string> = {
@@ -18,6 +18,7 @@ export const KIND_LABEL: Record<EvalKind, string> = {
   script: "Video senaryosu",
   gemini_image: "Gemini görsel (1 adet)",
   photoroom: "Photoroom arka plan kaldırma",
+  tts: "Türkçe dış ses (Gemini TTS, 1 satır)",
   gemini_video: "Gemini video (1 adet, isteğe bağlı)",
 };
 
@@ -28,6 +29,7 @@ export const KIND_KEYS: Record<EvalKind, string> = {
   script: "ANTHROPIC_API_KEY",
   gemini_image: "GEMINI_API_KEY",
   photoroom: "PHOTOROOM_API_KEY",
+  tts: "GEMINI_API_KEY",
   gemini_video: "GEMINI_API_KEY",
 };
 
@@ -122,6 +124,9 @@ export interface Prices {
   geminiImageUsd: number;
   geminiVideoUsdPerSec: number;
   photoroomSegmentUsd: number;
+  /** Gemini TTS: USD per 1M input text tokens and per 1M output audio tokens (25 tokens per second). */
+  ttsInputUsdPerMTok: number;
+  ttsAudioUsdPerMTok: number;
   /** Photoroom Image Editing calls (new background, upscale) bill as this many segment calls. */
   photoroomEditMultiplier: number;
   vatRate: number;
@@ -157,6 +162,9 @@ export function pricesFromEnv(model: string, env: Record<string, string | undefi
       geminiImageUsd: num(env.EVAL_GEMINI_IMAGE_USD, 0.034),
       geminiVideoUsdPerSec: num(env.EVAL_GEMINI_VIDEO_USD_PER_SEC, 0.07),
       photoroomSegmentUsd: num(env.EVAL_PHOTOROOM_SEGMENT_USD, 0.02),
+      // Gemini 3.8 Flash TTS list price until 31.12.2026 (doubles from 01.01.2027).
+      ttsInputUsdPerMTok: num(env.EVAL_TTS_INPUT_USD_PER_MTOK, 0.5),
+      ttsAudioUsdPerMTok: num(env.EVAL_TTS_AUDIO_USD_PER_MTOK, 9),
       photoroomEditMultiplier: num(env.EVAL_PHOTOROOM_EDIT_MULTIPLIER, 5),
       vatRate: num(env.EVAL_VAT_RATE, 0.2),
       paymentFeeRate: num(env.EVAL_PAYMENT_FEE, 0.05),
@@ -330,7 +338,7 @@ export interface ReportInput {
   date: string;
   anthropicModel: string;
   anthropicKnown: boolean;
-  geminiModels: { image: string; video: string } | null;
+  geminiModels: { image: string; video: string; tts?: string } | null;
   prices: Prices;
   records: EvalRecord[];
   /** Credits charged today for each kind. */
@@ -354,7 +362,7 @@ export function renderReport(r: ReportInput): string {
   L.push("## Varsayımlar");
   L.push("");
   L.push(`- Anthropic modeli: \`${r.anthropicModel}\`, liste fiyatı ${dec(p.anthropic.input)} $ / ${dec(p.anthropic.output)} $ (1M girdi / çıktı token)${r.anthropicKnown ? "" : " **(fiyat bilinmiyor, EVAL_ANTHROPIC_PRICE ile ver)**"}.`);
-  if (r.geminiModels) L.push(`- Gemini modelleri: görsel \`${r.geminiModels.image}\`, video \`${r.geminiModels.video}\`; görsel başına ${dec(p.geminiImageUsd)} $, video saniyesi ${dec(p.geminiVideoUsdPerSec)} $ (resmî fiyat sayfasıyla doğrulanmalı).`);
+  if (r.geminiModels) L.push(`- Gemini modelleri: görsel \`${r.geminiModels.image}\`, video \`${r.geminiModels.video}\`${r.geminiModels.tts ? `, ses \`${r.geminiModels.tts}\`` : ""}; görsel başına ${dec(p.geminiImageUsd)} $, video saniyesi ${dec(p.geminiVideoUsdPerSec)} $, ses ${dec(p.ttsInputUsdPerMTok)} $ / ${dec(p.ttsAudioUsdPerMTok)} $ (1M metin / ses token, saniyede 25 ses token) (resmî fiyat sayfasıyla doğrulanmalı).`);
   L.push(`- Photoroom: arka plan kaldırma çağrısı ${dec(p.photoroomSegmentUsd)} $, düzenleme çağrısı bunun ${p.photoroomEditMultiplier} katı (hesap sözleşmesiyle doğrulanmalı).`);
   L.push(`- Kur ${dec(p.usdTry)} TL/$. Kredi geliri en ucuz paketten, KDV (%${Math.round(p.vatRate * 100)}) ve ödeme komisyonu (%${Math.round(p.paymentFeeRate * 100)}) düşülerek: kredi başına ${tr2(net)} TL.`);
   L.push("");

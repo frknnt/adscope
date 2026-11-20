@@ -135,7 +135,7 @@ export interface BrandTemplate {
 }
 export type CreateTemplateResult = { status: "created"; template: BrandTemplate } | { status: "limit" | "brand_not_found" | "error" };
 
-export type GenerationKind = "copy" | "creative" | "photo" | "tool" | "script" | "ai_image" | "ai_video" | "campaign";
+export type GenerationKind = "copy" | "creative" | "photo" | "tool" | "script" | "ai_image" | "ai_video" | "campaign" | "voiceover";
 
 /** A paid output that is not an analysis (ad copy, creative download, product photo). */
 export interface GenerationRecord {

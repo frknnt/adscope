@@ -27,7 +27,7 @@ describe("ai-eval arguments and guards", () => {
   it("does nothing paid without --confirm and validates options", () => {
     const d = parseEvalArgs([]);
     expect(d.ok && d.args.confirm).toBe(false);
-    expect(d.ok && d.args.kinds).toEqual(["analysis", "copy", "script", "gemini_image", "photoroom"]);
+    expect(d.ok && d.args.kinds).toEqual(["analysis", "copy", "script", "gemini_image", "photoroom", "tts"]);
     const c = parseEvalArgs(["--confirm", "--only", "analysis,photoroom", "--limit=3", "--video"]);
     expect(c.ok && c.args).toMatchObject({ confirm: true, kinds: ["analysis", "photoroom"], limit: 3, video: true });
     expect(parseEvalArgs(["--only", "analysis,foo"]).ok).toBe(false);
@@ -37,7 +37,7 @@ describe("ai-eval arguments and guards", () => {
   });
 
   it("names exactly the keys the chosen calls need, and spots fake endpoints", () => {
-    const all = { kinds: ["analysis", "copy", "script", "gemini_image", "photoroom"] as const, video: false };
+    const all = { kinds: ["analysis", "copy", "script", "gemini_image", "photoroom", "tts"] as const, video: false };
     expect(missingKeys({ ...all, kinds: [...all.kinds] }, {})).toEqual(["ANTHROPIC_API_KEY", "GEMINI_API_KEY", "PHOTOROOM_API_KEY"]);
     expect(missingKeys({ kinds: ["analysis"], video: false }, { ANTHROPIC_API_KEY: "k" })).toEqual([]);
     expect(missingKeys({ kinds: ["analysis"], video: true }, { ANTHROPIC_API_KEY: "k", GEMINI_API_KEY: " " })).toEqual(["GEMINI_API_KEY"]);

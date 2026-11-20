@@ -4,12 +4,12 @@
  *   npm run ai:eval                      -> shows the plan and the price estimate, calls nothing
  *   npm run ai:eval -- --confirm         -> runs every call once with the real APIs (costs money)
  *
- * Options: --only analysis,copy,script,gemini_image,photoroom   --limit 1..20   --concurrency 1..4
+ * Options: --only analysis,copy,script,gemini_image,photoroom,tts   --limit 1..20   --concurrency 1..4
  *          --video (one extra Gemini video, about 0.7 $)   --out docs/OLCUM.md
  *
  * For each of the 20 Turkish sample ads in tests/fixtures/ai-eval it runs the AI analysis, the
  * copy generation, a video script, one Gemini image around the product photo and one Photoroom
- * background removal, then writes duration, tokens or requests, schema validation, the rule
+ * background removal and one Turkish voice-over line (Gemini TTS), then writes duration, tokens or requests, schema validation, the rule
  * engine's red/yellow flags and the estimated TL cost to docs/OLCUM.md.
  *
  * Refuses to run without --confirm, when a needed key is missing, or when an endpoint override
@@ -52,9 +52,11 @@ import { RULE_CATALOG } from "../src/lib/rules/catalog";
 import { processAiScript, type ScriptContext } from "../src/lib/script/generate";
 import { SCRIPT_CREDIT_COST } from "../src/lib/script/service";
 import { readDimensions } from "../src/lib/security/file-validation";
+import { VOICEOVER_CREDIT_COST } from "../src/lib/speech/costs";
+import { geminiTtsFromEnv, type GeminiTtsProvider } from "../src/lib/speech/gemini-tts";
 
 const FIXTURES = "tests/fixtures/ai-eval";
-const HELP = `Kullanım: npm run ai:eval -- [--confirm] [--only analysis,copy,script,gemini_image,photoroom] [--limit N] [--concurrency N] [--video] [--out docs/OLCUM.md]`;
+const HELP = `Kullanım: npm run ai:eval -- [--confirm] [--only analysis,copy,script,gemini_image,photoroom,tts] [--limit N] [--concurrency N] [--video] [--out docs/OLCUM.md]`;
 
 const money = (n: number) => n.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const parsed = parseEvalArgs(process.argv.slice(2));
@@ -74,11 +76,13 @@ const { prices, anthropicKnown } = pricesFromEnv(model, process.env);
 const ads = EvalAdsSchema.parse(JSON.parse(readFileSync(`${FIXTURES}/ads.json`, "utf8"))).slice(0, args.limit);
 const geminiPerAd = args.kinds.includes("gemini_image") ? prices.geminiImageUsd : 0;
 const photoroomPerAd = args.kinds.includes("photoroom") ? prices.photoroomSegmentUsd : 0;
+// Upper bound for one line of at most 300 characters read in about 25 seconds.
+const ttsPerAd = args.kinds.includes("tts") ? (25 * 25 * prices.ttsAudioUsdPerMTok + 100 * prices.ttsInputUsdPerMTok) / 1e6 : 0;
 const videoUsd = args.video ? 10 * prices.geminiVideoUsdPerSec : 0;
 const textCalls = args.kinds.filter((k) => k === "analysis" || k === "copy" || k === "script").length;
 
 console.log(`Plan: ${ads.length} örnek reklam, çağrılar: ${args.kinds.map((k) => KIND_LABEL[k]).join(", ")}${args.video ? ", 1 video" : ""}.`);
-console.log(`Toplam ${ads.length * args.kinds.length + (args.video ? 1 : 0)} ücretli çağrı. Gemini ve Photoroom için tahmini üst sınır ${money((geminiPerAd + photoroomPerAd) * ads.length + videoUsd)} $; ${textCalls ? `Anthropic (${model}) token sayısına bağlı, kabaca çağrı başına 0,05-0,25 $.` : ""}`);
+console.log(`Toplam ${ads.length * args.kinds.length + (args.video ? 1 : 0)} ücretli çağrı. Gemini ve Photoroom için tahmini üst sınır ${money((geminiPerAd + photoroomPerAd + ttsPerAd) * ads.length + videoUsd)} $; ${textCalls ? `Anthropic (${model}) token sayısına bağlı, kabaca çağrı başına 0,05-0,25 $.` : ""}`);
 console.log(`Kredi başına net gelir varsayımı: ${money(netTlPerCredit(prices))} TL.`);
 
 if (!args.confirm) {
@@ -103,6 +107,7 @@ if (textCalls && !anthropicKnown) {
 const anthropic = new AnthropicProvider(process.env.ANTHROPIC_API_KEY, model);
 const gemini: GeminiProvider | null = geminiFromEnv();
 const photoroom: PhotoroomProvider | null = photoroomFromEnv();
+const tts: GeminiTtsProvider | null = geminiTtsFromEnv();
 const allRules: RuleRecord[] = RULE_CATALOG.filter((r) => r.status === "active" || r.status === "requires_review").map((r) => ({ ...r, versionId: `eval-${r.id}-v${r.version}` }));
 const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" }).format(new Date());
 const NO_FLAGS = { influencerPost: false, aiHumanCharacter: false, aiRealPersonCopy: false };
@@ -242,12 +247,35 @@ async function runPhotoroom(ad: EvalAd): Promise<EvalRecord> {
   return rec;
 }
 
+async function runTts(ad: EvalAd): Promise<EvalRecord> {
+  const rec = base(ad, "tts");
+  if (tts)
+    tts.onResponse = (json) => {
+      if (!shapes.some((s) => s.label === "Gemini ses yanıtı")) shapes.push({ label: "Gemini ses yanıtı", lines: describeShape(json), usage: usageNumbers(json) });
+    };
+  // The ad's own text stands in for a voice-over line; only its length and the audio length are kept.
+  const text = ad.primaryText.replace(/\s+/g, " ").trim().slice(0, 300);
+  const started = Date.now();
+  const res = await tts!.synthesize({ text, voice: "Kore", speed: "normal" });
+  rec.ms = Date.now() - started;
+  rec.ok = res.ok;
+  rec.reason = res.ok ? null : res.reason;
+  rec.schemaOk = res.ok;
+  if (res.ok) {
+    rec.inputTokens = Math.ceil(text.length / 4);
+    rec.outputTokens = Math.round(res.durationSec * 25);
+    rec.costUsd = (rec.inputTokens * prices.ttsInputUsdPerMTok + rec.outputTokens * prices.ttsAudioUsdPerMTok) / 1e6;
+  }
+  return rec;
+}
+
 const RUNNERS: Record<Exclude<EvalKind, "gemini_video">, (ad: EvalAd) => Promise<EvalRecord>> = {
   analysis: runAnalysis,
   copy: runCopy,
   script: runScript,
   gemini_image: runGeminiImage,
   photoroom: runPhotoroom,
+  tts: runTts,
 };
 
 async function safely(ad: EvalAd, kind: EvalKind, fn: () => Promise<EvalRecord>): Promise<EvalRecord> {
@@ -302,7 +330,7 @@ async function main() {
     date: today,
     anthropicModel: model,
     anthropicKnown,
-    geminiModels: gemini ? { image: gemini.imageModel, video: gemini.videoModel } : null,
+    geminiModels: gemini ? { image: gemini.imageModel, video: gemini.videoModel, tts: tts?.model } : null,
     prices,
     records,
     currentCredits: {
@@ -311,6 +339,7 @@ async function main() {
       script: SCRIPT_CREDIT_COST,
       gemini_image: GENAI_OPS.ai_image.creditsPerResult,
       photoroom: IMAGE_OPS.remove_background.credits,
+      tts: VOICEOVER_CREDIT_COST,
       gemini_video: GENAI_OPS.ai_video.creditsPerResult,
     },
     shapes,

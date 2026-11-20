@@ -3,7 +3,11 @@
 import { Disclaimer } from "@/components/ui";
 import type { ScriptOutput } from "@/lib/script/generate";
 import { toSrt } from "@/lib/script/srt";
+import { AI_VOICE_NOTICE } from "@/lib/speech/voices";
 import { CopyButton } from "../forms";
+import { AiVoiceNotice, VoicePanel, type VoiceoverView } from "./voice-panel";
+
+type VoiceProps = Omit<Parameters<typeof VoicePanel>[0], "scenes"> & { voiceovers: VoiceoverView[] };
 
 const RISK = {
   ok: { label: "Kural uyarısı yok", cls: "bg-green-tint text-green" },
@@ -22,14 +26,16 @@ function download(text: string, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function ScriptResults({ script, aiFailed }: { script: ScriptOutput; aiFailed?: boolean }) {
-  const plain = script.scenes
-    .map((s, i) => `${i + 1}. sahne (${sec(s.start)}–${sec(s.end)})\nGörüntü: ${s.visual}\nEkran yazısı: ${s.onScreen || "-"}\nDış ses: ${s.voiceover || "-"}`)
-    .join("\n\n");
+export function ScriptResults({ script, aiFailed, voice }: { script: ScriptOutput; aiFailed?: boolean; voice?: VoiceProps }) {
+  const voiced = Boolean(voice?.voiceovers.length);
+  const plain =
+    script.scenes.map((s, i) => `${i + 1}. sahne (${sec(s.start)}–${sec(s.end)})\nGörüntü: ${s.visual}\nEkran yazısı: ${s.onScreen || "-"}\nDış ses: ${s.voiceover || "-"}`).join("\n\n") +
+    (voiced ? `\n\n${AI_VOICE_NOTICE}` : "");
   const hasVoice = script.scenes.some((s) => s.voiceover);
   const hasText = script.scenes.some((s) => s.onScreen);
   return (
     <div className="grid gap-5">
+      {voiced ? <AiVoiceNotice /> : null}
       {script.warnings.length ? (
         <ul className="grid gap-2" aria-label="Senaryo uyarıları">
           {script.warnings.map((w) => (
@@ -79,6 +85,7 @@ export function ScriptResults({ script, aiFailed }: { script: ScriptOutput; aiFa
           </li>
         ))}
       </ol>
+      {voice ? <VoicePanel {...voice} scenes={script.scenes} /> : null}
       <Disclaimer />
     </div>
   );
